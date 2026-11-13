@@ -16,8 +16,10 @@ import { ProfilBoard } from "@/components/profil/ProfilBoard";
 
 export default async function ProfilPage() {
   const supabase = await createClient();
+  const { data: userData } = await supabase.auth.getUser();
   const dossier = await getDossierForUser(supabase);
   if (!dossier) redirect("/import");
+  if (dossier.ownerId !== userData.user?.id) redirect("/parcours");
 
   const [identity, profile, fsw, history, addresses, steps, documents, gaps, savings] = await Promise.all([
     getIdentity(supabase, dossier.id),

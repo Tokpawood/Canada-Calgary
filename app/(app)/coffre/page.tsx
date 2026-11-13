@@ -5,8 +5,10 @@ import { VaultBoard } from "@/components/coffre/VaultBoard";
 
 export default async function CoffrePage() {
   const supabase = await createClient();
+  const { data: userData } = await supabase.auth.getUser();
   const dossier = await getDossierForUser(supabase);
   if (!dossier) redirect("/import");
+  if (dossier.ownerId !== userData.user?.id) redirect("/parcours");
 
   const [files, { data: docs }] = await Promise.all([
     getVaultFiles(supabase, dossier.id),
