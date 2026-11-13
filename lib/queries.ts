@@ -1,5 +1,19 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { AddressEntry, Dossier, HistoryEntry, Saving, Step, SubTask, Link as StepLink } from "./types";
+import type {
+  AddressEntry,
+  Contact,
+  DocumentCheck,
+  DocumentRecord,
+  Dossier,
+  Gap,
+  HistoryEntry,
+  Identity,
+  Saving,
+  Step,
+  SubTask,
+  VaultFile,
+  Link as StepLink,
+} from "./types";
 
 function mapDossier(row: Record<string, unknown>): Dossier {
   return {
@@ -92,6 +106,120 @@ export function mapHistory(row: Record<string, unknown>): HistoryEntry {
     place: (row.place as string) ?? "",
     parallel: Boolean(row.parallel),
   };
+}
+
+export async function getDocumentsWithDetails(supabase: SupabaseClient, dossierId: string): Promise<DocumentRecord[]> {
+  const { data: docs } = await supabase.from("document").select("*").eq("dossier_id", dossierId).order("position");
+  const ids = (docs ?? []).map((d) => d.id as string);
+
+  const [{ data: checks }, { data: links }, { data: files }] = await Promise.all([
+    ids.length
+      ? supabase.from("document_check").select("id,document_id,text,done,position").in("document_id", ids).order("position")
+      : Promise.resolve({ data: [] as Record<string, unknown>[] }),
+    ids.length
+      ? supabase.from("document_link").select("id,document_id,label,url,position").in("document_id", ids).order("position")
+      : Promise.resolve({ data: [] as Record<string, unknown>[] }),
+    ids.length
+      ? supabase.from("file").select("*").in("document_id", ids).order("uploaded_at")
+      : Promise.resolve({ data: [] as Record<string, unknown>[] }),
+  ]);
+
+  const checksByDoc = groupBy(checks ?? [], (c) => c.document_id as string);
+  const linksByDoc = groupBy(links ?? [], (l) => l.document_id as string);
+  const filesByDoc = groupBy(files ?? [], (f) => f.document_id as string);
+
+  return (docs ?? []).map((d) =>
+    mapDocument(
+      d,
+      checksByDoc.get(d.id as string) ?? [],
+      linksByDoc.get(d.id as string) ?? [],
+      filesByDoc.get(d.id as string) ?? [],
+    ),
+  );
+}
+
+function mapDocument(
+  row: Record<string, unknown>,
+  checks: Record<string, unknown>[],
+  links: Record<string, unknown>[],
+  files: Record<string, unknown>[],
+): DocumentRecord {
+  return {
+    id: row.id as string,
+    dossierId: row.dossier_id as string,
+    name: row.name as string,
+    status: row.status as DocumentRecord["status"],
+    use: (row.use_ as string) ?? "",
+    from: (row.from_org as string) ?? "",
+    date: (row.date as string) ?? "",
+    notes: (row.notes as string) ?? "",
+    req: row.req as DocumentRecord["req"],
+    format: (row.format as string) ?? "",
+    validity: (row.validity as string) ?? "",
+    checks: checks.map(mapDocumentCheck),
+    links: links.map(mapLink),
+    files: files.map(mapVaultFile),
+  };
+}
+
+function mapDocumentCheck(row: Record<string, unknown>): DocumentCheck {
+  return { id: row.id as string, text: row.text as string, done: Boolean(row.done), position: Number(row.position ?? 0) };
+}
+
+export function mapVaultFile(row: Record<string, unknown>): VaultFile {
+  return {
+    id: row.id as string,
+    documentId: (row.document_id as string | null) ?? null,
+    storagePath: row.storage_path as string,
+    name: row.name as string,
+    size: Number(row.size ?? 0),
+    mime: row.mime as string,
+    uploadedAt: row.uploaded_at as string,
+  };
+}
+
+export async function getVaultFiles(supabase: SupabaseClient, dossierId: string): Promise<VaultFile[]> {
+  const { data } = await supabase.from("file").select("*").eq("dossier_id", dossierId).order("uploaded_at");
+  return (data ?? []).map(mapVaultFile);
+}
+
+export async function getGaps(supabase: SupabaseClient, dossierId: string): Promise<Gap[]> {
+  const { data } = await supabase.from("gap").select("*").eq("dossier_id", dossierId).order("position");
+  return (data ?? []).map((row) => ({
+    id: row.id as string,
+    dossierId: row.dossier_id as string,
+    text: row.text as string,
+    done: Boolean(row.done),
+  }));
+}
+
+export async function getIdentity(supabase: SupabaseClient, dossierId: string): Promise<Identity | null> {
+  const { data } = await supabase.from("identity").select("*").eq("dossier_id", dossierId).maybeSingle();
+  if (!data) return null;
+  return {
+    dossierId: data.dossier_id as string,
+    nom: (data.nom as string) ?? "",
+    prenoms: (data.prenoms as string) ?? "",
+    naissance: (data.naissance as string | null) ?? null,
+    lieu: (data.lieu as string) ?? "",
+    pere: (data.pere as string) ?? "",
+    mere: (data.mere as string) ?? "",
+    statut: (data.statut as string) ?? "",
+  };
+}
+
+export async function getContacts(supabase: SupabaseClient, dossierId: string): Promise<Contact[]> {
+  const { data } = await supabase.from("contact").select("*").eq("dossier_id", dossierId).order("position");
+  return (data ?? []).map((row) => ({
+    id: row.id as string,
+    dossierId: row.dossier_id as string,
+    org: (row.org as string) ?? "",
+    role: (row.role as string) ?? "",
+    contact: (row.contact as string) ?? "",
+    person: (row.person as string) ?? "",
+    next: (row.next as string) ?? "",
+    notes: (row.notes as string) ?? "",
+  }));
 }
 
 export function mapAddress(row: Record<string, unknown>): AddressEntry {
