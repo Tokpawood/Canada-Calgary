@@ -124,7 +124,7 @@
   --color-todo-bg: var(--todo-bg);
   --font-display: var(--font-bricolage), "Avenir Next", "Segoe UI", sans-serif;
   --font-body: var(--font-geist-sans), system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-  --font-mono-app: var(--font-geist-mono), ui-monospace, "SFMono-Regular", Menlo, monospace;
+  --font-mono: var(--font-geist-mono), ui-monospace, "SFMono-Regular", Menlo, monospace;
 }
 
 * {
@@ -158,7 +158,7 @@ h3 {
 }
 
 .mono {
-  font-family: var(--font-mono-app);
+  font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
   letter-spacing: 0.01em;
 }

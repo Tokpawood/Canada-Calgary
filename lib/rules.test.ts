@@ -17,8 +17,10 @@ import {
   historyGaps,
   isLate,
   isOpenStep,
+  nextOpenStep,
   nextStatusAfterTaskToggle,
   overallProgress,
+  phaseProgress,
   parseD,
   pd,
   safeUrl,
@@ -125,6 +127,18 @@ describe("retard et avancement des étapes", () => {
     expect(overallProgress(steps)).toBe(0.5);
   });
 
+  it("phaseProgress agrège par phase dans l'ordre d'apparition", () => {
+    const steps = [
+      step({ phase: "1. Mise en ordre", status: "Fait" }),
+      step({ phase: "2. Tests", status: "À faire", tasks: [] }),
+      step({ phase: "1. Mise en ordre", status: "À faire", tasks: [] }),
+    ];
+    expect(phaseProgress(steps)).toEqual([
+      { phase: "1. Mise en ordre", pct: 50 },
+      { phase: "2. Tests", pct: 0 },
+    ]);
+  });
+
   it("transitions automatiques de statut", () => {
     expect(nextStatusAfterTaskToggle("À faire", 1, 3)).toBe("En cours");
     expect(nextStatusAfterTaskToggle("En cours", 3, 3)).toBe("Fait");
@@ -136,6 +150,27 @@ describe("retard et avancement des étapes", () => {
     expect(autoFillActual({ planned: 1000, actual: null }, "Fait")).toBe(1000);
     expect(autoFillActual({ planned: 1000, actual: 500 }, "Fait")).toBe(500);
     expect(autoFillActual({ planned: 1000, actual: null }, "En cours")).toBeNull();
+  });
+});
+
+describe("nextOpenStep", () => {
+  it("choisit l'échéance la plus proche parmi les étapes ouvertes", () => {
+    const steps = [
+      step({ id: "a", status: "Fait", due: "2026-11-14" }),
+      step({ id: "b", status: "À faire", due: "2026-12-01" }),
+      step({ id: "c", status: "À faire", due: "2026-11-20" }),
+      step({ id: "d", status: "Si nécessaire", due: "2026-11-15" }),
+    ];
+    expect(nextOpenStep(steps, NOW)?.id).toBe("c");
+  });
+
+  it("retombe sur la première étape ouverte sans échéance s'il n'y en a aucune datée", () => {
+    const steps = [step({ id: "a", status: "À faire", due: null }), step({ id: "b", status: "En cours", due: null })];
+    expect(nextOpenStep(steps, NOW)?.id).toBe("a");
+  });
+
+  it("retourne null s'il n'y a plus d'étape ouverte", () => {
+    expect(nextOpenStep([step({ status: "Fait" })], NOW)).toBeNull();
   });
 });
 

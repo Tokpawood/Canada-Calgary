@@ -82,14 +82,19 @@ export function isLate(step: Pick<Step, "status" | "due">, now: Date = new Date(
   return isOpenStep(step.status) && d !== null && d < 0;
 }
 
-export function stepFraction(step: Pick<Step, "status" | "tasks">): number {
+interface StepProgressLike {
+  status: StepStatus;
+  tasks: Array<{ done: boolean }>;
+}
+
+export function stepFraction(step: StepProgressLike): number {
   if (step.status === "Fait") return 1;
   const tasks = step.tasks ?? [];
   if (!tasks.length) return 0;
   return tasks.filter((t) => t.done).length / tasks.length;
 }
 
-export function overallProgress(steps: Array<Pick<Step, "status" | "tasks">>): number {
+export function overallProgress(steps: StepProgressLike[]): number {
   const counted = steps.filter((s) => s.status !== "Si nécessaire");
   if (!counted.length) return 0;
   return counted.reduce((sum, s) => sum + stepFraction(s), 0) / counted.length;
@@ -97,6 +102,19 @@ export function overallProgress(steps: Array<Pick<Step, "status" | "tasks">>): n
 
 export function phaseAllDone(steps: Array<Pick<Step, "status">>): boolean {
   return steps.every((s) => !isOpenStep(s.status));
+}
+
+export function phaseProgress(steps: Array<StepProgressLike & { phase: string }>): Array<{ phase: string; pct: number }> {
+  const order: string[] = [];
+  const byPhase = new Map<string, StepProgressLike[]>();
+  for (const s of steps) {
+    if (!byPhase.has(s.phase)) {
+      byPhase.set(s.phase, []);
+      order.push(s.phase);
+    }
+    byPhase.get(s.phase)!.push(s);
+  }
+  return order.map((phase) => ({ phase, pct: Math.round(overallProgress(byPhase.get(phase)!) * 100) }));
 }
 
 /** Transitions automatiques déclenchées quand on coche/décoche une mini-étape. Ne touche jamais à Bloqué ni Si nécessaire. */
@@ -455,6 +473,18 @@ export function audit(input: AuditInput, now: Date = new Date()): AuditItem[] {
     .map((item, index) => ({ item, index }))
     .sort((a, b) => LEVEL_RANK[a.item.level] - LEVEL_RANK[b.item.level] || a.index - b.index)
     .map(({ item }) => item);
+}
+
+export function nextOpenStep<T extends Pick<Step, "status" | "due">>(steps: T[], now: Date = new Date()): T | null {
+  const open = steps.filter((s) => isOpenStep(s.status));
+  if (!open.length) return null;
+  return open.reduce((best, s) => {
+    const bd = daysUntil(best.due, now);
+    const sd = daysUntil(s.due, now);
+    if (sd === null) return best;
+    if (bd === null) return s;
+    return sd < bd ? s : best;
+  }, open[0]);
 }
 
 // ---------- budget ----------
