@@ -219,7 +219,7 @@ export function Drawer({
   }, [onClose]);
 
   return (
-    <div className="anim-fade fixed inset-0 z-50 flex justify-end bg-[#0b1119]/45 backdrop-blur-[2px]" onClick={onClose}>
+    <div className="anim-fade fixed inset-0 z-50 flex justify-end bg-black/55 backdrop-blur-[2px]" onClick={onClose}>
       <aside
         role="dialog"
         aria-modal="true"

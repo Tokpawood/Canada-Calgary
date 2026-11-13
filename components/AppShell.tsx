@@ -69,7 +69,7 @@ export function AppShell({
 
   return (
     <div className="min-h-screen lg:grid lg:grid-cols-[264px_minmax(0,1fr)]">
-      <aside className="no-print sticky top-0 hidden h-screen flex-col overflow-y-auto bg-night px-4 py-5 text-night-ink lg:flex">
+      <aside className="no-print sticky top-0 hidden h-screen flex-col overflow-y-auto border-r border-white/10 bg-night px-4 py-5 text-night-ink lg:flex">
         <Link href="/parcours" className="flex items-baseline gap-2 px-2 font-mono font-semibold">
           <span className="text-xl tracking-wide">ABJ</span>
           <span className="text-signal">→</span>
@@ -122,7 +122,7 @@ export function AppShell({
       </aside>
 
       <div className="min-w-0">
-        <header className="no-print sticky top-0 z-30 bg-night text-night-ink lg:hidden" style={{ paddingTop: "env(safe-area-inset-top, 0px)" }}>
+        <header className="no-print sticky top-0 z-30 border-b border-white/10 bg-night text-night-ink lg:hidden" style={{ paddingTop: "env(safe-area-inset-top, 0px)" }}>
           <div className="flex items-center justify-between gap-3 px-4 py-3">
             <Link href="/parcours" className="flex items-baseline gap-1.5 font-mono font-semibold">
               <span>ABJ</span>
