@@ -33,6 +33,18 @@ export async function getDossierForUser(supabase: SupabaseClient): Promise<Dossi
   return data ? mapDossier(data) : null;
 }
 
+export async function getSavings(supabase: SupabaseClient, dossierId: string): Promise<Saving[]> {
+  const { data } = await supabase.from("saving").select("*").eq("dossier_id", dossierId).order("position");
+  return (data ?? []).map((row) => ({
+    id: row.id as string,
+    dossierId: row.dossier_id as string,
+    label: (row.label as string) ?? "",
+    planned: row.planned == null ? null : Number(row.planned),
+    actual: row.actual == null ? null : Number(row.actual),
+    notes: (row.notes as string) ?? "",
+  }));
+}
+
 export async function getSavingsActual(supabase: SupabaseClient, dossierId: string): Promise<Array<Pick<Saving, "actual">>> {
   const { data } = await supabase.from("saving").select("actual").eq("dossier_id", dossierId);
   return data ?? [];

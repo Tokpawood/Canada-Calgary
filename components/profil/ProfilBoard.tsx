@@ -120,9 +120,17 @@ export function ProfilBoard({ dossier, initialIdentity, initialProfile, initialF
           <div className="rounded-2xl border border-line bg-surface p-4 shadow-[var(--shadow)]">
             <div className="flex items-center justify-between">
               <h3 className="text-base font-bold">Identité de référence</h3>
-              <button type="button" onClick={() => window.print()} className="no-print rounded-md bg-act-soft px-2.5 py-1 text-xs font-semibold text-act">
-                Imprimer / PDF
-              </button>
+              <div className="no-print flex gap-2">
+                <a href="/api/export/json" className="rounded-md bg-act-soft px-2.5 py-1 text-xs font-semibold text-act">
+                  Export JSON
+                </a>
+                <a href="/api/export/excel" className="rounded-md bg-act-soft px-2.5 py-1 text-xs font-semibold text-act">
+                  Export Excel
+                </a>
+                <button type="button" onClick={() => window.print()} className="rounded-md bg-act-soft px-2.5 py-1 text-xs font-semibold text-act">
+                  Imprimer / PDF
+                </button>
+              </div>
             </div>
             <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
               <TextField label="Nom" value={identity.nom} onChange={(v) => updateIdentity({ nom: v })} />
