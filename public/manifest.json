@@ -1,0 +1,11 @@
+{
+  "name": "Projet Canada Calgary",
+  "short_name": "Canada Calgary",
+  "description": "Suivi de l'immigration au Canada par Entrée express",
+  "start_url": "/parcours",
+  "display": "standalone",
+  "background_color": "#0f1c31",
+  "theme_color": "#0f1c31",
+  "lang": "fr",
+  "icons": []
+}
