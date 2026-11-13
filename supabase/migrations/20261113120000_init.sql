@@ -169,7 +169,7 @@ create table contact (
 create index contact_dossier_idx on contact(dossier_id);
 
 create table gap (
-  id uuid primary key default gen_random_uuid(),
+  id text primary key,
   dossier_id uuid not null references dossier(id) on delete cascade,
   text text not null,
   done boolean not null default false,
@@ -256,7 +256,13 @@ alter table history enable row level security;
 alter table address enable row level security;
 alter table reminder_log enable row level security;
 
-create policy dossier_select on dossier for select using (is_member(id));
+-- Référence directement owner_id/collaborator plutôt que is_member(id) : un insert().select()
+-- (INSERT ... RETURNING) ne voit pas encore la ligne qu'il vient de créer dans une sous-requête
+-- sur dossier exécutée au sein de la même commande, ce qui ferait échouer la policy à tort.
+create policy dossier_select on dossier for select using (
+  owner_id = auth.uid()
+  or exists (select 1 from collaborator where collaborator.dossier_id = dossier.id and collaborator.user_id = auth.uid())
+);
 create policy dossier_insert on dossier for insert with check (owner_id = auth.uid());
 create policy dossier_update on dossier for update using (is_titulaire(id));
 create policy dossier_delete on dossier for delete using (is_titulaire(id));
