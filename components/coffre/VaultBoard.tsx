@@ -1,10 +1,14 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { mapVaultFile } from "@/lib/queries";
 import { validateVaultFile } from "@/lib/fileSniff";
 import type { VaultFile } from "@/lib/types";
+import { timestamp } from "@/lib/ids";
+import { EmptyState, PageHeader } from "@/components/ui";
+import { FileDropzone, VaultFileRow, formatSize } from "@/components/FileDropzone";
+import { IconLock, IconShield } from "@/components/icons";
 
 function sanitizeName(name: string): string {
   return name.replace(/[^a-zA-Z0-9.\-_]/g, "_");
@@ -18,22 +22,22 @@ interface Props {
 
 export function VaultBoard({ dossierId, initialFiles, documentNames }: Props) {
   const [files, setFiles] = useState(initialFiles);
-  const [confirmId, setConfirmId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
-  const fileInput = useRef<HTMLInputElement>(null);
   const supabase = createClient();
 
   const groups = useMemo(() => {
     const map = new Map<string, VaultFile[]>();
     for (const f of files) {
-      const key = f.documentId ? documentNames[f.documentId] ?? "Document" : "Divers";
+      const key = f.documentId ? (documentNames[f.documentId] ?? "Document") : "Non rattachés";
       const list = map.get(key);
       if (list) list.push(f);
       else map.set(key, [f]);
     }
-    return Array.from(map.entries());
+    return Array.from(map.entries()).sort(([a], [b]) => (a === "Non rattachés" ? 1 : b === "Non rattachés" ? -1 : a.localeCompare(b, "fr")));
   }, [files, documentNames]);
+
+  const totalSize = files.reduce((s, f) => s + f.size, 0);
 
   async function handleUpload(fileList: FileList) {
     setUploading(true);
@@ -41,10 +45,10 @@ export function VaultBoard({ dossierId, initialFiles, documentNames }: Props) {
     for (const file of Array.from(fileList)) {
       const validation = await validateVaultFile(file);
       if (!validation.ok) {
-        setError(validation.reason ?? "Fichier refusé.");
+        setError(`${file.name} : ${validation.reason ?? "fichier refusé."}`);
         continue;
       }
-      const path = `${dossierId}/divers/${Date.now()}-${sanitizeName(file.name)}`;
+      const path = `${dossierId}/divers/${timestamp()}-${sanitizeName(file.name)}`;
       const { error: uploadErr } = await supabase.storage.from("coffre").upload(path, file, { contentType: validation.mime });
       if (uploadErr) {
         setError(uploadErr.message);
@@ -58,7 +62,6 @@ export function VaultBoard({ dossierId, initialFiles, documentNames }: Props) {
       if (data) setFiles((prev) => [...prev, mapVaultFile(data)]);
     }
     setUploading(false);
-    if (fileInput.current) fileInput.current.value = "";
   }
 
   async function openFile(path: string) {
@@ -67,53 +70,58 @@ export function VaultBoard({ dossierId, initialFiles, documentNames }: Props) {
   }
 
   async function deleteFile(id: string, path: string) {
-    if (confirmId !== id) {
-      setConfirmId(id);
-      return;
-    }
     setFiles((prev) => prev.filter((f) => f.id !== id));
     await Promise.all([supabase.storage.from("coffre").remove([path]), supabase.from("file").delete().eq("id", id)]);
-    setConfirmId(null);
   }
 
   return (
-    <div>
-      <div className="mb-4 rounded-2xl border border-line bg-surface p-4 shadow-[var(--shadow)]">
-        <h3 className="text-sm font-bold">Déposer un fichier non rattaché</h3>
-        <p className="mt-1 text-sm text-muted">PDF, JPEG, PNG ou WEBP, 20 Mo maximum. Pour rattacher un scan à un document précis, déposez-le depuis sa fiche dans l&apos;onglet Documents.</p>
-        <input
-          ref={fileInput}
-          type="file"
-          accept="application/pdf,image/jpeg,image/png,image/webp"
-          multiple
-          disabled={uploading}
-          onChange={(e) => e.target.files && handleUpload(e.target.files)}
-          className="mt-3 block w-full text-sm"
-        />
-        {error && <p className="mt-2 text-sm text-bad">{error}</p>}
-      </div>
+    <>
+      <PageHeader
+        title="Coffre"
+        description={
+          <>
+            {files.length} fichier{files.length > 1 ? "s" : ""} · {formatSize(totalSize)}. Stockage privé : chaque ouverture passe par un lien sécurisé valable 5 minutes.
+          </>
+        }
+      />
 
-      {groups.map(([group, groupFiles]) => (
-        <div key={group} className="mb-3.5 overflow-hidden rounded-2xl border border-line bg-surface shadow-[var(--shadow)]">
-          <h3 className="px-4 pt-3.5 pb-2 text-base font-bold">{group}</h3>
-          {groupFiles.map((f) => (
-            <div key={f.id} className="flex items-center gap-3 border-t border-line px-4 py-2.5">
-              <button type="button" onClick={() => openFile(f.storagePath)} className="flex-1 truncate text-left text-sm font-semibold text-act underline">
-                {f.name}
-              </button>
-              <span className="font-mono text-xs text-muted">{Math.round(f.size / 1024)} Ko</span>
-              <button
-                type="button"
-                onClick={() => deleteFile(f.id, f.storagePath)}
-                className={`rounded-md px-2 py-1 text-xs font-semibold ${confirmId === f.id ? "bg-bad text-white" : "bg-bad-bg text-bad"}`}
-              >
-                {confirmId === f.id ? "Confirmer" : "Supprimer"}
-              </button>
+      <div className="grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,1fr)_320px]">
+        <div className="min-w-0">
+          {groups.length === 0 ? (
+            <EmptyState icon={<IconLock size={20} />} title="Le coffre est vide">
+              Déposez un scan ci-contre, ou depuis la fiche d&apos;un document pour le lui rattacher.
+            </EmptyState>
+          ) : (
+            <div className="flex flex-col gap-4">
+              {groups.map(([group, groupFiles]) => (
+                <section key={group} className="card p-4">
+                  <div className="mb-2.5 flex items-baseline justify-between gap-2">
+                    <h2 className="truncate text-[15px] font-bold">{group}</h2>
+                    <span className="mono shrink-0 text-[12px] text-muted">{groupFiles.length}</span>
+                  </div>
+                  <ul className="grid grid-cols-1 gap-2 lg:grid-cols-2">
+                    {groupFiles.map((f) => (
+                      <VaultFileRow key={f.id} file={f} onOpen={() => openFile(f.storagePath)} onDelete={() => deleteFile(f.id, f.storagePath)} />
+                    ))}
+                  </ul>
+                </section>
+              ))}
             </div>
-          ))}
+          )}
         </div>
-      ))}
-      {groups.length === 0 && <p className="text-sm text-muted">Le coffre est vide.</p>}
-    </div>
+
+        <div className="flex flex-col gap-4 xl:sticky xl:top-6 xl:self-start">
+          <FileDropzone busy={uploading} onFiles={handleUpload} title="Déposer un fichier non rattaché" />
+          {error && <p className="rounded-lg bg-bad-bg px-3 py-2 text-[12.5px] text-bad">{error}</p>}
+          <div className="rounded-2xl border border-dashed border-line p-4 text-[12.5px] text-muted">
+            <p className="flex items-center gap-2 font-semibold text-ink">
+              <IconShield size={15} className="text-act" /> Bon à savoir
+            </p>
+            <p className="mt-1.5">Pour rattacher un scan à une pièce précise (passeport, diplôme…), déposez-le depuis sa fiche dans l&apos;onglet Documents.</p>
+            <p className="mt-1.5">Le type réel du fichier est vérifié avant l&apos;envoi : un fichier renommé en .pdf est refusé.</p>
+          </div>
+        </div>
+      </div>
+    </>
   );
 }

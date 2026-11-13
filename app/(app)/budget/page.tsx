@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getDossierForUser, getStepsWithDetails } from "@/lib/queries";
-import { budgetByPhase } from "@/lib/rules";
+import { budgetByPhase, isOpenStep } from "@/lib/rules";
 import { BudgetBoard } from "@/components/budget/BudgetBoard";
 
 export default async function BudgetPage() {
@@ -10,5 +10,11 @@ export default async function BudgetPage() {
   if (!dossier) redirect("/import");
 
   const steps = await getStepsWithDetails(supabase, dossier.id);
-  return <BudgetBoard dossier={dossier} rows={budgetByPhase(steps)} />;
+  const upcoming = steps
+    .filter((s) => isOpenStep(s.status) && (s.planned ?? 0) > 0 && s.actual == null)
+    .sort((a, b) => (a.due ?? "9999").localeCompare(b.due ?? "9999"))
+    .slice(0, 8)
+    .map((s) => ({ id: s.id, title: s.title, due: s.due, planned: s.planned ?? 0, phase: s.phase }));
+
+  return <BudgetBoard dossier={dossier} rows={budgetByPhase(steps)} upcoming={upcoming} />;
 }

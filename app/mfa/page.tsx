@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { AuthFrame } from "@/components/AuthFrame";
+import { IconShield } from "@/components/icons";
 
 type Phase = "loading" | "enroll" | "challenge" | "error";
 
@@ -15,10 +17,6 @@ export default function MfaPage() {
   const [code, setCode] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    void bootstrap();
-  }, []);
 
   async function bootstrap() {
     const supabase = createClient();
@@ -56,6 +54,12 @@ export default function MfaPage() {
     setPhase("enroll");
   }
 
+  useEffect(() => {
+    // bootstrap ne modifie l'état qu'après des appels réseau asynchrones
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    void bootstrap();
+  }, []);
+
   async function handleVerify(e: React.FormEvent) {
     e.preventDefault();
     if (!factorId) return;
@@ -73,55 +77,71 @@ export default function MfaPage() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-bg px-4">
-      <div className="w-full max-w-sm rounded-xl border border-line bg-surface p-6 shadow-[var(--shadow)]">
-        <h1 className="text-xl font-bold">Double authentification</h1>
-        <p className="mt-1 text-sm text-muted">
-          Obligatoire pour accéder au dossier : identité, documents et coffre y sont sensibles.
-        </p>
+    <AuthFrame>
+      <span className="grid h-12 w-12 place-items-center rounded-2xl bg-act-soft text-act">
+        <IconShield size={22} />
+      </span>
+      <h2 className="mt-4 text-[26px] font-bold">{phase === "enroll" ? "Activez la double authentification" : "Code de vérification"}</h2>
+      <p className="mt-1 text-[14px] text-muted">
+        {phase === "enroll"
+          ? "Obligatoire : votre identité, vos documents et votre coffre sont des données sensibles."
+          : "Saisissez le code à 6 chiffres affiché par votre application d'authentification."}
+      </p>
 
-        {phase === "loading" && <p className="mt-6 text-sm text-muted">Préparation…</p>}
+      {phase === "loading" && <p className="mt-6 text-[14px] text-muted">Préparation…</p>}
+      {phase === "error" && <p className="mt-6 rounded-lg bg-bad-bg px-3 py-2 text-[13px] text-bad">{error}</p>}
 
-        {phase === "error" && <p className="mt-6 text-sm text-bad">{error}</p>}
+      {phase === "enroll" && qrCode && (
+        <ol className="mt-6 flex flex-col gap-4">
+          <li className="flex gap-3">
+            <StepNum n={1} />
+            <div className="min-w-0 flex-1">
+              <p className="text-[14px] font-semibold">Scannez ce code</p>
+              <p className="text-[12.5px] text-muted">Avec Google Authenticator, Authy, 1Password ou équivalent.</p>
+              <div className="mt-3 inline-block rounded-2xl border border-line bg-white p-3">
+                {/* qr_code est déjà une image SVG encodée en data URI, fournie par Supabase */}
+                <img src={qrCode} alt="Code QR d'inscription à la double authentification" className="h-40 w-40" />
+              </div>
+              {secret && (
+                <details className="mt-2 text-[12.5px] text-muted">
+                  <summary className="cursor-pointer font-semibold text-act">Saisir la clé manuellement</summary>
+                  <p className="mono mt-1.5 rounded-lg bg-surface-2 p-2 text-[12px] break-all">{secret}</p>
+                </details>
+              )}
+            </div>
+          </li>
+          <li className="flex gap-3">
+            <StepNum n={2} />
+            <p className="pt-0.5 text-[14px] font-semibold">Saisissez le code généré</p>
+          </li>
+        </ol>
+      )}
 
-        {phase === "enroll" && qrCode && (
-          <div className="mt-5 flex flex-col gap-3">
-            <p className="text-sm">
-              Scannez ce code avec une application d&apos;authentification (Google Authenticator, Authy, 1Password…).
-            </p>
-            {/* qr_code est déjà une image SVG encodée en data URI, fournie par Supabase */}
-            <img src={qrCode} alt="Code QR d'inscription à la double authentification" className="mx-auto h-40 w-40" />
-            {secret && (
-              <p className="break-all rounded-md bg-surface-2 p-2 text-center font-mono text-xs text-muted">{secret}</p>
-            )}
-          </div>
-        )}
-
-        {(phase === "enroll" || phase === "challenge") && (
-          <form onSubmit={handleVerify} className="mt-5 flex flex-col gap-3">
-            <label className="flex flex-col gap-1 text-sm font-medium">
-              Code à 6 chiffres
-              <input
-                inputMode="numeric"
-                pattern="[0-9]{6}"
-                maxLength={6}
-                required
-                value={code}
-                onChange={(e) => setCode(e.target.value)}
-                className="rounded-lg border border-line bg-surface px-3 py-2 text-center font-mono text-lg tracking-widest text-ink focus:border-act focus:outline-none focus:ring-2 focus:ring-act-soft"
-              />
-            </label>
-            {error && <p className="text-sm text-bad">{error}</p>}
-            <button
-              type="submit"
-              disabled={busy || code.length !== 6}
-              className="rounded-lg bg-act px-4 py-2 font-semibold text-act-ink disabled:opacity-60"
-            >
-              Valider
-            </button>
-          </form>
-        )}
-      </div>
-    </div>
+      {(phase === "enroll" || phase === "challenge") && (
+        <form onSubmit={handleVerify} className="mt-5 flex flex-col gap-3">
+          <input
+            inputMode="numeric"
+            autoComplete="one-time-code"
+            pattern="[0-9]{6}"
+            maxLength={6}
+            required
+            autoFocus={phase === "challenge"}
+            aria-label="Code à 6 chiffres"
+            placeholder="000000"
+            value={code}
+            onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
+            className="input mono py-3 text-center text-[26px] tracking-[0.5em]"
+          />
+          {error && <p className="rounded-lg bg-bad-bg px-3 py-2 text-[13px] text-bad">{error}</p>}
+          <button type="submit" disabled={busy || code.length !== 6} className="btn btn-primary py-2.5 text-[15px]">
+            {busy ? "Vérification…" : "Valider"}
+          </button>
+        </form>
+      )}
+    </AuthFrame>
   );
+}
+
+function StepNum({ n }: { n: number }) {
+  return <span className="mono grid h-6 w-6 shrink-0 place-items-center rounded-full bg-night text-[12px] font-bold text-night-ink">{n}</span>;
 }

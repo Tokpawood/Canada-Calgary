@@ -1,9 +1,12 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { buildImportPlan, rawDossierSchema, type ImportPlan } from "@/lib/import";
+import { PageHeader } from "@/components/ui";
+import { FileDropzone } from "@/components/FileDropzone";
+import { IconArrowRight, IconCheck, IconInfo } from "@/components/icons";
 
 const MAX_SIZE = 5 * 1024 * 1024;
 
@@ -11,7 +14,6 @@ type Phase = "idle" | "busy" | "done" | "error";
 
 export default function ImportPage() {
   const router = useRouter();
-  const inputRef = useRef<HTMLInputElement>(null);
   const [phase, setPhase] = useState<Phase>("idle");
   const [error, setError] = useState<string | null>(null);
   const [counts, setCounts] = useState<ImportPlan["counts"] | null>(null);
@@ -107,43 +109,67 @@ export default function ImportPage() {
   }
 
   return (
-    <div className="mx-auto max-w-lg py-10">
-      <h1 className="text-2xl font-bold">Importer vos données</h1>
-      <p className="mt-2 text-sm text-muted">
-        Sélectionnez le fichier <code className="font-mono">etat-complet.json</code> exporté depuis le prototype hors ligne.
-        Un import répété remplace les étapes, documents, épargne, contacts, écarts, historique et adresses existants.
-      </p>
-
-      <input
-        ref={inputRef}
-        type="file"
-        accept="application/json"
-        className="mt-5 block w-full text-sm"
-        disabled={phase === "busy"}
-        onChange={(e) => {
-          const file = e.target.files?.[0];
-          if (file) void handleFile(file);
-        }}
+    <div className="mx-auto max-w-xl">
+      <PageHeader
+        title="Importer vos données"
+        description={
+          <>
+            Fichier <code className="mono">etat-complet.json</code> exporté depuis le prototype hors ligne, ou depuis l&apos;export JSON de cette application.
+          </>
+        }
       />
 
-      {phase === "busy" && <p className="mt-4 text-sm text-muted">Import en cours…</p>}
-      {phase === "error" && error && <p className="mt-4 text-sm text-bad">{error}</p>}
+      {phase !== "done" && (
+        <FileDropzone
+          multiple={false}
+          accept="application/json,.json"
+          busy={phase === "busy"}
+          title="Déposez le fichier JSON ici"
+          hint="5 Mo maximum"
+          onFiles={(files) => {
+            const file = files[0];
+            if (file) void handleFile(file);
+          }}
+        />
+      )}
+
+      <p className="mt-3 flex items-start gap-2 text-[12.5px] text-muted">
+        <IconInfo size={15} className="mt-px shrink-0" />
+        Un nouvel import remplace les étapes, documents, épargne, contacts, écarts, historique et adresses déjà présents. Les scans du coffre ne sont pas touchés.
+      </p>
+
+      {phase === "error" && error && <p className="mt-4 rounded-lg bg-bad-bg px-3 py-2 text-[13px] text-bad">{error}</p>}
 
       {phase === "done" && counts && (
-        <div className="mt-5 rounded-lg border border-line bg-surface p-4">
-          <p className="font-semibold text-ok">Import terminé.</p>
-          <ul className="mt-2 text-sm text-muted">
-            <li>{counts.steps} étapes</li>
-            <li>{counts.documents} documents</li>
-            <li>{counts.history} périodes d&apos;historique</li>
-            <li>{counts.addresses} adresses</li>
-          </ul>
+        <div className="card anim-fade mt-5 p-5">
+          <p className="flex items-center gap-2 font-display text-[18px] font-bold text-ok">
+            <span className="grid h-7 w-7 place-items-center rounded-full bg-ok text-surface">
+              <IconCheck size={15} strokeWidth={3} />
+            </span>
+            Import terminé
+          </p>
+          <dl className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
+            {[
+              [counts.steps, "étapes"],
+              [counts.documents, "documents"],
+              [counts.history, "périodes"],
+              [counts.addresses, "adresses"],
+            ].map(([n, label]) => (
+              <div key={label} className="rounded-xl bg-surface-2 px-3 py-2.5">
+                <dt className="text-[12px] text-muted">{label}</dt>
+                <dd className="mono text-[22px] font-semibold">{n}</dd>
+              </div>
+            ))}
+          </dl>
           <button
             type="button"
-            onClick={() => router.replace("/parcours")}
-            className="mt-4 rounded-lg bg-act px-4 py-2 text-sm font-semibold text-act-ink"
+            onClick={() => {
+              router.replace("/parcours");
+              router.refresh();
+            }}
+            className="btn btn-primary mt-5 w-full py-2.5"
           >
-            Continuer vers le tableau de bord
+            Ouvrir le tableau de bord <IconArrowRight size={16} />
           </button>
         </div>
       )}

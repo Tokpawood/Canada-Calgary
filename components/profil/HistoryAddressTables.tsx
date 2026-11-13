@@ -1,56 +1,169 @@
 "use client";
 
+import { eighteenthBirthdayIso, pd, today0 } from "@/lib/rules";
 import type { AddressEntry, HistoryEntry, HistoryType } from "@/lib/types";
+import { ConfirmButton } from "@/components/ui";
+import { IconAlert, IconCheck, IconPlus, IconTrash } from "@/components/icons";
 
 const HISTORY_TYPES: HistoryType[] = ["Travail", "Études", "Sans emploi", "Autre"];
+
+interface TimelineRow {
+  id: string;
+  from: string;
+  to: string;
+  parallel: boolean;
+  label: string;
+}
+
+/** Frise de couverture : du 18e anniversaire à aujourd'hui ; le fond visible correspond aux périodes non déclarées. */
+function CoverageTimeline({ rows, naissance }: { rows: TimelineRow[]; naissance: string | null }) {
+  const start = pd(eighteenthBirthdayIso(naissance));
+  const end = today0();
+  if (!start || end <= start) return null;
+  const span = end.getTime() - start.getTime();
+
+  const toPct = (d: Date) => Math.min(100, Math.max(0, ((d.getTime() - start.getTime()) / span) * 100));
+  const segs = rows
+    .map((r) => {
+      const f = pd(r.from);
+      const e = r.to ? pd(r.to, true) : end;
+      if (!f || !e || e < start) return null;
+      const left = toPct(f);
+      const right = toPct(e);
+      if (right <= left) return null;
+      return { ...r, left, width: right - left, period: `${r.from} → ${r.to || "aujourd'hui"}` };
+    })
+    .filter((s): s is NonNullable<typeof s> => s !== null);
+
+  const main = segs.filter((s) => !s.parallel);
+  const parallel = segs.filter((s) => s.parallel);
+
+  const firstYear = start.getUTCFullYear() + 1;
+  const lastYear = end.getUTCFullYear();
+  const step = Math.max(1, Math.ceil((lastYear - firstYear + 1) / 6));
+  const ticks: number[] = [];
+  for (let y = firstYear; y <= lastYear; y += step) ticks.push(y);
+
+  return (
+    <div className="mt-4">
+      <div className="relative h-6 overflow-hidden rounded-md bg-bad-bg" role="img" aria-label="Frise de couverture des périodes déclarées">
+        {main.map((s) => (
+          <span
+            key={s.id}
+            title={`${s.label} · ${s.period}`}
+            className="absolute inset-y-0 bg-act hover:brightness-125"
+            style={{ left: `${s.left}%`, width: `${s.width}%`, boxShadow: "inset -2px 0 0 var(--surface)" }}
+          />
+        ))}
+      </div>
+      {parallel.length > 0 && (
+        <div className="relative mt-1 h-2 rounded-full bg-surface-2">
+          {parallel.map((s) => (
+            <span key={s.id} title={`${s.label} (en parallèle) · ${s.period}`} className="absolute inset-y-0 rounded-full bg-run/60" style={{ left: `${s.left}%`, width: `${s.width}%` }} />
+          ))}
+        </div>
+      )}
+      <div className="mono relative mt-1 h-4 text-[10.5px] text-faint">
+        {ticks.map((y) => {
+          const left = toPct(new Date(Date.UTC(y, 0, 1)));
+          return (
+            <span key={y} className="absolute -translate-x-1/2" style={{ left: `${left}%` }}>
+              {y}
+            </span>
+          );
+        })}
+      </div>
+      <ul className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-[11.5px] text-muted">
+        <li className="flex items-center gap-1.5">
+          <span className="h-2.5 w-2.5 rounded-sm bg-act" /> Période déclarée
+        </li>
+        {parallel.length > 0 && (
+          <li className="flex items-center gap-1.5">
+            <span className="h-2.5 w-2.5 rounded-sm bg-run/60" /> En parallèle
+          </li>
+        )}
+        <li className="flex items-center gap-1.5">
+          <span className="h-2.5 w-2.5 rounded-sm border border-bad/30 bg-bad-bg" /> Non déclaré
+        </li>
+      </ul>
+    </div>
+  );
+}
+
+function GapList({ gaps }: { gaps: string[] }) {
+  if (gaps.length === 0) {
+    return (
+      <p className="mt-3 flex items-center gap-1.5 text-[12.5px] font-semibold text-ok">
+        <IconCheck size={14} /> Aucun trou de plus de 4 jours.
+      </p>
+    );
+  }
+  return (
+    <ul className="mt-3 flex flex-col gap-1">
+      {gaps.map((g, i) => (
+        <li key={i} className="flex items-start gap-2 rounded-lg bg-bad-bg px-2.5 py-1.5 text-[12.5px] text-bad">
+          <IconAlert size={14} className="mt-px shrink-0" />
+          {g}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function SectionHead({ title, sub, onAdd, addLabel }: { title: string; sub: string; onAdd: () => void; addLabel: string }) {
+  return (
+    <div className="flex flex-wrap items-start justify-between gap-2">
+      <div>
+        <h2 className="text-[17px] font-bold">{title}</h2>
+        <p className="text-[12.5px] text-muted">{sub}</p>
+      </div>
+      <button type="button" onClick={onAdd} className="btn btn-sm btn-soft">
+        <IconPlus size={14} /> {addLabel}
+      </button>
+    </div>
+  );
+}
+
+const TH = "px-1.5 py-2 text-left text-[11.5px] font-medium text-muted";
 
 interface HistoryProps {
   rows: HistoryEntry[];
   gaps: string[];
+  naissance: string | null;
   onAdd: () => void;
   onUpdate: (id: string, patch: Partial<HistoryEntry>) => void;
   onDelete: (id: string) => void;
 }
 
-export function HistoryTable({ rows, gaps, onAdd, onUpdate, onDelete }: HistoryProps) {
+export function HistoryTable({ rows, gaps, naissance, onAdd, onUpdate, onDelete }: HistoryProps) {
   return (
-    <div className="rounded-2xl border border-line bg-surface p-4 shadow-[var(--shadow)]">
-      <div className="flex items-center justify-between">
-        <h3 className="text-base font-bold">Historique personnel depuis 18 ans</h3>
-        <button type="button" onClick={onAdd} className="rounded-md bg-act-soft px-2.5 py-1 text-xs font-semibold text-act">
-          + Période
-        </button>
-      </div>
-      {gaps.length > 0 && (
-        <ul className="mt-2 flex flex-col gap-1">
-          {gaps.map((g, i) => (
-            <li key={i} className="rounded-md bg-bad-bg px-2 py-1 text-xs text-bad">
-              {g}
-            </li>
-          ))}
-        </ul>
-      )}
-      <div className="mt-3 overflow-x-auto">
-        <table className="w-full min-w-[720px] text-sm">
+    <section className="card p-4 sm:p-5">
+      <SectionHead title="Historique personnel" sub="Toutes les activités depuis vos 18 ans, sans trou de plus de 4 jours." onAdd={onAdd} addLabel="Période" />
+      <CoverageTimeline naissance={naissance} rows={rows.map((r) => ({ id: r.id, from: r.from, to: r.to, parallel: r.parallel, label: r.activity || r.type }))} />
+      <GapList gaps={gaps} />
+      <div className="-mx-1.5 mt-3 overflow-x-auto">
+        <table className="w-full min-w-[820px] text-[13.5px]">
           <thead>
-            <tr className="text-left text-xs text-muted">
-              <th className="py-1 pr-2">Du</th>
-              <th className="py-1 pr-2">Au</th>
-              <th className="py-1 pr-2">Type</th>
-              <th className="py-1 pr-2">Activité</th>
-              <th className="py-1 pr-2">Organisme</th>
-              <th className="py-1 pr-2">Lieu</th>
-              <th className="py-1 pr-2">//</th>
-              <th />
+            <tr className="border-b border-line">
+              <th className={`${TH} w-[112px]`}>Du</th>
+              <th className={`${TH} w-[112px]`}>Au</th>
+              <th className={`${TH} w-[120px]`}>Type</th>
+              <th className={TH}>Activité</th>
+              <th className={TH}>Organisme</th>
+              <th className={TH}>Lieu</th>
+              <th className={`${TH} w-[64px] text-center`} title="Période en parallèle d'une autre (exclue du calcul des trous)">
+                Parallèle
+              </th>
+              <th className="w-10" />
             </tr>
           </thead>
           <tbody>
             {rows.map((r) => (
-              <tr key={r.id} className="border-t border-line">
-                <Cell value={r.from} onChange={(v) => onUpdate(r.id, { from: v })} placeholder="AAAA-MM-JJ" />
-                <Cell value={r.to} onChange={(v) => onUpdate(r.id, { to: v })} placeholder="en cours si vide" />
-                <td className="py-1 pr-2">
-                  <select value={r.type} onChange={(e) => onUpdate(r.id, { type: e.target.value as HistoryType })} className="rounded-md border border-line px-1 py-0.5 text-sm">
+              <tr key={r.id} className="group border-b border-line last:border-0">
+                <Cell value={r.from} mono onChange={(v) => onUpdate(r.id, { from: v })} placeholder="AAAA-MM-JJ" label="Début" />
+                <Cell value={r.to} mono onChange={(v) => onUpdate(r.id, { to: v })} placeholder="en cours" label="Fin" />
+                <td className="px-0.5 py-1">
+                  <select value={r.type} onChange={(e) => onUpdate(r.id, { type: e.target.value as HistoryType })} className="input-ghost" aria-label="Type">
                     {HISTORY_TYPES.map((t) => (
                       <option key={t} value={t}>
                         {t}
@@ -58,90 +171,83 @@ export function HistoryTable({ rows, gaps, onAdd, onUpdate, onDelete }: HistoryP
                     ))}
                   </select>
                 </td>
-                <Cell value={r.activity} onChange={(v) => onUpdate(r.id, { activity: v })} />
-                <Cell value={r.org} onChange={(v) => onUpdate(r.id, { org: v })} />
-                <Cell value={r.place} onChange={(v) => onUpdate(r.id, { place: v })} />
-                <td className="py-1 pr-2 text-center">
-                  <input type="checkbox" checked={r.parallel} onChange={(e) => onUpdate(r.id, { parallel: e.target.checked })} />
+                <Cell value={r.activity} onChange={(v) => onUpdate(r.id, { activity: v })} label="Activité" />
+                <Cell value={r.org} onChange={(v) => onUpdate(r.id, { org: v })} label="Organisme" />
+                <Cell value={r.place} onChange={(v) => onUpdate(r.id, { place: v })} label="Lieu" />
+                <td className="py-1 text-center">
+                  <input type="checkbox" checked={r.parallel} onChange={(e) => onUpdate(r.id, { parallel: e.target.checked })} aria-label="En parallèle" className="h-4 w-4 accent-[var(--act)]" />
                 </td>
-                <td className="py-1">
-                  <button type="button" onClick={() => onDelete(r.id)} className="text-xs text-faint hover:text-bad">
-                    Suppr.
-                  </button>
+                <td className="py-1 text-right">
+                  <RowDelete onConfirm={() => onDelete(r.id)} />
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
-    </div>
+    </section>
   );
 }
 
 interface AddressProps {
   rows: AddressEntry[];
   gaps: string[];
+  naissance: string | null;
   onAdd: () => void;
   onUpdate: (id: string, patch: Partial<AddressEntry>) => void;
   onDelete: (id: string) => void;
 }
 
-export function AddressesTable({ rows, gaps, onAdd, onUpdate, onDelete }: AddressProps) {
+export function AddressesTable({ rows, gaps, naissance, onAdd, onUpdate, onDelete }: AddressProps) {
   return (
-    <div className="mt-4 rounded-2xl border border-line bg-surface p-4 shadow-[var(--shadow)]">
-      <div className="flex items-center justify-between">
-        <h3 className="text-base font-bold">Adresses depuis 18 ans</h3>
-        <button type="button" onClick={onAdd} className="rounded-md bg-act-soft px-2.5 py-1 text-xs font-semibold text-act">
-          + Adresse
-        </button>
-      </div>
-      {gaps.length > 0 && (
-        <ul className="mt-2 flex flex-col gap-1">
-          {gaps.map((g, i) => (
-            <li key={i} className="rounded-md bg-bad-bg px-2 py-1 text-xs text-bad">
-              {g}
-            </li>
-          ))}
-        </ul>
-      )}
-      <div className="mt-3 overflow-x-auto">
-        <table className="w-full min-w-[640px] text-sm">
+    <section className="card p-4 sm:p-5">
+      <SectionHead title="Adresses" sub="Toutes les adresses de résidence depuis vos 18 ans." onAdd={onAdd} addLabel="Adresse" />
+      <CoverageTimeline naissance={naissance} rows={rows.map((r) => ({ id: r.id, from: r.from, to: r.to, parallel: r.parallel, label: [r.address, r.city].filter(Boolean).join(", ") || "Adresse" }))} />
+      <GapList gaps={gaps} />
+      <div className="-mx-1.5 mt-3 overflow-x-auto">
+        <table className="w-full min-w-[700px] text-[13.5px]">
           <thead>
-            <tr className="text-left text-xs text-muted">
-              <th className="py-1 pr-2">Du</th>
-              <th className="py-1 pr-2">Au</th>
-              <th className="py-1 pr-2">Adresse</th>
-              <th className="py-1 pr-2">Ville, pays</th>
-              <th className="py-1 pr-2">Note</th>
-              <th />
+            <tr className="border-b border-line">
+              <th className={`${TH} w-[112px]`}>Du</th>
+              <th className={`${TH} w-[112px]`}>Au</th>
+              <th className={TH}>Adresse</th>
+              <th className={TH}>Ville, pays</th>
+              <th className={TH}>Note</th>
+              <th className="w-10" />
             </tr>
           </thead>
           <tbody>
             {rows.map((r) => (
-              <tr key={r.id} className="border-t border-line">
-                <Cell value={r.from} onChange={(v) => onUpdate(r.id, { from: v })} placeholder="AAAA-MM-JJ" />
-                <Cell value={r.to} onChange={(v) => onUpdate(r.id, { to: v })} placeholder="actuelle si vide" />
-                <Cell value={r.address} onChange={(v) => onUpdate(r.id, { address: v })} />
-                <Cell value={r.city} onChange={(v) => onUpdate(r.id, { city: v })} />
-                <Cell value={r.note} onChange={(v) => onUpdate(r.id, { note: v })} />
-                <td className="py-1">
-                  <button type="button" onClick={() => onDelete(r.id)} className="text-xs text-faint hover:text-bad">
-                    Suppr.
-                  </button>
+              <tr key={r.id} className="group border-b border-line last:border-0">
+                <Cell value={r.from} mono onChange={(v) => onUpdate(r.id, { from: v })} placeholder="AAAA-MM-JJ" label="Début" />
+                <Cell value={r.to} mono onChange={(v) => onUpdate(r.id, { to: v })} placeholder="actuelle" label="Fin" />
+                <Cell value={r.address} onChange={(v) => onUpdate(r.id, { address: v })} label="Adresse" />
+                <Cell value={r.city} onChange={(v) => onUpdate(r.id, { city: v })} label="Ville, pays" />
+                <Cell value={r.note} onChange={(v) => onUpdate(r.id, { note: v })} label="Note" />
+                <td className="py-1 text-right">
+                  <RowDelete onConfirm={() => onDelete(r.id)} />
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
-    </div>
+    </section>
   );
 }
 
-function Cell({ value, onChange, placeholder }: { value: string; onChange: (v: string) => void; placeholder?: string }) {
+function RowDelete({ onConfirm }: { onConfirm: () => void }) {
   return (
-    <td className="py-1 pr-2">
-      <input value={value} placeholder={placeholder} onChange={(e) => onChange(e.target.value)} className="w-full min-w-[90px] rounded-md border border-line px-1.5 py-0.5 text-sm" />
+    <ConfirmButton label="Supprimer la ligne" confirmLabel="Oui ?" onConfirm={onConfirm} className="btn btn-sm btn-danger pointer-fine:opacity-0 pointer-fine:group-hover:opacity-100 focus-visible:opacity-100 data-[armed=true]:opacity-100">
+      <IconTrash size={13} />
+    </ConfirmButton>
+  );
+}
+
+function Cell({ value, onChange, placeholder, mono, label }: { value: string; onChange: (v: string) => void; placeholder?: string; mono?: boolean; label: string }) {
+  return (
+    <td className="px-0.5 py-1">
+      <input value={value} placeholder={placeholder} aria-label={label} onChange={(e) => onChange(e.target.value)} className={`input-ghost min-w-[90px] ${mono ? "mono text-[12.5px]" : ""}`} />
     </td>
   );
 }

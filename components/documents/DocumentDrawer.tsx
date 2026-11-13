@@ -1,11 +1,15 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { safeUrl } from "@/lib/rules";
 import { mapVaultFile } from "@/lib/queries";
 import { validateVaultFile } from "@/lib/fileSniff";
 import type { DocumentRecord, DocumentRequirement, DocumentStatus } from "@/lib/types";
+import { timestamp } from "@/lib/ids";
+import { Chip, ConfirmButton, DOC_TONE, Drawer, DrawerSection, Field, Meter, TONE_DOT } from "@/components/ui";
+import { Checklist, LinkList } from "@/components/EditableLists";
+import { FileDropzone, VaultFileRow } from "@/components/FileDropzone";
+import { IconAlert, IconTrash } from "@/components/icons";
 
 const STATUSES: DocumentStatus[] = ["À obtenir", "Demandé", "Obtenu"];
 const REQS: DocumentRequirement[] = ["Obligatoire", "Conseillé", "Si applicable"];
@@ -23,17 +27,11 @@ interface Props {
 
 export function DocumentDrawer({ doc, onChange, onDelete, onClose }: Props) {
   const supabase = createClient();
-  const fileInput = useRef<HTMLInputElement>(null);
-  const [confirmDelete, setConfirmDelete] = useState(false);
-  const [confirmFileId, setConfirmFileId] = useState<string | null>(null);
-  const [newCheck, setNewCheck] = useState("");
-  const [newLinkLabel, setNewLinkLabel] = useState("");
-  const [newLinkUrl, setNewLinkUrl] = useState("");
-  const [linkError, setLinkError] = useState<string | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
 
-  const incompleteChecks = doc.checks.some((c) => !c.done);
+  const checksDone = doc.checks.filter((c) => c.done).length;
+  const incompleteChecks = checksDone < doc.checks.length;
 
   async function patchDoc(patch: Partial<DocumentRecord>) {
     const dbPatch: Record<string, unknown> = {};
@@ -46,7 +44,6 @@ export function DocumentDrawer({ doc, onChange, onDelete, onClose }: Props) {
     if ("req" in patch) dbPatch.req = patch.req;
     if ("format" in patch) dbPatch.format = patch.format;
     if ("validity" in patch) dbPatch.validity = patch.validity;
-
     onChange({ ...doc, ...patch });
     await supabase.from("document").update(dbPatch).eq("id", doc.id);
   }
@@ -56,15 +53,8 @@ export function DocumentDrawer({ doc, onChange, onDelete, onClose }: Props) {
     await supabase.from("document_check").update({ done }).eq("id", checkId);
   }
 
-  async function addCheck() {
-    const text = newCheck.trim();
-    if (!text) return;
-    setNewCheck("");
-    const { data } = await supabase
-      .from("document_check")
-      .insert({ document_id: doc.id, text, done: false, position: doc.checks.length })
-      .select("id")
-      .single();
+  async function addCheck(text: string) {
+    const { data } = await supabase.from("document_check").insert({ document_id: doc.id, text, done: false, position: doc.checks.length }).select("id").single();
     if (data) onChange({ ...doc, checks: [...doc.checks, { id: data.id as string, text, done: false, position: doc.checks.length }] });
   }
 
@@ -73,16 +63,7 @@ export function DocumentDrawer({ doc, onChange, onDelete, onClose }: Props) {
     await supabase.from("document_check").delete().eq("id", checkId);
   }
 
-  async function addLink() {
-    const url = safeUrl(newLinkUrl);
-    if (!url) {
-      setLinkError("Adresse invalide : elle doit commencer par https://");
-      return;
-    }
-    const label = newLinkLabel.trim() || url;
-    setLinkError(null);
-    setNewLinkLabel("");
-    setNewLinkUrl("");
+  async function addLink(label: string, url: string) {
     const { data } = await supabase.from("document_link").insert({ document_id: doc.id, label, url }).select("id").single();
     if (data) onChange({ ...doc, links: [...doc.links, { id: data.id as string, label, url }] });
   }
@@ -95,13 +76,14 @@ export function DocumentDrawer({ doc, onChange, onDelete, onClose }: Props) {
   async function handleUpload(fileList: FileList) {
     setUploading(true);
     setUploadError(null);
+    let files = doc.files;
     for (const file of Array.from(fileList)) {
       const validation = await validateVaultFile(file);
       if (!validation.ok) {
-        setUploadError(validation.reason ?? "Fichier refusé.");
+        setUploadError(`${file.name} : ${validation.reason ?? "fichier refusé."}`);
         continue;
       }
-      const path = `${doc.dossierId}/${doc.id}/${Date.now()}-${sanitizeName(file.name)}`;
+      const path = `${doc.dossierId}/${doc.id}/${timestamp()}-${sanitizeName(file.name)}`;
       const { error: uploadErr } = await supabase.storage.from("coffre").upload(path, file, { contentType: validation.mime });
       if (uploadErr) {
         setUploadError(uploadErr.message);
@@ -112,10 +94,12 @@ export function DocumentDrawer({ doc, onChange, onDelete, onClose }: Props) {
         .insert({ dossier_id: doc.dossierId, document_id: doc.id, storage_path: path, name: file.name, size: file.size, mime: validation.mime })
         .select("*")
         .single();
-      if (data) onChange({ ...doc, files: [...doc.files, mapVaultFile(data)] });
+      if (data) {
+        files = [...files, mapVaultFile(data)];
+        onChange({ ...doc, files });
+      }
     }
     setUploading(false);
-    if (fileInput.current) fileInput.current.value = "";
   }
 
   async function openFile(storagePath: string) {
@@ -124,193 +108,121 @@ export function DocumentDrawer({ doc, onChange, onDelete, onClose }: Props) {
   }
 
   async function deleteFile(fileId: string, storagePath: string) {
-    if (confirmFileId !== fileId) {
-      setConfirmFileId(fileId);
-      return;
-    }
     onChange({ ...doc, files: doc.files.filter((f) => f.id !== fileId) });
     await Promise.all([supabase.storage.from("coffre").remove([storagePath]), supabase.from("file").delete().eq("id", fileId)]);
-    setConfirmFileId(null);
   }
 
   async function handleDeleteDoc() {
-    if (!confirmDelete) {
-      setConfirmDelete(true);
-      return;
-    }
     for (const f of doc.files) await supabase.storage.from("coffre").remove([f.storagePath]);
     await supabase.from("document").delete().eq("id", doc.id);
     onDelete();
   }
 
   return (
-    <div className="fixed inset-0 z-40 flex justify-end bg-black/30" onClick={onClose}>
-      <aside className="flex h-full w-full max-w-md flex-col overflow-y-auto bg-surface p-5 shadow-2xl" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-start justify-between gap-3">
-          <span className={`rounded-md px-2 py-0.5 text-xs font-semibold ${doc.req === "Obligatoire" ? "bg-bad-bg text-bad" : "bg-surface-2 text-muted"}`}>
-            {doc.req}
-          </span>
-          <button type="button" onClick={onClose} className="text-muted hover:text-ink" aria-label="Fermer">
-            ✕
-          </button>
+    <Drawer
+      label={`Document : ${doc.name}`}
+      onClose={onClose}
+      footer={
+        <div className="flex justify-end">
+          <ConfirmButton label="Supprimer le document" confirmLabel="Confirmer (scans compris)" onConfirm={handleDeleteDoc}>
+            <IconTrash size={14} />
+            Supprimer le document
+          </ConfirmButton>
         </div>
+      }
+    >
+      <div className="flex items-center gap-2 pr-10">
+        <Chip tone={doc.req === "Obligatoire" ? "bad" : doc.req === "Conseillé" ? "run" : "todo"}>{doc.req}</Chip>
+        {doc.use && <span className="truncate text-[12.5px] text-muted">Sert pour : {doc.use}</span>}
+      </div>
+      <textarea
+        value={doc.name}
+        rows={1}
+        onChange={(e) => patchDoc({ name: e.target.value })}
+        aria-label="Nom du document"
+        className="input-ghost -mx-1.5 mt-2 resize-none font-display text-[21px] leading-snug font-bold"
+      />
 
-        <input
-          value={doc.name}
-          onChange={(e) => patchDoc({ name: e.target.value })}
-          className="mt-2 w-full rounded-md border border-transparent bg-transparent font-display text-xl font-bold focus:border-line focus:bg-surface-2 focus:outline-none"
-        />
-
-        {doc.status === "Obtenu" && incompleteChecks && (
-          <p className="mt-2 rounded-lg bg-opt-bg p-2 text-sm text-opt">Contrôles incomplets</p>
-        )}
-
-        <div className="mt-3 flex flex-wrap gap-1.5">
-          {STATUSES.map((s) => (
+      <div role="radiogroup" aria-label="Statut du document" className="mt-3 grid grid-cols-3 gap-1.5">
+        {STATUSES.map((s) => {
+          const active = doc.status === s;
+          return (
             <button
               key={s}
               type="button"
+              role="radio"
+              aria-checked={active}
               onClick={() => patchDoc({ status: s })}
-              aria-pressed={doc.status === s}
-              className={`rounded-full border px-3 py-1 text-xs font-semibold ${doc.status === s ? "border-act bg-act-soft text-act" : "border-line text-muted"}`}
+              className={`flex items-center justify-center gap-1.5 rounded-lg border px-2 py-1.5 text-[13px] font-semibold transition-colors ${
+                active ? "border-act bg-act-soft text-act" : "border-line text-muted hover:text-ink"
+              }`}
             >
+              <span className={`h-1.5 w-1.5 rounded-full ${TONE_DOT[DOC_TONE[s]]}`} />
               {s}
             </button>
-          ))}
+          );
+        })}
+      </div>
+
+      {doc.status === "Obtenu" && incompleteChecks && (
+        <div className="mt-4 flex gap-2.5 rounded-xl border border-opt/25 bg-opt-bg p-3 text-[13.5px] text-opt">
+          <IconAlert size={17} className="mt-px shrink-0" />
+          <p>Document obtenu mais {doc.checks.length - checksDone} contrôle(s) restent à faire avant le dépôt.</p>
         </div>
+      )}
 
-        <Section title="Contrôles avant dépôt">
-          <ul className="flex flex-col gap-1.5">
-            {doc.checks.map((c) => (
-              <li key={c.id} className="flex items-center gap-2">
-                <input type="checkbox" checked={c.done} onChange={(e) => toggleCheck(c.id, e.target.checked)} />
-                <span className={`flex-1 text-sm ${c.done ? "text-faint line-through" : ""}`}>{c.text}</span>
-                <button type="button" onClick={() => deleteCheck(c.id)} className="text-xs text-faint hover:text-bad">
-                  Supprimer
-                </button>
-              </li>
-            ))}
-          </ul>
-          <div className="mt-2 flex gap-2">
-            <input value={newCheck} onChange={(e) => setNewCheck(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addCheck()} placeholder="Ajouter un contrôle" className="flex-1 rounded-md border border-line px-2 py-1 text-sm" />
-            <button type="button" onClick={addCheck} className="rounded-md bg-act-soft px-3 py-1 text-sm font-semibold text-act">
-              Ajouter
-            </button>
-          </div>
-        </Section>
+      <DrawerSection title="Contrôles avant dépôt" aside={doc.checks.length > 0 ? <span className="mono text-[12px] text-muted">{checksDone}/{doc.checks.length}</span> : undefined}>
+        {doc.checks.length > 0 && <Meter value={(checksDone / doc.checks.length) * 100} tone="ok" height={4} className="mb-2" label="Contrôles faits" />}
+        <Checklist items={doc.checks} onToggle={toggleCheck} onDelete={deleteCheck} onAdd={addCheck} placeholder="Ajouter un contrôle" />
+      </DrawerSection>
 
-        <Section title="Fichiers déposés (coffre)">
-          <ul className="flex flex-col gap-1.5">
+      <DrawerSection title="Scans dans le coffre" aside={<span className="mono text-[12px] text-muted">{doc.files.length}</span>}>
+        {doc.files.length > 0 && (
+          <ul className="mb-2 flex flex-col gap-1.5">
             {doc.files.map((f) => (
-              <li key={f.id} className="flex items-center gap-2 text-sm">
-                <button type="button" onClick={() => openFile(f.storagePath)} className="flex-1 truncate text-left text-act underline">
-                  {f.name}
-                </button>
-                <span className="font-mono text-xs text-muted">{Math.round(f.size / 1024)} Ko</span>
-                <button
-                  type="button"
-                  onClick={() => deleteFile(f.id, f.storagePath)}
-                  className={`text-xs font-semibold ${confirmFileId === f.id ? "text-bad" : "text-faint hover:text-bad"}`}
-                >
-                  {confirmFileId === f.id ? "Confirmer" : "Supprimer"}
-                </button>
-              </li>
-            ))}
-            {doc.files.length === 0 && <li className="text-sm text-muted">Aucun scan déposé.</li>}
-          </ul>
-          <input
-            ref={fileInput}
-            type="file"
-            accept="application/pdf,image/jpeg,image/png,image/webp"
-            multiple
-            disabled={uploading}
-            onChange={(e) => e.target.files && handleUpload(e.target.files)}
-            className="mt-2 block w-full text-sm"
-          />
-          {uploadError && <p className="mt-1 text-xs text-bad">{uploadError}</p>}
-        </Section>
-
-        <Section title="Liens officiels">
-          <ul className="flex flex-col gap-1.5">
-            {doc.links.map((l) => (
-              <li key={l.id} className="flex items-center gap-2 text-sm">
-                <a href={l.url} target="_blank" rel="noopener noreferrer" className="flex-1 text-act underline">
-                  {l.label}
-                </a>
-                <button type="button" onClick={() => deleteLink(l.id)} className="text-xs text-faint hover:text-bad">
-                  Supprimer
-                </button>
-              </li>
+              <VaultFileRow key={f.id} file={f} onOpen={() => openFile(f.storagePath)} onDelete={() => deleteFile(f.id, f.storagePath)} />
             ))}
           </ul>
-          <div className="mt-2 flex flex-col gap-2">
-            <input value={newLinkLabel} onChange={(e) => setNewLinkLabel(e.target.value)} placeholder="Libellé du lien" className="rounded-md border border-line px-2 py-1 text-sm" />
-            <div className="flex gap-2">
-              <input value={newLinkUrl} onChange={(e) => setNewLinkUrl(e.target.value)} placeholder="https://…" className="flex-1 rounded-md border border-line px-2 py-1 text-sm" />
-              <button type="button" onClick={addLink} className="rounded-md bg-act-soft px-3 py-1 text-sm font-semibold text-act">
-                Ajouter
-              </button>
-            </div>
-            {linkError && <p className="text-xs text-bad">{linkError}</p>}
-          </div>
-        </Section>
+        )}
+        <FileDropzone compact busy={uploading} onFiles={handleUpload} title="Ajouter un scan" />
+        {uploadError && <p className="mt-1.5 text-[12px] text-bad">{uploadError}</p>}
+      </DrawerSection>
 
-        <Section title="Caractéristiques">
-          <div className="grid grid-cols-2 gap-2">
-            <Field label="Caractère">
-              <select value={doc.req} onChange={(e) => patchDoc({ req: e.target.value as DocumentRequirement })} className="w-full rounded-md border border-line px-2 py-1 text-sm">
-                {REQS.map((r) => (
-                  <option key={r} value={r}>
-                    {r}
-                  </option>
-                ))}
-              </select>
-            </Field>
-            <Field label="Date d'obtention">
-              <input type="date" value={doc.date} onChange={(e) => patchDoc({ date: e.target.value })} className="w-full rounded-md border border-line px-2 py-1 text-sm" />
-            </Field>
-            <Field label="Format attendu">
-              <input value={doc.format} onChange={(e) => patchDoc({ format: e.target.value })} className="w-full rounded-md border border-line px-2 py-1 text-sm" />
-            </Field>
-            <Field label="Validité">
-              <input value={doc.validity} onChange={(e) => patchDoc({ validity: e.target.value })} className="w-full rounded-md border border-line px-2 py-1 text-sm" />
-            </Field>
-          </div>
-          <Field label="Sert pour">
-            <input value={doc.use} onChange={(e) => patchDoc({ use: e.target.value })} className="w-full rounded-md border border-line px-2 py-1 text-sm" />
-          </Field>
-          <Field label="Délivré par">
-            <input value={doc.from} onChange={(e) => patchDoc({ from: e.target.value })} className="w-full rounded-md border border-line px-2 py-1 text-sm" />
-          </Field>
-          <Field label="Notes">
-            <textarea value={doc.notes} onChange={(e) => patchDoc({ notes: e.target.value })} className="w-full rounded-md border border-line px-2 py-1 text-sm" />
-          </Field>
-        </Section>
+      <DrawerSection title="Liens officiels">
+        <LinkList links={doc.links} onAdd={addLink} onDelete={deleteLink} />
+      </DrawerSection>
 
-        <div className="mt-6 flex justify-end border-t border-line pt-4">
-          <button type="button" onClick={handleDeleteDoc} className={`rounded-md px-3 py-1.5 text-sm font-semibold ${confirmDelete ? "bg-bad text-white" : "bg-bad-bg text-bad"}`}>
-            {confirmDelete ? "Confirmer la suppression" : "Supprimer le document"}
-          </button>
+      <DrawerSection title="Caractéristiques">
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="Caractère">
+            <select value={doc.req} onChange={(e) => patchDoc({ req: e.target.value as DocumentRequirement })} className="input">
+              {REQS.map((r) => (
+                <option key={r} value={r}>
+                  {r}
+                </option>
+              ))}
+            </select>
+          </Field>
+          <Field label="Date d'obtention">
+            <input type="date" value={doc.date} onChange={(e) => patchDoc({ date: e.target.value })} className="input" />
+          </Field>
+          <Field label="Format attendu">
+            <input value={doc.format} onChange={(e) => patchDoc({ format: e.target.value })} className="input" />
+          </Field>
+          <Field label="Validité">
+            <input value={doc.validity} onChange={(e) => patchDoc({ validity: e.target.value })} className="input" />
+          </Field>
+          <Field label="Sert pour" className="col-span-2">
+            <input value={doc.use} onChange={(e) => patchDoc({ use: e.target.value })} className="input" />
+          </Field>
+          <Field label="Délivré par" className="col-span-2">
+            <input value={doc.from} onChange={(e) => patchDoc({ from: e.target.value })} className="input" />
+          </Field>
+          <Field label="Notes" className="col-span-2">
+            <textarea value={doc.notes} onChange={(e) => patchDoc({ notes: e.target.value })} className="input" />
+          </Field>
         </div>
-      </aside>
-    </div>
-  );
-}
-
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <div className="mt-5 border-t border-line pt-4">
-      <h3 className="mb-2 text-sm font-bold">{title}</h3>
-      {children}
-    </div>
-  );
-}
-
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <label className="mb-2 block text-xs font-medium text-muted">
-      {label}
-      <div className="mt-1">{children}</div>
-    </label>
+      </DrawerSection>
+    </Drawer>
   );
 }

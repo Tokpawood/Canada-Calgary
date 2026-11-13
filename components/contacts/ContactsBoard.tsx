@@ -2,15 +2,33 @@
 
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { safeUrl } from "@/lib/rules";
 import type { Contact } from "@/lib/types";
+import { newId } from "@/lib/ids";
+import { ConfirmButton, EmptyState, Field, PageHeader } from "@/components/ui";
+import { IconArrowRight, IconCheck, IconGlobe, IconMail, IconPencil, IconPhone, IconPlus, IconTrash, IconUser, IconUsers } from "@/components/icons";
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const PHONE_RE = /^\+?[\d][\d\s().-]{6,}$/;
+const DOMAIN_RE = /^[a-z0-9-]+(\.[a-z0-9-]+)+(\/\S*)?$/i;
+
+function contactLink(raw: string): { href: string; kind: "mail" | "phone" | "web" } | null {
+  const v = raw.trim();
+  if (EMAIL_RE.test(v)) return { href: `mailto:${v}`, kind: "mail" };
+  if (PHONE_RE.test(v)) return { href: `tel:${v.replace(/[^\d+]/g, "")}`, kind: "phone" };
+  const url = safeUrl(v) ?? (DOMAIN_RE.test(v) ? safeUrl(`https://${v}`) : null);
+  return url ? { href: url, kind: "web" } : null;
+}
 
 export function ContactsBoard({ dossierId, initialContacts }: { dossierId: string; initialContacts: Contact[] }) {
   const [contacts, setContacts] = useState(initialContacts);
+  const [editing, setEditing] = useState<string | null>(null);
   const supabase = createClient();
 
   async function addContact() {
-    const id = `c-${Date.now().toString(36)}`;
+    const id = newId("c");
     setContacts((prev) => [...prev, { id, dossierId, org: "", role: "", contact: "", person: "", next: "", notes: "" }]);
+    setEditing(id);
     await supabase.from("contact").insert({ id, dossier_id: dossierId, position: contacts.length });
   }
 
@@ -21,43 +39,132 @@ export function ContactsBoard({ dossierId, initialContacts }: { dossierId: strin
 
   async function deleteContact(id: string) {
     setContacts((prev) => prev.filter((c) => c.id !== id));
+    if (editing === id) setEditing(null);
     await supabase.from("contact").delete().eq("id", id);
   }
 
+  const withNext = contacts.filter((c) => c.next.trim()).length;
+
   return (
-    <div className="flex flex-col gap-3">
-      <div className="flex justify-end">
-        <button type="button" onClick={addContact} className="rounded-lg bg-act px-3 py-1.5 text-sm font-semibold text-act-ink">
-          + Contact
-        </button>
-      </div>
-      {contacts.map((c) => (
-        <div key={c.id} className="rounded-2xl border border-line bg-surface p-4 shadow-[var(--shadow)]">
-          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-            <Field label="Organisme" value={c.org} onChange={(v) => updateContact(c.id, { org: v })} />
-            <Field label="Rôle" value={c.role} onChange={(v) => updateContact(c.id, { role: v })} />
-            <Field label="Contact" value={c.contact} onChange={(v) => updateContact(c.id, { contact: v })} />
-            <Field label="Interlocuteur" value={c.person} onChange={(v) => updateContact(c.id, { person: v })} />
-            <Field label="Prochaine action" value={c.next} onChange={(v) => updateContact(c.id, { next: v })} />
-            <Field label="Notes" value={c.notes} onChange={(v) => updateContact(c.id, { notes: v })} />
-          </div>
-          <div className="mt-2 flex justify-end">
-            <button type="button" onClick={() => deleteContact(c.id)} className="text-xs text-faint hover:text-bad">
-              Supprimer
-            </button>
-          </div>
+    <>
+      <PageHeader
+        title="Contacts"
+        description={`Organismes et interlocuteurs du dossier${withNext ? ` · ${withNext} action(s) en attente` : ""}.`}
+        actions={
+          <button type="button" onClick={addContact} className="btn btn-primary">
+            <IconPlus size={16} /> Contact
+          </button>
+        }
+      />
+
+      {contacts.length === 0 ? (
+        <EmptyState icon={<IconUsers size={20} />} title="Aucun contact">
+          Ajoutez les organismes avec lesquels vous échangez : ambassade, école, employeur, centre de tests…
+        </EmptyState>
+      ) : (
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          {contacts.map((c) =>
+            editing === c.id ? (
+              <ContactEditor key={c.id} contact={c} onChange={(p) => updateContact(c.id, p)} onDone={() => setEditing(null)} onDelete={() => deleteContact(c.id)} />
+            ) : (
+              <ContactCard key={c.id} contact={c} onEdit={() => setEditing(c.id)} />
+            ),
+          )}
         </div>
-      ))}
-      {contacts.length === 0 && <p className="text-sm text-muted">Aucun contact enregistré.</p>}
-    </div>
+      )}
+    </>
   );
 }
 
-function Field({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
+function ContactCard({ contact: c, onEdit }: { contact: Contact; onEdit: () => void }) {
+  const link = c.contact ? contactLink(c.contact) : null;
+  const LinkIcon = link?.kind === "mail" ? IconMail : link?.kind === "phone" ? IconPhone : IconGlobe;
+
   return (
-    <label className="text-xs font-medium text-muted">
-      {label}
-      <input value={value} onChange={(e) => onChange(e.target.value)} className="mt-1 block w-full rounded-md border border-line px-2 py-1 text-sm text-ink" />
-    </label>
+    <article className="card group flex flex-col p-4 sm:p-5">
+      <div className="flex items-start gap-3">
+        <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-act-soft font-display text-[15px] font-bold text-act">
+          {(c.org.trim()[0] ?? "?").toUpperCase()}
+        </span>
+        <div className="min-w-0 flex-1">
+          <h2 className="truncate text-[16px] font-bold">{c.org || "Organisme sans nom"}</h2>
+          {c.role && <p className="text-[12.5px] text-muted">{c.role}</p>}
+        </div>
+        <button type="button" onClick={onEdit} aria-label={`Modifier ${c.org || "le contact"}`} className="grid h-8 w-8 shrink-0 place-items-center rounded-lg text-muted hover:bg-surface-2 hover:text-ink">
+          <IconPencil size={15} />
+        </button>
+      </div>
+
+      <dl className="mt-3 flex flex-col gap-1.5 text-[13.5px]">
+        {c.contact && (
+          <div className="flex items-center gap-2">
+            <dt className="sr-only">Contact</dt>
+            <LinkIcon size={15} className="shrink-0 text-faint" />
+            <dd className="min-w-0 truncate">
+              {link ? (
+                <a href={link.href} target={link.kind === "web" ? "_blank" : undefined} rel="noopener noreferrer" className="font-medium text-act hover:underline">
+                  {c.contact}
+                </a>
+              ) : (
+                c.contact
+              )}
+            </dd>
+          </div>
+        )}
+        {c.person && (
+          <div className="flex items-center gap-2">
+            <dt className="sr-only">Interlocuteur</dt>
+            <IconUser size={15} className="shrink-0 text-faint" />
+            <dd>{c.person}</dd>
+          </div>
+        )}
+      </dl>
+
+      {c.next && (
+        <div className="mt-3 flex gap-2 rounded-xl bg-signal-soft px-3 py-2.5 text-[13px]">
+          <IconArrowRight size={15} className="mt-0.5 shrink-0 text-opt" />
+          <p>
+            <span className="font-semibold text-opt">Prochaine action · </span>
+            {c.next}
+          </p>
+        </div>
+      )}
+      {c.notes && <p className="mt-3 text-[12.5px] whitespace-pre-line text-muted">{c.notes}</p>}
+    </article>
+  );
+}
+
+function ContactEditor({ contact: c, onChange, onDone, onDelete }: { contact: Contact; onChange: (p: Partial<Contact>) => void; onDone: () => void; onDelete: () => void }) {
+  return (
+    <article className="card anim-fade p-4 ring-2 ring-act-soft sm:p-5">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <Field label="Organisme">
+          <input autoFocus value={c.org} onChange={(e) => onChange({ org: e.target.value })} className="input" />
+        </Field>
+        <Field label="Rôle">
+          <input value={c.role} onChange={(e) => onChange({ role: e.target.value })} className="input" />
+        </Field>
+        <Field label="Contact" hint="Courriel, téléphone ou site web">
+          <input value={c.contact} onChange={(e) => onChange({ contact: e.target.value })} className="input" />
+        </Field>
+        <Field label="Interlocuteur">
+          <input value={c.person} onChange={(e) => onChange({ person: e.target.value })} className="input" />
+        </Field>
+        <Field label="Prochaine action" className="sm:col-span-2">
+          <input value={c.next} onChange={(e) => onChange({ next: e.target.value })} className="input" />
+        </Field>
+        <Field label="Notes" className="sm:col-span-2">
+          <textarea value={c.notes} onChange={(e) => onChange({ notes: e.target.value })} className="input" />
+        </Field>
+      </div>
+      <div className="mt-4 flex items-center justify-between">
+        <ConfirmButton label="Supprimer le contact" onConfirm={onDelete}>
+          <IconTrash size={13} /> Supprimer
+        </ConfirmButton>
+        <button type="button" onClick={onDone} className="btn btn-sm btn-primary">
+          <IconCheck size={14} /> Terminé
+        </button>
+      </div>
+    </article>
   );
 }
