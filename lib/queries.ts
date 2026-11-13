@@ -6,8 +6,10 @@ import type {
   DocumentRecord,
   Dossier,
   Gap,
+  FswProfile,
   HistoryEntry,
   Identity,
+  Profile,
   Saving,
   Step,
   SubTask,
@@ -220,6 +222,54 @@ export async function getContacts(supabase: SupabaseClient, dossierId: string): 
     next: (row.next as string) ?? "",
     notes: (row.notes as string) ?? "",
   }));
+}
+
+export async function getProfile(supabase: SupabaseClient, dossierId: string): Promise<Profile> {
+  const { data } = await supabase.from("profile").select("*").eq("dossier_id", dossierId).maybeSingle();
+  return {
+    dossierId,
+    titre: (data?.titre as string) ?? "",
+    enfants: (data?.enfants as string) ?? "",
+    nationalite: (data?.nationalite as string) ?? "",
+    passeport: (data?.passeport as string) ?? "",
+    telephone: (data?.telephone as string) ?? "",
+    courriel: (data?.courriel as string) ?? "",
+    permis: (data?.permis as string) ?? "",
+    adresse: (data?.adresse as string) ?? "",
+    programme: (data?.programme as string) ?? "",
+    cnp: (data?.cnp as string) ?? "",
+    ville: (data?.ville as string) ?? "",
+    repli: (data?.repli as string) ?? "",
+  };
+}
+
+export async function getFsw(supabase: SupabaseClient, dossierId: string): Promise<FswProfile> {
+  const { data } = await supabase.from("fsw").select("*").eq("dossier_id", dossierId).maybeSingle();
+  return {
+    dossierId,
+    first: (data?.first as FswProfile["first"]) ?? "fr",
+    fr_co: (data?.fr_co as string) ?? "",
+    fr_ce: (data?.fr_ce as string) ?? "",
+    fr_eo: (data?.fr_eo as string) ?? "",
+    fr_ee: (data?.fr_ee as string) ?? "",
+    en_co: (data?.en_co as string) ?? "",
+    en_ce: (data?.en_ce as string) ?? "",
+    en_eo: (data?.en_eo as string) ?? "",
+    en_ee: (data?.en_ee as string) ?? "",
+    edu: (data?.edu as string) ?? "",
+    arranged: (data?.arranged as FswProfile["arranged"]) ?? "0",
+    adapt: (data?.adapt as FswProfile["adapt"]) ?? "0",
+  };
+}
+
+export async function getHistoryEntries(supabase: SupabaseClient, dossierId: string): Promise<HistoryEntry[]> {
+  const { data } = await supabase.from("history").select("*").eq("dossier_id", dossierId).order("position");
+  return (data ?? []).map(mapHistory);
+}
+
+export async function getAddressEntries(supabase: SupabaseClient, dossierId: string): Promise<AddressEntry[]> {
+  const { data } = await supabase.from("address").select("*").eq("dossier_id", dossierId).order("position");
+  return (data ?? []).map(mapAddress);
 }
 
 export function mapAddress(row: Record<string, unknown>): AddressEntry {

@@ -173,4 +173,24 @@ h3 {
   .no-print {
     display: none !important;
   }
+  body * {
+    visibility: hidden;
+  }
+  #fiche-profil,
+  #fiche-profil * {
+    visibility: visible;
+  }
+  #fiche-profil {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+  }
+  #fiche-profil > div {
+    break-inside: avoid;
+    border: none !important;
+    box-shadow: none !important;
+  }
+  #fiche-profil label {
+    break-inside: avoid;
+  }
 }
