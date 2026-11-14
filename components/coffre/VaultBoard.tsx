@@ -5,11 +5,11 @@ import { deleteVaultFile, fileUrl, signFileUrl, uploadVaultFile } from "@/lib/va
 import type { VaultFile } from "@/lib/types";
 import { EmptyState, PageHeader } from "@/components/ui";
 import { FileDropzone, formatSize } from "@/components/FileDropzone";
-import { IconCheck, IconFile, IconImage, IconLock, IconPaperclip, IconSearch, IconShield, IconUpload } from "@/components/icons";
+import { IconCheck, IconFile, IconImage, IconLock, IconPaperclip, IconRefresh, IconSearch, IconShield, IconUpload } from "@/components/icons";
 import { FilterBar, FilterChip, FilterDivider, FilterGroup, FilterSelect } from "@/components/FilterBar";
 import { DarkHeader, DarkTiles, HeaderTabs, useHashTab } from "@/components/DarkHeader";
 
-const TABS = ["fichiers", "par-piece", "deposer"] as const;
+const TABS = ["fichiers", "par-piece", "remplaces", "deposer"] as const;
 type Tab = (typeof TABS)[number];
 import { FilePreview, fileKind, isPdf } from "./FilePreview";
 
@@ -23,7 +23,11 @@ interface Props {
 }
 
 export function VaultBoard({ dossierId, initialFiles, documentNames }: Props) {
-  const [files, setFiles] = useState(initialFiles);
+  const [allFiles, setFiles] = useState(initialFiles);
+  // Versions actives d'un côté, versions remplacées (archivées sur Drive) de l'autre.
+  const files = useMemo(() => allFiles.filter((f) => !f.replacedAt), [allFiles]);
+  const replaced = useMemo(() => allFiles.filter((f) => f.replacedAt).sort((a, b) => (b.replacedAt ?? "").localeCompare(a.replacedAt ?? "")), [allFiles]);
+  const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [kind, setKind] = useState<Kind>("all");
@@ -37,7 +41,7 @@ export function VaultBoard({ dossierId, initialFiles, documentNames }: Props) {
   const signUrl = signFileUrl;
 
   // Vignettes des images : lues via l'application (Google Drive), après contrôle d'accès.
-  const thumbs = useMemo(() => Object.fromEntries(files.filter((f) => !isPdf(f)).map((f) => [f.id, fileUrl(f)])), [files]);
+  const thumbs = useMemo(() => Object.fromEntries(allFiles.filter((f) => !isPdf(f)).map((f) => [f.id, fileUrl(f)])), [allFiles]);
 
   const sorted = useMemo(() => [...files].sort((a, b) => (b.uploadedAt ?? "").localeCompare(a.uploadedAt ?? "")), [files]);
 
@@ -61,12 +65,15 @@ export function VaultBoard({ dossierId, initialFiles, documentNames }: Props) {
 
   const totalSize = files.reduce((s, f) => s + f.size, 0);
   const pdfCount = files.filter(isPdf).length;
-  const previewIndex = previewId ? visible.findIndex((f) => f.id === previewId) : -1;
+  const previewList = tab === "remplaces" ? replaced : visible;
+  const previewIndex = previewId ? previewList.findIndex((f) => f.id === previewId) : -1;
 
   async function handleUpload(fileList: FileList) {
     setUploading(true);
     setError(null);
+    setNotice(null);
     let added = 0;
+    const swapped: string[] = [];
     for (const file of Array.from(fileList)) {
       const res = await uploadVaultFile(file, null);
       if (res.error || !res.file) {
@@ -74,10 +81,13 @@ export function VaultBoard({ dossierId, initialFiles, documentNames }: Props) {
         continue;
       }
       const saved = res.file;
-      setFiles((prev) => [...prev, saved]);
+      const old = res.replaced ?? null;
+      setFiles((prev) => [...prev.filter((x) => x.id !== old?.id), ...(old ? [old] : []), saved]);
+      if (old) swapped.push(saved.name);
       added += 1;
     }
     setUploading(false);
+    if (swapped.length) setNotice(`${swapped.join(", ")} : nouvelle version enregistrée, l'ancienne est conservée dans « Remplacés ».`);
     // Après un dépôt réussi, on montre le fichier dans la grille.
     if (added > 0) setTab("fichiers");
   }
@@ -85,7 +95,7 @@ export function VaultBoard({ dossierId, initialFiles, documentNames }: Props) {
   async function deleteFile(f: VaultFile) {
     // Dans l'aperçu, on passe au fichier voisin avant de retirer celui-ci.
     if (previewId === f.id) {
-      const next = visible[previewIndex + 1] ?? visible[previewIndex - 1];
+      const next = previewList[previewIndex + 1] ?? previewList[previewIndex - 1];
       setPreviewId(next ? next.id : null);
     }
     setFiles((prev) => prev.filter((x) => x.id !== f.id));
@@ -108,11 +118,13 @@ export function VaultBoard({ dossierId, initialFiles, documentNames }: Props) {
     <aside className="flex flex-col gap-4">
       <FileDropzone busy={uploading} onFiles={handleUpload} title="Déposer un fichier" />
       {error && <p className="rounded-lg bg-bad-bg px-3 py-2 text-[12.5px] text-bad">{error}</p>}
+      {notice && <p className="rounded-lg bg-ok-bg px-3 py-2 text-[12.5px] text-ok" role="status">{notice}</p>}
       <div className="card p-4 text-[12.5px] text-muted shadow-none">
         <p className="flex items-center gap-2 font-semibold text-ink">
           <IconShield size={15} className="text-act" /> Bon à savoir
         </p>
         <p className="mt-1.5">Un fichier déposé ici n&apos;est rattaché à aucune pièce. Pour le lier au passeport, au diplôme, etc., déposez-le depuis sa fiche dans Documents.</p>
+        <p className="mt-1.5">Même nom sur la même pièce : la nouvelle version remplace l&apos;ancienne, qui reste conservée dans « Remplacés » (dossier Drive « Fichiers remplacés »).</p>
         <p className="mt-1.5">Le type réel est vérifié avant l&apos;envoi : un fichier renommé en .pdf est refusé.</p>      </div>
     </aside>
   );
@@ -150,6 +162,7 @@ export function VaultBoard({ dossierId, initialFiles, documentNames }: Props) {
             tabs={[
               { id: "fichiers", label: "Fichiers", icon: <IconImage size={15} />, badge: { text: String(files.length) } },
               { id: "par-piece", label: "Par pièce", icon: <IconPaperclip size={15} />, badge: groups.length ? { text: String(groups.length) } : null },
+              { id: "remplaces", label: "Remplacés", icon: <IconRefresh size={15} />, badge: replaced.length ? { text: String(replaced.length) } : null },
               { id: "deposer", label: "Déposer", icon: <IconUpload size={15} /> },
             ]}
           />
@@ -181,6 +194,22 @@ export function VaultBoard({ dossierId, initialFiles, documentNames }: Props) {
 
       <div className="mt-5" role="tabpanel">
       {tab === "deposer" && <div className="mx-auto max-w-2xl">{dropAside}</div>}
+
+      {tab === "remplaces" &&
+        (replaced.length === 0 ? (
+          <EmptyState icon={<IconRefresh size={20} />} title="Aucun fichier remplacé">
+            Quand vous redéposez un fichier du même nom sur la même pièce, l&apos;ancienne version est conservée ici.
+          </EmptyState>
+        ) : (
+          <>
+            <p className="mb-3 text-[12.5px] text-muted">Anciennes versions, conservées dans le dossier Drive « Fichiers remplacés ». Elles ne comptent plus dans les pièces du dossier.</p>
+            <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-5">
+              {replaced.map((f) => (
+                <FileCard key={f.id} file={f} thumb={thumbs[f.id]} doc={documentLabel(f)} onOpen={() => setPreviewId(f.id)} />
+              ))}
+            </ul>
+          </>
+        ))}
 
       {tab === "par-piece" &&
         (groups.length === 0 ? (
@@ -278,11 +307,11 @@ export function VaultBoard({ dossierId, initialFiles, documentNames }: Props) {
 
       {previewIndex >= 0 && (
         <FilePreview
-          files={visible}
+          files={previewList}
           index={previewIndex}
           documentLabel={documentLabel}
           signUrl={signUrl}
-          onIndex={(i) => setPreviewId(visible[i]?.id ?? null)}
+          onIndex={(i) => setPreviewId(previewList[i]?.id ?? null)}
           onDelete={(f) => void deleteFile(f)}
           onClose={() => setPreviewId(null)}
         />
@@ -327,7 +356,9 @@ function FileCard({ file, thumb, doc, onOpen }: { file: VaultFile; thumb?: strin
           </span>
           <span className="mono mt-0.5 block text-[11px] text-faint">
             {formatSize(file.size)}
-            {file.uploadedAt && ` · ${new Date(file.uploadedAt).toLocaleDateString("fr-FR", { day: "numeric", month: "short" })}`}
+            {file.replacedAt
+              ? ` · remplacé le ${new Date(file.replacedAt).toLocaleDateString("fr-FR", { day: "numeric", month: "short" })}`
+              : file.uploadedAt && ` · ${new Date(file.uploadedAt).toLocaleDateString("fr-FR", { day: "numeric", month: "short" })}`}
           </span>
         </span>
       </button>

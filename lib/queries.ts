@@ -134,7 +134,7 @@ export async function getDocumentsWithDetails(supabase: SupabaseClient, dossierI
       ? supabase.from("document_link").select("id,document_id,label,url,position").in("document_id", ids).order("position")
       : Promise.resolve({ data: [] as Record<string, unknown>[] }),
     ids.length
-      ? supabase.from("file").select("*").in("document_id", ids).order("uploaded_at")
+      ? supabase.from("file").select("*").in("document_id", ids).is("replaced_at", null).order("uploaded_at")
       : Promise.resolve({ data: [] as Record<string, unknown>[] }),
   ]);
 
@@ -190,6 +190,7 @@ export function mapVaultFile(row: Record<string, unknown>): VaultFile {
     size: Number(row.size ?? 0),
     mime: row.mime as string,
     uploadedAt: row.uploaded_at as string,
+    replacedAt: (row.replaced_at as string | null) ?? null,
   };
 }
 

@@ -29,6 +29,7 @@ interface Props {
 export function DocumentDrawer({ doc, onChange, onDelete, onClose }: Props) {
   const supabase = createClient();
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [uploadNotice, setUploadNotice] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
 
   const [warn, setWarn] = useState(false);
@@ -112,6 +113,7 @@ export function DocumentDrawer({ doc, onChange, onDelete, onClose }: Props) {
 
   async function handleUpload(fileList: FileList) {
     setUploading(true);
+    setUploadNotice(null);
     setUploadError(null);
     let files = doc.files;
     for (const file of Array.from(fileList)) {
@@ -120,8 +122,10 @@ export function DocumentDrawer({ doc, onChange, onDelete, onClose }: Props) {
         setUploadError(`${file.name} : ${res.error ?? "fichier refusé."}`);
         continue;
       }
-      files = [...files, res.file];
+      const oldId = res.replaced?.id;
+      files = [...files.filter((f) => f.id !== oldId), res.file];
       onChange({ ...doc, files });
+      if (res.replaced) setUploadNotice(`${res.file.name} : nouvelle version enregistrée, l'ancienne est conservée dans Coffre › Remplacés.`);
     }
     setUploading(false);
   }
@@ -311,6 +315,7 @@ export function DocumentDrawer({ doc, onChange, onDelete, onClose }: Props) {
         )}
         <FileDropzone compact busy={uploading} onFiles={handleUpload} title="Ajouter un scan" />
         {uploadError && <p className="mt-1.5 text-[12px] text-bad">{uploadError}</p>}
+        {uploadNotice && <p className="mt-1.5 text-[12px] text-ok" role="status">{uploadNotice}</p>}
       </DrawerCard>
       )}
         {previewIndex >= 0 &&

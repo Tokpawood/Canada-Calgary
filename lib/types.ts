@@ -52,6 +52,8 @@ export interface VaultFile {
   size: number;
   mime: string;
   uploadedAt: string;
+  /** Renseigné quand une nouvelle version (même nom, même pièce) a remplacé ce fichier. */
+  replacedAt: string | null;
 }
 
 export interface DocumentRecord {

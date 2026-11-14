@@ -228,6 +228,34 @@ export async function downloadFile(token: string, id: string): Promise<Response>
   return res;
 }
 
+/** Déplace un fichier vers un autre dossier Drive en le renommant (archivage d'une version remplacée). */
+export async function moveFile(token: string, id: string, folderId: string, newName: string): Promise<void> {
+  const meta = await driveFetch(token, `https://www.googleapis.com/drive/v3/files/${id}?fields=parents`);
+  if (!meta.ok) throw new DriveError("Ancienne version introuvable sur Google Drive.", 404);
+  const { parents = [] } = (await meta.json()) as { parents?: string[] };
+  const params = new URLSearchParams({ addParents: folderId, fields: "id" });
+  const remove = parents.filter((p) => p !== folderId).join(",");
+  if (remove) params.set("removeParents", remove);
+  const res = await driveFetch(token, `https://www.googleapis.com/drive/v3/files/${id}?${params}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name: newName }),
+  });
+  if (!res.ok) throw new DriveError("Impossible d'archiver l'ancienne version sur Google Drive.");
+}
+
+/** « passeport.pdf » → « passeport (remplacé le 14-11-2026 13h05).pdf » (heure locale du serveur). */
+export function replacedName(name: string, at = new Date()): string {
+  const parts = Object.fromEntries(
+    new Intl.DateTimeFormat("fr-CA", { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23" })
+      .formatToParts(at)
+      .map((p) => [p.type, p.value]),
+  );
+  const stamp = `${parts.day}-${parts.month}-${parts.year} ${parts.hour}h${parts.minute}`;
+  const dot = name.lastIndexOf(".");
+  return dot > 0 ? `${name.slice(0, dot)} (remplacé le ${stamp})${name.slice(dot)}` : `${name} (remplacé le ${stamp})`;
+}
+
 /** Mise à la corbeille Drive (récupérable 30 jours) plutôt que suppression définitive. */
 export async function trashFile(token: string, id: string): Promise<void> {
   const res = await driveFetch(token, `https://www.googleapis.com/drive/v3/files/${id}`, {
