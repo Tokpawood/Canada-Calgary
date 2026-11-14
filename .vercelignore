@@ -1,0 +1,9 @@
+# Jamais envoyé à Vercel lors d'un déploiement depuis le poste
+.env*
+.vercel
+.next
+node_modules
+supabase/.temp
+supabase/.branches
+*.tmp.mjs
+*.sql.bak
