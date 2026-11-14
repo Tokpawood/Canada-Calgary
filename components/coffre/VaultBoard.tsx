@@ -6,9 +6,9 @@ import { mapVaultFile } from "@/lib/queries";
 import { validateVaultFile } from "@/lib/fileSniff";
 import type { VaultFile } from "@/lib/types";
 import { timestamp } from "@/lib/ids";
-import { EmptyState, PageHeader, Segmented } from "@/components/ui";
+import { EmptyState, PageHeader } from "@/components/ui";
 import { FileDropzone, formatSize } from "@/components/FileDropzone";
-import { IconFile, IconImage, IconLock, IconSearch, IconShield } from "@/components/icons";
+import { IconChevronDown, IconFile, IconImage, IconLock, IconPaperclip, IconSearch, IconShield, IconX } from "@/components/icons";
 import { FilePreview, fileKind, isPdf } from "./FilePreview";
 
 function sanitizeName(name: string): string {
@@ -91,7 +91,6 @@ export function VaultBoard({ dossierId, initialFiles, documentNames }: Props) {
 
   const totalSize = files.reduce((s, f) => s + f.size, 0);
   const pdfCount = files.filter(isPdf).length;
-  const linked = files.filter((f) => f.documentId).length;
   const previewIndex = previewId ? visible.findIndex((f) => f.id === previewId) : -1;
 
   async function handleUpload(fileList: FileList) {
@@ -136,38 +135,86 @@ export function VaultBoard({ dossierId, initialFiles, documentNames }: Props) {
         description="Vos scans dans un stockage privé. Chaque aperçu ou téléchargement passe par un lien sécurisé valable 5 minutes."
       />
 
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <Stat label="Fichiers" value={String(files.length)} />
-        <Stat label="Espace utilisé" value={formatSize(totalSize)} />
-        <Stat label="PDF · images" value={`${pdfCount} · ${files.length - pdfCount}`} />
-        <Stat label="Rattachés à une pièce" value={`${linked} / ${files.length}`} />
-      </div>
-
-      <div className="mt-5 grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,1fr)_300px]">
+      <div className="grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,1fr)_300px]">
         <div className="min-w-0">
           {files.length > 0 && (
-            <div className="mb-4 flex flex-wrap items-center gap-2">
-              <Segmented<Kind>
-                label="Type de fichier"
-                value={kind}
-                onChange={setKind}
-                options={[
-                  { value: "all", label: "Tous", count: files.length },
-                  { value: "pdf", label: "PDF", count: pdfCount },
-                  { value: "image", label: "Images", count: files.length - pdfCount },
-                ]}
-              />
-              <select value={docFilter} onChange={(e) => setDocFilter(e.target.value)} aria-label="Filtrer par pièce" className="input w-auto max-w-[220px] py-1.5 text-[13px]">
-                <option value="all">Toutes les pièces</option>
-                {docOptions.map((o) => (
-                  <option key={o.id} value={o.id}>
-                    {o.label}
-                  </option>
-                ))}
-              </select>
-              <div className="relative min-w-[180px] flex-1">
-                <IconSearch size={16} className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-faint" />
-                <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Rechercher un fichier…" aria-label="Rechercher un fichier" className="input pl-9" />
+            <div className="card mb-4 overflow-hidden">
+              <label className="flex items-center gap-2.5 px-4">
+                <IconSearch size={17} className="shrink-0 text-faint" />
+                <input
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  placeholder="Rechercher par nom de fichier ou de pièce…"
+                  aria-label="Rechercher un fichier"
+                  className="min-w-0 flex-1 bg-transparent py-3 text-[14px] text-ink outline-none placeholder:text-faint"
+                />
+                {query && (
+                  <button type="button" onClick={() => setQuery("")} aria-label="Effacer la recherche" className="grid h-7 w-7 place-items-center rounded-md text-faint hover:bg-surface-2 hover:text-ink">
+                    <IconX size={15} />
+                  </button>
+                )}
+              </label>
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-2 border-t border-line bg-surface-2/60 px-3 py-2.5">
+                <div role="group" aria-label="Type de fichier" className="flex flex-wrap gap-1.5">
+                  {(
+                    [
+                      { value: "all", label: "Tous", count: files.length, icon: null },
+                      { value: "pdf", label: "PDF", count: pdfCount, icon: <IconFile size={13} /> },
+                      { value: "image", label: "Images", count: files.length - pdfCount, icon: <IconImage size={13} /> },
+                    ] as const
+                  ).map((o) => {
+                    const active = kind === o.value;
+                    return (
+                      <button
+                        key={o.value}
+                        type="button"
+                        aria-pressed={active}
+                        onClick={() => setKind(o.value)}
+                        className={`flex items-center gap-1.5 rounded-full border px-3 py-1 text-[12.5px] font-semibold transition-colors ${
+                          active ? "border-act bg-act text-act-ink" : "border-line bg-surface text-muted hover:border-faint hover:text-ink"
+                        }`}
+                      >
+                        {o.icon}
+                        {o.label}
+                        <span className={`mono text-[11px] ${active ? "opacity-70" : "text-faint"}`}>{o.count}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+                <span className="hidden h-5 w-px bg-line sm:block" aria-hidden />
+                <label className={`relative flex items-center rounded-full border transition-colors ${docFilter === "all" ? "border-line bg-surface" : "border-act bg-act-soft"}`}>
+                  <IconPaperclip size={13} className={`pointer-events-none absolute left-3 ${docFilter === "all" ? "text-faint" : "text-act"}`} />
+                  <select
+                    value={docFilter}
+                    onChange={(e) => setDocFilter(e.target.value)}
+                    aria-label="Filtrer par pièce"
+                    className={`max-w-[230px] cursor-pointer appearance-none truncate rounded-full bg-transparent py-1 pr-8 pl-8 text-[12.5px] font-semibold outline-none ${docFilter === "all" ? "text-muted" : "text-act"}`}
+                  >
+                    <option value="all">Toutes les pièces</option>
+                    {docOptions.map((o) => (
+                      <option key={o.id} value={o.id}>
+                        {o.label}
+                      </option>
+                    ))}
+                  </select>
+                  <IconChevronDown size={14} className="pointer-events-none absolute right-2.5 text-faint" />
+                </label>
+                <span className="ml-auto text-[12px] text-muted">
+                  {visible.length === files.length ? `${files.length} fichier${files.length > 1 ? "s" : ""} · ${formatSize(totalSize)}` : `${visible.length} sur ${files.length}`}
+                </span>
+                {(kind !== "all" || docFilter !== "all" || query) && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setKind("all");
+                      setDocFilter("all");
+                      setQuery("");
+                    }}
+                    className="text-[12px] font-semibold text-act hover:underline"
+                  >
+                    Réinitialiser
+                  </button>
+                )}
               </div>
             </div>
           )}
@@ -214,15 +261,6 @@ export function VaultBoard({ dossierId, initialFiles, documentNames }: Props) {
         />
       )}
     </>
-  );
-}
-
-function Stat({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="card px-4 py-3">
-      <p className="text-[12px] text-muted">{label}</p>
-      <p className="mono mt-0.5 text-[20px] font-semibold">{value}</p>
-    </div>
   );
 }
 
