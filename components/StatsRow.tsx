@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { Meter, type Tone } from "./ui";
 
 export interface Stat {
@@ -9,31 +10,43 @@ export interface Stat {
   markerPct?: number;
   markerLabel?: string;
   tone?: Tone;
+  /** Couleur de la valeur quand elle signale quelque chose (ex. obligatoires manquants). */
+  valueTone?: "bad" | "opt" | "ok";
+  /** Jauge personnalisée à la place du Meter (ex. répartition par statut). */
+  bar?: ReactNode;
 }
 
-export function StatsRow({ stats }: { stats: Stat[] }) {
+const VALUE_TONE = { bad: "text-bad", opt: "text-opt", ok: "text-ok" } as const;
+
+/** Bandeau de synthèse : une seule carte découpée en cases séparées par un filet. */
+export function StatsRow({ stats, className = "my-5" }: { stats: Stat[]; className?: string }) {
   return (
-    <div className="my-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
-      {stats.map((s) => (
-        <div key={s.label} className="card flex flex-col p-4">
-          <p className="text-[12.5px] font-medium text-muted">{s.label}</p>
-          <p className="mt-1.5 font-display text-[26px] leading-none font-bold tracking-tight">
-            {s.value}
-            {s.unit && <span className="ml-1 text-sm font-semibold text-muted">{s.unit}</span>}
-          </p>
-          {s.sub && <p className="mt-1.5 text-[12px] text-muted">{s.sub}</p>}
-          {s.pct != null && (
-            <div className="mt-auto pt-3.5">
-              <Meter
-                value={s.pct}
-                tone={s.tone ?? "act"}
-                label={s.label}
-                markers={s.markerPct != null ? [{ pct: s.markerPct, label: s.markerLabel ?? "Repère" }] : []}
-              />
-            </div>
-          )}
-        </div>
-      ))}
+    <div className={`overflow-hidden rounded-2xl border border-line bg-line shadow-[var(--shadow)] ${className}`}>
+      <div className={`grid gap-px ${stats.length >= 4 ? "grid-cols-2 lg:grid-cols-4" : stats.length === 3 ? "grid-cols-1 sm:grid-cols-3" : "grid-cols-2"}`}>
+        {stats.map((s) => (
+          <div key={s.label} className="flex min-w-0 flex-col bg-surface px-4 py-3.5 sm:px-5">
+            <p className="eyebrow">{s.label}</p>
+            <p className={`mono mt-1.5 text-[24px] leading-none font-semibold tracking-tight ${s.valueTone ? VALUE_TONE[s.valueTone] : ""}`}>
+              {s.value}
+              {s.unit && <span className="ml-1 text-[13px] font-medium text-muted">{s.unit}</span>}
+            </p>
+            {s.sub && <p className="mt-1.5 truncate text-[12px] text-muted">{s.sub}</p>}
+            {(s.bar || s.pct != null) && (
+              <div className="mt-auto pt-3">
+                {s.bar ?? (
+                  <Meter
+                    value={s.pct ?? 0}
+                    tone={s.tone ?? "act"}
+                    height={4}
+                    label={s.label}
+                    markers={s.markerPct != null ? [{ pct: s.markerPct, label: s.markerLabel ?? "Repère" }] : []}
+                  />
+                )}
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

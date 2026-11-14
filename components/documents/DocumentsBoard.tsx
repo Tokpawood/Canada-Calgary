@@ -4,8 +4,10 @@ import { useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import type { DocumentRecord, DocumentStatus } from "@/lib/types";
 import { newId } from "@/lib/ids";
-import { Chip, DOC_TONE, EmptyState, Segmented, TONE_DOT } from "@/components/ui";
-import { IconFile, IconPaperclip, IconPlus, IconSearch } from "@/components/icons";
+import { Chip, DOC_TONE, EmptyState, TONE_DOT } from "@/components/ui";
+import { IconAlert, IconFile, IconPaperclip, IconPlus } from "@/components/icons";
+import { FilterBar, FilterChip, FilterDivider, FilterGroup, FilterSelect } from "@/components/FilterBar";
+import { StatsRow } from "@/components/StatsRow";
 import { DocumentDrawer } from "./DocumentDrawer";
 
 type FilterKey = "all" | DocumentStatus;
@@ -15,6 +17,7 @@ export function DocumentsBoard({ initialDocuments, dossierId }: { initialDocumen
   const [documents, setDocuments] = useState(initialDocuments);
   const [filter, setFilter] = useState<FilterKey>("all");
   const [query, setQuery] = useState("");
+  const [reqFilter, setReqFilter] = useState("all");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
   const [newName, setNewName] = useState("");
@@ -24,10 +27,12 @@ export function DocumentsBoard({ initialDocuments, dossierId }: { initialDocumen
     const q = query.trim().toLowerCase();
     return documents.filter((d) => {
       if (filter !== "all" && d.status !== filter) return false;
+      if (reqFilter !== "all" && d.req !== reqFilter) return false;
       if (q && !`${d.name} ${d.use} ${d.from}`.toLowerCase().includes(q)) return false;
       return true;
     });
-  }, [documents, filter, query]);
+  }, [documents, filter, reqFilter, query]);
+  const withScans = documents.filter((d) => d.files.length > 0).length;
 
   const count = (s: DocumentStatus) => documents.filter((d) => d.status === s).length;
   const mandatoryMissing = documents.filter((d) => d.req === "Obligatoire" && d.status !== "Obtenu").length;
@@ -58,59 +63,85 @@ export function DocumentsBoard({ initialDocuments, dossierId }: { initialDocumen
 
   return (
     <div className="min-w-0">
-      <div className="card mb-4 p-4 sm:p-5">
-        <div className="flex flex-wrap items-end justify-between gap-4">
-          <div>
-            <p className="text-[12.5px] font-medium text-muted">Documents obtenus</p>
-            <p className="mt-1 font-display text-[30px] leading-none font-bold">
-              {count("Obtenu")}
-              <span className="ml-1 text-base font-semibold text-muted">/ {documents.length}</span>
-            </p>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            {mandatoryMissing > 0 && <Chip tone="bad">{mandatoryMissing} obligatoire(s) manquant(s)</Chip>}
-            {incompleteChecks > 0 && <Chip tone="opt">{incompleteChecks} à contrôler</Chip>}
-          </div>
-        </div>
-        <div className="mt-4 flex h-2 gap-[2px] overflow-hidden rounded-full bg-surface-2" role="img" aria-label="Répartition des documents par statut">
-          {STATUSES.map((s) => {
-            const n = count(s);
-            if (!n) return null;
-            return <span key={s} title={`${s} : ${n}`} className={`h-full first:rounded-l-full last:rounded-r-full ${TONE_DOT[DOC_TONE[s]]} ${s === "À obtenir" ? "opacity-30" : ""}`} style={{ width: `${(n / total) * 100}%` }} />;
-          })}
-        </div>
-        <ul className="mt-2.5 flex flex-wrap gap-x-4 gap-y-1 text-[12px] text-muted">
-          {STATUSES.map((s) => (
-            <li key={s} className="flex items-center gap-1.5">
-              <span className={`h-2 w-2 rounded-full ${TONE_DOT[DOC_TONE[s]]} ${s === "À obtenir" ? "opacity-30" : ""}`} />
-              {s} <span className="mono text-ink">{count(s)}</span>
-            </li>
-          ))}
-        </ul>
-      </div>
+      <StatsRow
+        className="mb-4"
+        stats={[
+          {
+            label: "Obtenus",
+            value: String(count("Obtenu")),
+            unit: `/ ${documents.length}`,
+            sub: `${count("Demandé")} demandé · ${count("À obtenir")} à obtenir`,
+            bar: (
+              <div className="flex h-1 gap-[2px] overflow-hidden rounded-full bg-surface-2" role="img" aria-label="Répartition des documents par statut">
+                {STATUSES.map((s) => {
+                  const n = count(s);
+                  if (!n) return null;
+                  return <span key={s} title={`${s} : ${n}`} className={`h-full ${TONE_DOT[DOC_TONE[s]]} ${s === "À obtenir" ? "opacity-30" : ""}`} style={{ width: `${(n / total) * 100}%` }} />;
+                })}
+              </div>
+            ),
+          },
+          {
+            label: "Obligatoires",
+            value: String(mandatoryMissing),
+            valueTone: mandatoryMissing > 0 ? "bad" : "ok",
+            sub: mandatoryMissing > 0 ? "manquants" : "tous obtenus",
+          },
+          {
+            label: "À contrôler",
+            value: String(incompleteChecks),
+            valueTone: incompleteChecks > 0 ? "opt" : undefined,
+            sub: incompleteChecks > 0 ? "pièces obtenues" : "rien en attente",
+          },
+          {
+            label: "Numérisées",
+            value: String(withScans),
+            unit: `/ ${documents.length}`,
+            sub: "avec un scan",
+            pct: documents.length ? (withScans / documents.length) * 100 : 0,
+          },
+        ]}
+      />
 
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-        <Segmented<FilterKey>
-          label="Filtrer les documents"
-          value={filter}
-          onChange={setFilter}
-          options={[
-            { value: "all", label: "Tous", count: documents.length },
-            { value: "À obtenir", label: "À obtenir", count: count("À obtenir") },
-            { value: "Demandé", label: "Demandés", count: count("Demandé") },
-            { value: "Obtenu", label: "Obtenus", count: count("Obtenu") },
-          ]}
-        />
-        <div className="flex w-full items-center gap-2 sm:w-auto">
-          <div className="relative flex-1 sm:w-56 sm:flex-none">
-            <IconSearch size={16} className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-faint" />
-            <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Rechercher…" aria-label="Rechercher un document" className="input pl-9" />
-          </div>
-          <button type="button" onClick={() => setAdding((v) => !v)} aria-expanded={adding} className="btn btn-primary">
-            <IconPlus size={16} />
-            <span className="hidden sm:inline">Document</span>
-          </button>
-        </div>
+      <div className="mb-3">
+        <FilterBar
+          query={query}
+          onQuery={setQuery}
+          placeholder="Rechercher une pièce, un organisme, un usage…"
+          searchLabel="Rechercher un document"
+          actions={
+            <button type="button" onClick={() => setAdding((v) => !v)} aria-expanded={adding} className="btn btn-sm btn-primary">
+              <IconPlus size={15} />
+              <span className="hidden sm:inline">Document</span>
+            </button>
+          }
+          meta={filtered.length === documents.length ? `${documents.length} pièces` : `${filtered.length} sur ${documents.length}`}
+          onReset={filter !== "all" || reqFilter !== "all" || query ? () => {
+            setFilter("all");
+            setReqFilter("all");
+            setQuery("");
+          } : undefined}
+        >
+          <FilterGroup label="Filtrer par statut">
+            <FilterChip active={filter === "all"} onClick={() => setFilter("all")} label="Tous" count={documents.length} />
+            <FilterChip active={filter === "À obtenir"} onClick={() => setFilter("À obtenir")} label="À obtenir" count={count("À obtenir")} />
+            <FilterChip active={filter === "Demandé"} onClick={() => setFilter("Demandé")} label="Demandés" count={count("Demandé")} />
+            <FilterChip active={filter === "Obtenu"} onClick={() => setFilter("Obtenu")} label="Obtenus" count={count("Obtenu")} />
+          </FilterGroup>
+          <FilterDivider />
+          <FilterSelect
+            label="Filtrer par caractère"
+            value={reqFilter}
+            onChange={setReqFilter}
+            icon={<IconAlert size={13} />}
+            options={[
+              { value: "all", label: "Tous caractères" },
+              { value: "Obligatoire", label: "Obligatoires" },
+              { value: "Conseillé", label: "Conseillés" },
+              { value: "Si applicable", label: "Si applicable" },
+            ]}
+          />
+        </FilterBar>
       </div>
 
       {adding && (

@@ -8,7 +8,8 @@ import type { VaultFile } from "@/lib/types";
 import { timestamp } from "@/lib/ids";
 import { EmptyState, PageHeader } from "@/components/ui";
 import { FileDropzone, formatSize } from "@/components/FileDropzone";
-import { IconChevronDown, IconFile, IconImage, IconLock, IconPaperclip, IconSearch, IconShield, IconX } from "@/components/icons";
+import { IconFile, IconImage, IconLock, IconPaperclip, IconSearch, IconShield } from "@/components/icons";
+import { FilterBar, FilterChip, FilterDivider, FilterGroup, FilterSelect } from "@/components/FilterBar";
 import { FilePreview, fileKind, isPdf } from "./FilePreview";
 
 function sanitizeName(name: string): string {
@@ -138,84 +139,33 @@ export function VaultBoard({ dossierId, initialFiles, documentNames }: Props) {
       <div className="grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,1fr)_300px]">
         <div className="min-w-0">
           {files.length > 0 && (
-            <div className="card mb-4 overflow-hidden">
-              <label className="flex items-center gap-2.5 px-4">
-                <IconSearch size={17} className="shrink-0 text-faint" />
-                <input
-                  value={query}
-                  onChange={(e) => setQuery(e.target.value)}
-                  placeholder="Rechercher par nom de fichier ou de pièce…"
-                  aria-label="Rechercher un fichier"
-                  className="min-w-0 flex-1 bg-transparent py-3 text-[14px] text-ink outline-none placeholder:text-faint"
+            <div className="mb-4">
+              <FilterBar
+                query={query}
+                onQuery={setQuery}
+                placeholder="Rechercher par nom de fichier ou de pièce…"
+                searchLabel="Rechercher un fichier"
+                meta={visible.length === files.length ? `${files.length} fichier${files.length > 1 ? "s" : ""} · ${formatSize(totalSize)}` : `${visible.length} sur ${files.length}`}
+                onReset={kind !== "all" || docFilter !== "all" || query ? () => {
+                  setKind("all");
+                  setDocFilter("all");
+                  setQuery("");
+                } : undefined}
+              >
+                <FilterGroup label="Type de fichier">
+                  <FilterChip active={kind === "all"} onClick={() => setKind("all")} label="Tous" count={files.length} />
+                  <FilterChip active={kind === "pdf"} onClick={() => setKind("pdf")} label="PDF" count={pdfCount} icon={<IconFile size={13} />} />
+                  <FilterChip active={kind === "image"} onClick={() => setKind("image")} label="Images" count={files.length - pdfCount} icon={<IconImage size={13} />} />
+                </FilterGroup>
+                <FilterDivider />
+                <FilterSelect
+                  label="Filtrer par pièce"
+                  value={docFilter}
+                  onChange={setDocFilter}
+                  icon={<IconPaperclip size={13} />}
+                  options={[{ value: "all", label: "Toutes les pièces" }, ...docOptions.map((o) => ({ value: o.id, label: o.label }))]}
                 />
-                {query && (
-                  <button type="button" onClick={() => setQuery("")} aria-label="Effacer la recherche" className="grid h-7 w-7 place-items-center rounded-md text-faint hover:bg-surface-2 hover:text-ink">
-                    <IconX size={15} />
-                  </button>
-                )}
-              </label>
-              <div className="flex flex-wrap items-center gap-x-3 gap-y-2 border-t border-line bg-surface-2/60 px-3 py-2.5">
-                <div role="group" aria-label="Type de fichier" className="flex flex-wrap gap-1.5">
-                  {(
-                    [
-                      { value: "all", label: "Tous", count: files.length, icon: null },
-                      { value: "pdf", label: "PDF", count: pdfCount, icon: <IconFile size={13} /> },
-                      { value: "image", label: "Images", count: files.length - pdfCount, icon: <IconImage size={13} /> },
-                    ] as const
-                  ).map((o) => {
-                    const active = kind === o.value;
-                    return (
-                      <button
-                        key={o.value}
-                        type="button"
-                        aria-pressed={active}
-                        onClick={() => setKind(o.value)}
-                        className={`flex items-center gap-1.5 rounded-full border px-3 py-1 text-[12.5px] font-semibold transition-colors ${
-                          active ? "border-act bg-act text-act-ink" : "border-line bg-surface text-muted hover:border-faint hover:text-ink"
-                        }`}
-                      >
-                        {o.icon}
-                        {o.label}
-                        <span className={`mono text-[11px] ${active ? "opacity-70" : "text-faint"}`}>{o.count}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-                <span className="hidden h-5 w-px bg-line sm:block" aria-hidden />
-                <label className={`relative flex items-center rounded-full border transition-colors ${docFilter === "all" ? "border-line bg-surface" : "border-act bg-act-soft"}`}>
-                  <IconPaperclip size={13} className={`pointer-events-none absolute left-3 ${docFilter === "all" ? "text-faint" : "text-act"}`} />
-                  <select
-                    value={docFilter}
-                    onChange={(e) => setDocFilter(e.target.value)}
-                    aria-label="Filtrer par pièce"
-                    className={`max-w-[230px] cursor-pointer appearance-none truncate rounded-full bg-transparent py-1 pr-8 pl-8 text-[12.5px] font-semibold outline-none ${docFilter === "all" ? "text-muted" : "text-act"}`}
-                  >
-                    <option value="all">Toutes les pièces</option>
-                    {docOptions.map((o) => (
-                      <option key={o.id} value={o.id}>
-                        {o.label}
-                      </option>
-                    ))}
-                  </select>
-                  <IconChevronDown size={14} className="pointer-events-none absolute right-2.5 text-faint" />
-                </label>
-                <span className="ml-auto text-[12px] text-muted">
-                  {visible.length === files.length ? `${files.length} fichier${files.length > 1 ? "s" : ""} · ${formatSize(totalSize)}` : `${visible.length} sur ${files.length}`}
-                </span>
-                {(kind !== "all" || docFilter !== "all" || query) && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setKind("all");
-                      setDocFilter("all");
-                      setQuery("");
-                    }}
-                    className="text-[12px] font-semibold text-act hover:underline"
-                  >
-                    Réinitialiser
-                  </button>
-                )}
-              </div>
+              </FilterBar>
             </div>
           )}
 

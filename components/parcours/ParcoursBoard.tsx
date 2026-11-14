@@ -5,8 +5,9 @@ import { createClient } from "@/lib/supabase/client";
 import { isLate, isOpenStep, phaseProgress } from "@/lib/rules";
 import type { Step } from "@/lib/types";
 import { newId } from "@/lib/ids";
-import { Chip, EmptyState, Segmented, STEP_TONE, dueInfo, fcfa } from "@/components/ui";
-import { IconCheck, IconChevronDown, IconLink, IconPlus, IconRoute, IconSearch } from "@/components/icons";
+import { Chip, EmptyState, STEP_TONE, dueInfo, fcfa } from "@/components/ui";
+import { IconCheck, IconChevronDown, IconLink, IconPlus, IconRoute } from "@/components/icons";
+import { FilterBar, FilterChip, FilterDivider, FilterGroup, FilterSelect } from "@/components/FilterBar";
 import { StepDrawer } from "./StepDrawer";
 
 type FilterKey = "upcoming" | "late" | "done" | "all";
@@ -15,6 +16,7 @@ export function ParcoursBoard({ initialSteps }: { initialSteps: Step[] }) {
   const [steps, setSteps] = useState<Step[]>(initialSteps);
   const [filter, setFilter] = useState<FilterKey>("upcoming");
   const [query, setQuery] = useState("");
+  const [phaseFilter, setPhaseFilter] = useState("all");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
   const [adding, setAdding] = useState(false);
@@ -42,10 +44,11 @@ export function ParcoursBoard({ initialSteps }: { initialSteps: Step[] }) {
       if (filter === "late" && !isLate(s)) return false;
       if (filter === "done" && s.status !== "Fait") return false;
       if (filter === "upcoming" && !isOpenStep(s.status)) return false;
+      if (phaseFilter !== "all" && s.phase !== phaseFilter) return false;
       if (q && !`${s.title} ${s.org} ${s.notes}`.toLowerCase().includes(q)) return false;
       return true;
     });
-  }, [steps, filter, query]);
+  }, [steps, filter, phaseFilter, query]);
 
   const counts: Record<FilterKey, number> = {
     upcoming: steps.filter((s) => isOpenStep(s.status)).length,
@@ -95,31 +98,41 @@ export function ParcoursBoard({ initialSteps }: { initialSteps: Step[] }) {
 
   return (
     <div>
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <div className="flex max-w-full min-w-0 flex-wrap items-center gap-3">
-          <h2 className="text-xl font-bold">Étapes</h2>
-          <Segmented<FilterKey>
-            label="Filtrer les étapes"
-            value={filter}
-            onChange={setFilter}
-            options={[
-              { value: "upcoming", label: "À venir", count: counts.upcoming },
-              { value: "late", label: "En retard", count: counts.late },
-              { value: "done", label: "Faites", count: counts.done },
-              { value: "all", label: "Toutes", count: counts.all },
-            ]}
+      <h2 className="mb-3 text-xl font-bold">Étapes</h2>
+      <div className="mb-4">
+        <FilterBar
+          query={query}
+          onQuery={setQuery}
+          placeholder="Rechercher une étape, un organisme, une note…"
+          searchLabel="Rechercher une étape"
+          actions={
+            <button type="button" onClick={() => setAdding((v) => !v)} className="btn btn-sm btn-primary" aria-expanded={adding}>
+              <IconPlus size={15} />
+              <span className="hidden sm:inline">Étape</span>
+            </button>
+          }
+          meta={filtered.length === steps.length ? `${steps.length} étapes` : `${filtered.length} sur ${steps.length}`}
+          onReset={filter !== "upcoming" || phaseFilter !== "all" || query ? () => {
+            setFilter("upcoming");
+            setPhaseFilter("all");
+            setQuery("");
+          } : undefined}
+        >
+          <FilterGroup label="Filtrer les étapes">
+            <FilterChip active={filter === "upcoming"} onClick={() => setFilter("upcoming")} label="À venir" count={counts.upcoming} />
+            <FilterChip active={filter === "late"} onClick={() => setFilter("late")} label="En retard" count={counts.late} alert />
+            <FilterChip active={filter === "done"} onClick={() => setFilter("done")} label="Faites" count={counts.done} />
+            <FilterChip active={filter === "all"} onClick={() => setFilter("all")} label="Toutes" count={counts.all} />
+          </FilterGroup>
+          <FilterDivider />
+          <FilterSelect
+            label="Filtrer par phase"
+            value={phaseFilter}
+            onChange={setPhaseFilter}
+            icon={<IconRoute size={13} />}
+            options={[{ value: "all", label: "Toutes les phases" }, ...phases.map((p) => ({ value: p.phase, label: p.phase }))]}
           />
-        </div>
-        <div className="flex w-full items-center gap-2 sm:w-auto">
-          <div className="relative flex-1 sm:w-64 sm:flex-none">
-            <IconSearch size={16} className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-faint" />
-            <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Rechercher une étape…" aria-label="Rechercher une étape" className="input pl-9" />
-          </div>
-          <button type="button" onClick={() => setAdding((v) => !v)} className="btn btn-primary" aria-expanded={adding}>
-            <IconPlus size={16} />
-            <span className="hidden sm:inline">Étape</span>
-          </button>
-        </div>
+        </FilterBar>
       </div>
 
       {adding && (
