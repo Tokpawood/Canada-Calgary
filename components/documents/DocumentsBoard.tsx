@@ -2,19 +2,32 @@
 
 import { useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import type { DocumentRecord, DocumentStatus } from "@/lib/types";
+import type { DocumentRecord, DocumentStatus, Gap, Identity } from "@/lib/types";
 import { newId } from "@/lib/ids";
-import { Chip, DOC_TONE, EmptyState, TONE_DOT } from "@/components/ui";
-import { IconAlert, IconFile, IconPaperclip, IconPlus } from "@/components/icons";
+import { Chip, DOC_TONE, EmptyState, PageHeader, TONE_DOT } from "@/components/ui";
+import { IconAlert, IconCheck, IconFile, IconPaperclip, IconPlus, IconShield } from "@/components/icons";
 import { FilterBar, FilterChip, FilterDivider, FilterGroup, FilterSelect } from "@/components/FilterBar";
-import { StatsRow } from "@/components/StatsRow";
+import { DarkHeader, DarkTiles, HeaderTabs, useHashTab } from "@/components/DarkHeader";
 import { DocumentDrawer } from "./DocumentDrawer";
+import { DocumentsSidePanel } from "./DocumentsSidePanel";
 
 type FilterKey = "all" | DocumentStatus;
 const STATUSES: DocumentStatus[] = ["Obtenu", "Demandé", "À obtenir"];
 
-export function DocumentsBoard({ initialDocuments, dossierId }: { initialDocuments: DocumentRecord[]; dossierId: string }) {
+const TABS = ["pieces", "controles", "identite"] as const;
+type Tab = (typeof TABS)[number];
+
+interface Props {
+  initialDocuments: DocumentRecord[];
+  dossierId: string;
+  identity: Identity | null;
+  initialGaps: Gap[];
+}
+
+export function DocumentsBoard({ initialDocuments, dossierId, identity, initialGaps }: Props) {
   const [documents, setDocuments] = useState(initialDocuments);
+  const [gaps, setGaps] = useState(initialGaps);
+  const [tab, setTab] = useHashTab<Tab>(TABS, "pieces");
   const [filter, setFilter] = useState<FilterKey>("all");
   const [query, setQuery] = useState("");
   const [reqFilter, setReqFilter] = useState("all");
@@ -61,60 +74,140 @@ export function DocumentsBoard({ initialDocuments, dossierId }: { initialDocumen
     }
   }
 
+  const obtained = count("Obtenu");
+  const toCheck = documents.filter((d) => d.status === "Obtenu" && d.checks.some((c) => !c.done));
+  const openGaps = gaps.filter((g) => !g.done).length;
+
+  async function toggleGap(id: string, done: boolean) {
+    setGaps((prev) => prev.map((g) => (g.id === id ? { ...g, done } : g)));
+    await supabase.from("gap").update({ done }).eq("id", id);
+  }
+
   return (
     <div className="min-w-0">
-      <StatsRow
-        className="mb-4"
-        stats={[
-          {
-            label: "Obtenus",
-            value: String(count("Obtenu")),
-            unit: `/ ${documents.length}`,
-            sub: `${count("Demandé")} demandé · ${count("À obtenir")} à obtenir`,
-            bar: (
-              <div className="flex h-1 gap-[2px] overflow-hidden rounded-full bg-surface-2" role="img" aria-label="Répartition des documents par statut">
-                {STATUSES.map((s) => {
-                  const n = count(s);
-                  if (!n) return null;
-                  return <span key={s} title={`${s} : ${n}`} className={`h-full ${TONE_DOT[DOC_TONE[s]]} ${s === "À obtenir" ? "opacity-30" : ""}`} style={{ width: `${(n / total) * 100}%` }} />;
-                })}
-              </div>
-            ),
-          },
-          {
-            label: "Obligatoires",
-            value: String(mandatoryMissing),
-            valueTone: mandatoryMissing > 0 ? "bad" : "ok",
-            sub: mandatoryMissing > 0 ? "manquants" : "tous obtenus",
-          },
-          {
-            label: "À contrôler",
-            value: String(incompleteChecks),
-            valueTone: incompleteChecks > 0 ? "opt" : undefined,
-            sub: incompleteChecks > 0 ? "pièces obtenues" : "rien en attente",
-          },
-          {
-            label: "Numérisées",
-            value: String(withScans),
-            unit: `/ ${documents.length}`,
-            sub: "avec un scan",
-            pct: documents.length ? (withScans / documents.length) * 100 : 0,
-          },
-        ]}
+      <PageHeader
+        title="Documents"
+        description="Pièces à réunir pour le profil et la demande de résidence permanente, avec leurs contrôles avant dépôt et leurs scans."
+        actions={
+          <button
+            type="button"
+            onClick={() => {
+              setTab("pieces");
+              setAdding(true);
+            }}
+            className="btn btn-primary"
+          >
+            <IconPlus size={16} /> Document
+          </button>
+        }
       />
 
+      <DarkHeader
+        aside={
+          <DarkTiles
+            items={[
+              {
+                label: "Obligatoires",
+                value: mandatoryMissing ? String(mandatoryMissing) : "OK",
+                sub: mandatoryMissing ? "encore manquants" : "tous obtenus",
+                tone: mandatoryMissing ? "bad" : "ok",
+              },
+              { label: "Numérisées", value: String(withScans), unit: `/ ${documents.length}`, sub: "avec un scan au coffre", pct: documents.length ? (withScans / documents.length) * 100 : 0, tone: "ok" },
+            ]}
+          />
+        }
+        tabs={
+          <HeaderTabs
+            label="Sections des documents"
+            active={tab}
+            onSelect={setTab}
+            tabs={[
+              { id: "pieces", label: "Pièces", icon: <IconFile size={15} />, badge: { text: String(documents.length) } },
+              { id: "controles", label: "À contrôler", icon: <IconCheck size={15} />, badge: incompleteChecks ? { text: String(incompleteChecks), tone: "signal" } : null },
+              { id: "identite", label: "Identité & écarts", icon: <IconShield size={15} />, badge: openGaps ? { text: String(openGaps), tone: "bad" } : null },
+            ]}
+          />
+        }
+      >
+        <p className="text-[11px] font-semibold tracking-[0.12em] text-night-muted uppercase">Pièces obtenues</p>
+        <p className="mt-1 font-display text-[52px] leading-none font-extrabold tracking-tight">
+          {obtained}
+          <span className="ml-1.5 text-[24px] text-night-muted">/ {documents.length}</span>
+        </p>
+        <p className="mt-2 text-[13px] text-night-muted">
+          {count("Demandé")} demandée(s) · {count("À obtenir")} à obtenir
+        </p>
+        <div className="mt-4 flex h-2.5 gap-[2px] overflow-hidden rounded-full bg-white/10" role="img" aria-label="Répartition des documents par statut">
+          {STATUSES.map((s) => {
+            const n = count(s);
+            if (!n || s === "À obtenir") return null;
+            return <span key={s} title={`${s} : ${n}`} className={`h-full ${s === "Obtenu" ? "bg-ok" : "bg-signal"}`} style={{ width: `${(n / total) * 100}%` }} />;
+          })}
+        </div>
+        <ul className="mt-2.5 flex flex-wrap gap-x-4 gap-y-1 text-[11.5px] text-night-muted">
+          <li className="flex items-center gap-1.5">
+            <span className="h-2 w-2 rounded-full bg-ok" /> Obtenu
+          </li>
+          <li className="flex items-center gap-1.5">
+            <span className="h-2 w-2 rounded-full bg-signal" /> Demandé
+          </li>
+          <li className="flex items-center gap-1.5">
+            <span className="h-2 w-2 rounded-full bg-white/20" /> À obtenir
+          </li>
+        </ul>
+      </DarkHeader>
+
+      <div className="mt-5" role="tabpanel">
+      {tab === "controles" && (
+        <section className="card overflow-hidden">
+          <div className="px-4 pt-4 pb-3 sm:px-5">
+            <h2 className="text-[16px] font-bold">Contrôles avant dépôt</h2>
+            <p className="text-[12.5px] text-muted">Pièces obtenues dont certains contrôles ne sont pas encore cochés. Ouvrez une pièce pour les cocher.</p>
+          </div>
+          {toCheck.length === 0 ? (
+            <p className="border-t border-line px-4 py-8 text-center text-[13px] text-muted">Toutes les pièces obtenues sont contrôlées.</p>
+          ) : (
+            <ul>
+              {toCheck.map((d) => {
+                const pending = d.checks.filter((c) => !c.done);
+                const doneN = d.checks.length - pending.length;
+                return (
+                  <li key={d.id} className="border-t border-line">
+                    <button type="button" onClick={() => setSelectedId(d.id)} className="flex w-full items-start gap-3 px-4 py-3 text-left hover:bg-surface-2/70 sm:px-5">
+                      <span className="mono mt-0.5 grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-opt-bg text-[12px] font-bold text-opt">
+                        {doneN}/{d.checks.length}
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-[14px] font-semibold">{d.name}</span>
+                        <span className="mt-1 flex flex-col gap-0.5">
+                          {pending.slice(0, 3).map((c) => (
+                            <span key={c.id} className="flex items-start gap-1.5 text-[12.5px] text-muted">
+                              <span className="mt-[7px] h-1 w-1 shrink-0 rounded-full bg-opt" />
+                              {c.text}
+                            </span>
+                          ))}
+                          {pending.length > 3 && <span className="text-[12px] text-faint">et {pending.length - 3} autre(s)…</span>}
+                        </span>
+                      </span>
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </section>
+      )}
+
+      {tab === "identite" && <DocumentsSidePanel identity={identity} gaps={gaps} onToggleGap={(id, done) => void toggleGap(id, done)} />}
+
+      {tab === "pieces" && (
+      <>
       <div className="mb-3">
         <FilterBar
           query={query}
           onQuery={setQuery}
           placeholder="Rechercher une pièce, un organisme, un usage…"
           searchLabel="Rechercher un document"
-          actions={
-            <button type="button" onClick={() => setAdding((v) => !v)} aria-expanded={adding} className="btn btn-sm btn-primary">
-              <IconPlus size={15} />
-              <span className="hidden sm:inline">Document</span>
-            </button>
-          }
           meta={filtered.length === documents.length ? `${documents.length} pièces` : `${filtered.length} sur ${documents.length}`}
           onReset={filter !== "all" || reqFilter !== "all" || query ? () => {
             setFilter("all");
@@ -205,6 +298,9 @@ export function DocumentsBoard({ initialDocuments, dossierId }: { initialDocumen
           })}
         </ul>
       )}
+      </>
+      )}
+      </div>
 
       {selected && (
         <DocumentDrawer

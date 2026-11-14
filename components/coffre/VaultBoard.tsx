@@ -8,8 +8,12 @@ import type { VaultFile } from "@/lib/types";
 import { timestamp } from "@/lib/ids";
 import { EmptyState, PageHeader } from "@/components/ui";
 import { FileDropzone, formatSize } from "@/components/FileDropzone";
-import { IconFile, IconImage, IconLock, IconPaperclip, IconSearch, IconShield } from "@/components/icons";
+import { IconCheck, IconFile, IconImage, IconLock, IconPaperclip, IconSearch, IconShield, IconUpload } from "@/components/icons";
 import { FilterBar, FilterChip, FilterDivider, FilterGroup, FilterSelect } from "@/components/FilterBar";
+import { DarkHeader, DarkTiles, HeaderTabs, useHashTab } from "@/components/DarkHeader";
+
+const TABS = ["fichiers", "par-piece", "deposer"] as const;
+type Tab = (typeof TABS)[number];
 import { FilePreview, fileKind, isPdf } from "./FilePreview";
 
 function sanitizeName(name: string): string {
@@ -34,6 +38,7 @@ export function VaultBoard({ dossierId, initialFiles, documentNames }: Props) {
   const [query, setQuery] = useState("");
   const [thumbs, setThumbs] = useState<Record<string, string>>({});
   const [previewId, setPreviewId] = useState<string | null>(null);
+  const [tab, setTab] = useHashTab<Tab>(TABS, "fichiers");
   const supabase = useMemo(() => createClient(), []);
 
   const documentLabel = useCallback((f: VaultFile) => (f.documentId ? (documentNames[f.documentId] ?? "Document") : "Non rattaché"), [documentNames]);
@@ -97,6 +102,7 @@ export function VaultBoard({ dossierId, initialFiles, documentNames }: Props) {
   async function handleUpload(fileList: FileList) {
     setUploading(true);
     setError(null);
+    let added = 0;
     for (const file of Array.from(fileList)) {
       const validation = await validateVaultFile(file);
       if (!validation.ok) {
@@ -114,9 +120,14 @@ export function VaultBoard({ dossierId, initialFiles, documentNames }: Props) {
         .insert({ dossier_id: dossierId, document_id: null, storage_path: path, name: file.name, size: file.size, mime: validation.mime })
         .select("*")
         .single();
-      if (data) setFiles((prev) => [...prev, mapVaultFile(data)]);
+      if (data) {
+        setFiles((prev) => [...prev, mapVaultFile(data)]);
+        added += 1;
+      }
     }
     setUploading(false);
+    // Après un dépôt réussi, on montre le fichier dans la grille.
+    if (added > 0) setTab("fichiers");
   }
 
   async function deleteFile(f: VaultFile) {
@@ -129,14 +140,133 @@ export function VaultBoard({ dossierId, initialFiles, documentNames }: Props) {
     await Promise.all([supabase.storage.from("coffre").remove([f.storagePath]), supabase.from("file").delete().eq("id", f.id)]);
   }
 
+  const linked = files.filter((f) => f.documentId).length;
+  const groups = useMemo(
+    () =>
+      docOptions.map((o) => ({ ...o, files: sorted.filter((f) => (f.documentId ?? UNLINKED) === o.id) })).filter((g) => g.files.length > 0),
+    [docOptions, sorted],
+  );
+  const lastUpload = sorted[0]?.uploadedAt;
+
+  const dropAside = (
+    <aside className="flex flex-col gap-4">
+      <FileDropzone busy={uploading} onFiles={handleUpload} title="Déposer un fichier" />
+      {error && <p className="rounded-lg bg-bad-bg px-3 py-2 text-[12.5px] text-bad">{error}</p>}
+      <div className="card p-4 text-[12.5px] text-muted shadow-none">
+        <p className="flex items-center gap-2 font-semibold text-ink">
+          <IconShield size={15} className="text-act" /> Bon à savoir
+        </p>
+        <p className="mt-1.5">Un fichier déposé ici n&apos;est rattaché à aucune pièce. Pour le lier au passeport, au diplôme, etc., déposez-le depuis sa fiche dans Documents.</p>
+        <p className="mt-1.5">Le type réel est vérifié avant l&apos;envoi : un fichier renommé en .pdf est refusé.</p>      </div>
+    </aside>
+  );
+
   return (
     <>
       <PageHeader
         title="Coffre"
         description="Vos scans dans un stockage privé. Chaque aperçu ou téléchargement passe par un lien sécurisé valable 5 minutes."
+        actions={
+          <button type="button" onClick={() => setTab("deposer")} className="btn btn-primary">
+            <IconUpload size={16} /> Déposer
+          </button>
+        }
       />
 
-      <div className="grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,1fr)_300px]">
+      <DarkHeader
+        aside={
+          <DarkTiles
+            items={[
+              { label: "Rattachés", value: String(linked), unit: `/ ${files.length}`, sub: "liés à une pièce", pct: files.length ? (linked / files.length) * 100 : 0, tone: "ok" },
+              {
+                label: "Dernier dépôt",
+                value: lastUpload ? new Date(lastUpload).toLocaleDateString("fr-FR", { day: "numeric", month: "short" }) : "—",
+                sub: sorted[0]?.name ?? "aucun fichier",
+              },
+            ]}
+          />
+        }
+        tabs={
+          <HeaderTabs
+            label="Sections du coffre"
+            active={tab}
+            onSelect={setTab}
+            tabs={[
+              { id: "fichiers", label: "Fichiers", icon: <IconImage size={15} />, badge: { text: String(files.length) } },
+              { id: "par-piece", label: "Par pièce", icon: <IconPaperclip size={15} />, badge: groups.length ? { text: String(groups.length) } : null },
+              { id: "deposer", label: "Déposer", icon: <IconUpload size={15} /> },
+            ]}
+          />
+        }
+      >
+        <p className="flex items-center gap-2 text-[11px] font-semibold tracking-[0.12em] text-night-muted uppercase">
+          <IconLock size={13} /> Stockage privé
+        </p>
+        <p className="mt-1 font-display text-[52px] leading-none font-extrabold tracking-tight">
+          {files.length}
+          <span className="ml-2 text-[20px] font-bold text-signal">fichier{files.length > 1 ? "s" : ""}</span>
+        </p>
+        <p className="mt-2 text-[13px] text-night-muted">
+          {formatSize(totalSize)} · {pdfCount} PDF · {files.length - pdfCount} image{files.length - pdfCount > 1 ? "s" : ""}
+        </p>
+        <div className="mt-4 flex flex-wrap gap-2">
+          {[
+            { icon: <IconShield size={13} />, text: "Accès réservé au titulaire" },
+            { icon: <IconLock size={13} />, text: "Liens signés de 5 minutes" },
+            { icon: <IconCheck size={13} />, text: "Type réel vérifié" },
+          ].map((p) => (
+            <span key={p.text} className="inline-flex items-center gap-1.5 rounded-full bg-white/[0.08] px-2.5 py-1 text-[12px] font-semibold">
+              {p.icon}
+              {p.text}
+            </span>
+          ))}
+        </div>
+      </DarkHeader>
+
+      <div className="mt-5" role="tabpanel">
+      {tab === "deposer" && <div className="mx-auto max-w-2xl">{dropAside}</div>}
+
+      {tab === "par-piece" &&
+        (groups.length === 0 ? (
+          <EmptyState icon={<IconLock size={20} />} title="Le coffre est vide">
+            Déposez un premier scan pour le retrouver ici, classé par pièce.
+          </EmptyState>
+        ) : (
+          <div className="flex flex-col gap-4">
+            {groups.map((g) => (
+              <section key={g.id} className="card overflow-hidden">
+                <div className="flex items-center gap-3 px-4 pt-4 pb-3 sm:px-5">
+                  <span className={`grid h-8 w-8 shrink-0 place-items-center rounded-lg ${g.id === UNLINKED ? "bg-surface-2 text-muted" : "bg-act-soft text-act"}`}>
+                    <IconPaperclip size={15} />
+                  </span>
+                  <h2 className="min-w-0 flex-1 truncate text-[15px] font-bold">{g.label}</h2>
+                  <span className="mono text-[12px] text-muted">
+                    {g.files.length} · {formatSize(g.files.reduce((s, f) => s + f.size, 0))}
+                  </span>
+                </div>
+                <ul className="grid grid-cols-2 gap-3 px-4 pb-4 sm:grid-cols-3 sm:px-5 xl:grid-cols-5">
+                  {g.files.map((f) => (
+                    <FileCard
+                      key={f.id}
+                      file={f}
+                      thumb={thumbs[f.id]}
+                      doc={documentLabel(f)}
+                      onOpen={() => {
+                        setKind("all");
+                        setDocFilter("all");
+                        setQuery("");
+                        setPreviewId(f.id);
+                      }}
+                    />
+                  ))}
+                </ul>
+              </section>
+            ))}
+          </div>
+        ))}
+
+      {tab === "fichiers" && (
+      <div className={files.length === 0 ? "grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1fr)_340px]" : ""}>
         <div className="min-w-0">
           {files.length > 0 && (
             <div className="mb-4">
@@ -178,25 +308,16 @@ export function VaultBoard({ dossierId, initialFiles, documentNames }: Props) {
               Changez de filtre ou de recherche.
             </EmptyState>
           ) : (
-            <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 2xl:grid-cols-4">
+            <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-5">
               {visible.map((f) => (
                 <FileCard key={f.id} file={f} thumb={thumbs[f.id]} doc={documentLabel(f)} onOpen={() => setPreviewId(f.id)} />
               ))}
             </ul>
           )}
         </div>
-
-        <aside className="flex flex-col gap-4 xl:sticky xl:top-6 xl:self-start">
-          <FileDropzone busy={uploading} onFiles={handleUpload} title="Déposer un fichier" />
-          {error && <p className="rounded-lg bg-bad-bg px-3 py-2 text-[12.5px] text-bad">{error}</p>}
-          <div className="card p-4 text-[12.5px] text-muted shadow-none">
-            <p className="flex items-center gap-2 font-semibold text-ink">
-              <IconShield size={15} className="text-act" /> Bon à savoir
-            </p>
-            <p className="mt-1.5">Un fichier déposé ici n&apos;est rattaché à aucune pièce. Pour le lier au passeport, au diplôme, etc., déposez-le depuis sa fiche dans Documents.</p>
-            <p className="mt-1.5">Le type réel est vérifié avant l&apos;envoi : un fichier renommé en .pdf est refusé.</p>
-          </div>
-        </aside>
+        {files.length === 0 && dropAside}
+      </div>
+      )}
       </div>
 
       {previewIndex >= 0 && (
