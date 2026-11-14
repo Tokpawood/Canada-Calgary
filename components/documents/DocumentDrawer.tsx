@@ -8,7 +8,9 @@ import { mapVaultFile } from "@/lib/queries";
 import { validateVaultFile } from "@/lib/fileSniff";
 import type { DocumentRecord, DocumentRequirement, DocumentStatus, VaultFile } from "@/lib/types";
 import { timestamp } from "@/lib/ids";
-import { Chip, ConfirmButton, DOC_TONE, Drawer, DrawerSection, Field, Meter, TONE_DOT } from "@/components/ui";
+import { ConfirmButton, DOC_TONE, Drawer, Field, Meter, TONE_DOT, fmtShortDate } from "@/components/ui";
+import { HeaderTabs } from "@/components/DarkHeader";
+import { DarkStatusPicker, DrawerCard, DrawerFacts, DrawerTitle, ReadRow } from "@/components/DrawerParts";
 import { Checklist, LinkList } from "@/components/EditableLists";
 import { FileDropzone, VaultFileRow } from "@/components/FileDropzone";
 import { IconAlert, IconTrash } from "@/components/icons";
@@ -36,6 +38,7 @@ export function DocumentDrawer({ doc, onChange, onDelete, onClose }: Props) {
   const [uploading, setUploading] = useState(false);
 
   const [warn, setWarn] = useState(false);
+  const [tab, setTab] = useState<"controles" | "scans" | "infos" | "liens">("controles");
 
   const saved: DocDraft = useMemo(
     () => ({ name: doc.name, status: doc.status, req: doc.req, date: doc.date, format: doc.format, validity: doc.validity, use: doc.use, from: doc.from, notes: doc.notes, checks: doc.checks, links: doc.links }),
@@ -165,86 +168,158 @@ export function DocumentDrawer({ doc, onChange, onDelete, onClose }: Props) {
     onDelete();
   }
 
+  const reqTone = doc.req === "Obligatoire" ? "bg-bad text-white" : doc.req === "Conseillé" ? "bg-white/15" : "bg-white/10 text-night-muted";
+
   return (
     <Drawer
       label={`Document : ${doc.name}`}
       onClose={guardedClose}
+      header={
+        <>
+          <div className="flex flex-wrap items-center gap-2 pr-12">
+            <span className={`rounded-md px-1.5 py-0.5 text-[11px] font-semibold ${reqTone}`}>{doc.req}</span>
+            {doc.use && <span className="truncate text-[12px] text-night-muted">Sert pour : {doc.use}</span>}
+          </div>
+          <DrawerTitle value={v.name} editing={ed.editing} onChange={(name) => ed.set({ name })} label="Nom du document" />
+          <div className="mt-2.5">
+            <DarkStatusPicker options={STATUSES} value={v.status} editing={ed.editing} onChange={(status) => ed.set({ status })} dotClass={(s) => TONE_DOT[DOC_TONE[s]]} label="Statut du document" />
+          </div>
+          <DrawerFacts
+            items={[
+              { label: "Contrôles", value: v.checks.length ? `${checksDone}/${v.checks.length}` : "—", tone: v.checks.length ? (incompleteChecks ? (doc.status === "Obtenu" ? "bad" : undefined) : "ok") : undefined },
+              { label: "Scans", value: String(doc.files.length), tone: doc.files.length ? "ok" : undefined },
+              { label: "Obtenu le", value: doc.date ? fmtShortDate(doc.date) : "—" },
+            ]}
+          />
+        </>
+      }
+      tabs={
+        <HeaderTabs
+          label="Sections du document"
+          active={tab}
+          onSelect={setTab}
+          tabs={[
+            { id: "controles", label: "Contrôles", badge: v.checks.length ? { text: `${checksDone}/${v.checks.length}`, tone: doc.status === "Obtenu" && incompleteChecks ? "signal" : "plain" } : null },
+            { id: "scans", label: "Scans", badge: doc.files.length ? { text: String(doc.files.length) } : null },
+            { id: "infos", label: "Infos" },
+            { id: "liens", label: "Liens", badge: v.links.length ? { text: String(v.links.length) } : null },
+          ]}
+        />
+      }
       footer={
-        ed.editing ? (
-          <div>
-            {warn && <p className="mb-2 text-[12.5px] font-semibold text-bad">Modifications non enregistrées : enregistrez-les ou annulez avant de fermer.</p>}
+        <div>
+          {warn && <p className="mb-2 text-[12.5px] font-semibold text-bad">Modifications non enregistrées : enregistrez-les ou annulez avant de fermer.</p>}
+          <div className="flex items-center justify-between gap-2">
+            {ed.editing ? (
+              <span className="text-[12.5px] font-semibold text-opt">Modification en cours</span>
+            ) : (
+              <ConfirmButton label="Supprimer le document" confirmLabel="Confirmer (scans compris)" onConfirm={handleDeleteDoc}>
+                <IconTrash size={14} />
+                <span className="hidden sm:inline">Supprimer</span>
+              </ConfirmButton>
+            )}
             <EditBar edit={ed} />
           </div>
-        ) : (
-          <div className="flex justify-end gap-1.5">
-            <EditBar edit={ed} />
-            <ConfirmButton label="Supprimer le document" confirmLabel="Confirmer (scans compris)" onConfirm={handleDeleteDoc}>
-              <IconTrash size={14} />
-              <span className="hidden sm:inline">Supprimer</span>
-            </ConfirmButton>
-          </div>
-        )
+        </div>
       }
     >
-      <div className="flex items-center gap-2 pr-10">
-        <Chip tone={doc.req === "Obligatoire" ? "bad" : doc.req === "Conseillé" ? "run" : "todo"}>{doc.req}</Chip>
-        {doc.use && <span className="truncate text-[12.5px] text-muted">Sert pour : {doc.use}</span>}
-        {ed.editing && <span className="rounded-md bg-act px-1.5 py-0.5 text-[10px] font-semibold tracking-wider text-act-ink uppercase">Modification</span>}
-      </div>
-      <textarea
-        value={v.name}
-        rows={1}
-        disabled={off}
-        onChange={(e) => ed.set({ name: e.target.value })}
-        aria-label="Nom du document"
-        className={`input-ghost -mx-1.5 mt-2 resize-none font-display text-[21px] leading-snug font-bold ${off ? "" : "border-line bg-surface"}`}
-      />
-
-      <div role="radiogroup" aria-label="Statut du document" className="mt-3 grid grid-cols-3 gap-1.5">
-        {STATUSES.map((s) => {
-          const active = v.status === s;
-          return (
-            <button
-              key={s}
-              type="button"
-              role="radio"
-              aria-checked={active}
-              disabled={off}
-              onClick={() => ed.set({ status: s })}
-              className={`flex items-center justify-center gap-1.5 rounded-lg border px-2 py-1.5 text-[13px] font-semibold transition-colors disabled:cursor-default ${
-                active ? "border-act bg-act-soft text-act" : "border-line text-muted enabled:hover:text-ink disabled:opacity-50"
-              }`}
-            >
-              <span className={`h-1.5 w-1.5 rounded-full ${TONE_DOT[DOC_TONE[s]]}`} />
-              {s}
-            </button>
-          );
-        })}
-      </div>
-
-      {v.status === "Obtenu" && incompleteChecks && (
-        <div className="mt-4 flex gap-2.5 rounded-xl border border-opt/25 bg-opt-bg p-3 text-[13.5px] text-opt">
-          <IconAlert size={17} className="mt-px shrink-0" />
-          <p>Document obtenu mais {v.checks.length - checksDone} contrôle(s) restent à faire avant le dépôt.</p>
-        </div>
+      {v.status === "Obtenu" && incompleteChecks && tab !== "controles" && (
+        <button
+          type="button"
+          onClick={() => setTab("controles")}
+          className="mb-4 flex w-full gap-2.5 rounded-xl border border-opt/25 bg-opt-bg p-3 text-left text-[13px] text-opt hover:border-opt/50"
+        >
+          <IconAlert size={16} className="mt-px shrink-0" />
+          <span>Document obtenu mais {v.checks.length - checksDone} contrôle(s) restent à faire avant le dépôt.</span>
+        </button>
       )}
 
-      <DrawerSection title="Contrôles avant dépôt" aside={v.checks.length > 0 ? <span className="mono text-[12px] text-muted">{checksDone}/{v.checks.length}</span> : undefined}>
-        {v.checks.length > 0 && <Meter value={(checksDone / v.checks.length) * 100} tone="ok" height={4} className="mb-2" label="Contrôles faits" />}
-        <Checklist
-          items={v.checks}
-          editable={ed.editing}
-          toggleDisabled={ed.editing}
-          onToggle={toggleCheck}
-          onDelete={(id) => ed.update((d) => ({ ...d, checks: d.checks.filter((c) => c.id !== id) }))}
-          onAdd={(text) => ed.update((d) => ({ ...d, checks: [...d.checks, { id: tmpId(), text, done: false, position: d.checks.length }] }))}
-          placeholder="Ajouter un contrôle"
-        />
-      </DrawerSection>
+      {tab === "controles" && (
+        <DrawerCard
+          title="Contrôles avant dépôt"
+          sub={ed.editing ? "Ajoutez ou retirez des contrôles." : "Cochez chaque point vérifié sur la pièce."}
+          aside={v.checks.length > 0 ? <span className="mono text-[12px] text-muted">{Math.round((checksDone / v.checks.length) * 100)} %</span> : undefined}
+        >
+          {v.status === "Obtenu" && incompleteChecks && (
+            <p className="mb-3 flex gap-2 rounded-lg bg-opt-bg px-3 py-2 text-[12.5px] text-opt">
+              <IconAlert size={15} className="mt-px shrink-0" />
+              {v.checks.length - checksDone} contrôle(s) restent à faire avant le dépôt.
+            </p>
+          )}
+          {v.checks.length > 0 && <Meter value={(checksDone / v.checks.length) * 100} tone="ok" height={4} className="mb-2" label="Contrôles faits" />}
+          <Checklist
+            items={v.checks}
+            editable={ed.editing}
+            toggleDisabled={ed.editing}
+            onToggle={toggleCheck}
+            onDelete={(id) => ed.update((d) => ({ ...d, checks: d.checks.filter((c) => c.id !== id) }))}
+            onAdd={(text) => ed.update((d) => ({ ...d, checks: [...d.checks, { id: tmpId(), text, done: false, position: d.checks.length }] }))}
+            placeholder="Ajouter un contrôle"
+          />
+        </DrawerCard>
+      )}
 
-      <DrawerSection title="Scans dans le coffre" aside={<span className="mono text-[12px] text-muted">{doc.files.length}</span>}>
+      {tab === "infos" && (
+        <DrawerCard title="Caractéristiques">
+          {off ? (
+            <dl className="m-0">
+              <ReadRow label="Caractère" value={doc.req} />
+              <ReadRow label="Date d'obtention" value={doc.date ? fmtShortDate(doc.date) : ""} />
+              <ReadRow label="Format attendu" value={doc.format} />
+              <ReadRow label="Validité" value={doc.validity} />
+              <ReadRow label="Sert pour" value={doc.use} />
+              <ReadRow label="Délivré par" value={doc.from} />
+              <ReadRow label="Notes" value={doc.notes} />
+            </dl>
+          ) : (
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="Caractère">
+                <select value={v.req} onChange={(e) => ed.set({ req: e.target.value as DocumentRequirement })} className="input">
+                  {REQS.map((r) => (
+                    <option key={r} value={r}>
+                      {r}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+              <Field label="Date d'obtention">
+                <input type="date" value={v.date} onChange={(e) => ed.set({ date: e.target.value })} className="input" />
+              </Field>
+              <Field label="Format attendu">
+                <input value={v.format} onChange={(e) => ed.set({ format: e.target.value })} className="input" />
+              </Field>
+              <Field label="Validité">
+                <input value={v.validity} onChange={(e) => ed.set({ validity: e.target.value })} className="input" />
+              </Field>
+              <Field label="Sert pour" className="col-span-2">
+                <input value={v.use} onChange={(e) => ed.set({ use: e.target.value })} className="input" />
+              </Field>
+              <Field label="Délivré par" className="col-span-2">
+                <input value={v.from} onChange={(e) => ed.set({ from: e.target.value })} className="input" />
+              </Field>
+              <Field label="Notes" className="col-span-2">
+                <textarea value={v.notes} onChange={(e) => ed.set({ notes: e.target.value })} className="input" />
+              </Field>
+            </div>
+          )}
+        </DrawerCard>
+      )}
+
+      {tab === "liens" && (
+        <DrawerCard title="Liens officiels" sub="Uniquement des adresses en https://.">
+          <LinkList
+            links={v.links}
+            editable={ed.editing}
+            onAdd={(label, url) => ed.update((d) => ({ ...d, links: [...d.links, { id: tmpId(), label, url }] }))}
+            onDelete={(id) => ed.update((d) => ({ ...d, links: d.links.filter((l) => l.id !== id) }))}
+          />
+        </DrawerCard>
+      )}
+
+      {tab === "scans" && (
+      <DrawerCard title="Scans dans le coffre" sub="Stockage privé, aperçu par lien sécurisé de 5 minutes." aside={<span className="mono text-[12px] text-muted">{doc.files.length}</span>}>
         {doc.files.length > 0 && (
-          <ul className="mb-2 flex flex-col gap-1.5">
+          <ul className="mb-3 flex flex-col gap-1.5">
             {doc.files.map((f) => (
               <VaultFileRow key={f.id} file={f} onOpen={() => setPreviewId(f.id)} onDelete={() => deleteFile(f.id, f.storagePath)} />
             ))}
@@ -252,6 +327,8 @@ export function DocumentDrawer({ doc, onChange, onDelete, onClose }: Props) {
         )}
         <FileDropzone compact busy={uploading} onFiles={handleUpload} title="Ajouter un scan" />
         {uploadError && <p className="mt-1.5 text-[12px] text-bad">{uploadError}</p>}
+      </DrawerCard>
+      )}
         {previewIndex >= 0 &&
           createPortal(
             <FilePreview
@@ -269,48 +346,6 @@ export function DocumentDrawer({ doc, onChange, onDelete, onClose }: Props) {
             />,
             document.body,
           )}
-      </DrawerSection>
-
-      <DrawerSection title="Liens officiels">
-        <LinkList
-          links={v.links}
-          editable={ed.editing}
-          onAdd={(label, url) => ed.update((d) => ({ ...d, links: [...d.links, { id: tmpId(), label, url }] }))}
-          onDelete={(id) => ed.update((d) => ({ ...d, links: d.links.filter((l) => l.id !== id) }))}
-        />
-      </DrawerSection>
-
-      <DrawerSection title="Caractéristiques">
-        <div className="grid grid-cols-2 gap-3">
-          <Field label="Caractère">
-            <select disabled={off} value={v.req} onChange={(e) => ed.set({ req: e.target.value as DocumentRequirement })} className="input">
-              {REQS.map((r) => (
-                <option key={r} value={r}>
-                  {r}
-                </option>
-              ))}
-            </select>
-          </Field>
-          <Field label="Date d'obtention">
-            <input type="date" disabled={off} value={v.date} onChange={(e) => ed.set({ date: e.target.value })} className="input" />
-          </Field>
-          <Field label="Format attendu">
-            <input disabled={off} value={v.format} onChange={(e) => ed.set({ format: e.target.value })} className="input" />
-          </Field>
-          <Field label="Validité">
-            <input disabled={off} value={v.validity} onChange={(e) => ed.set({ validity: e.target.value })} className="input" />
-          </Field>
-          <Field label="Sert pour" className="col-span-2">
-            <input disabled={off} value={v.use} onChange={(e) => ed.set({ use: e.target.value })} className="input" />
-          </Field>
-          <Field label="Délivré par" className="col-span-2">
-            <input disabled={off} value={v.from} onChange={(e) => ed.set({ from: e.target.value })} className="input" />
-          </Field>
-          <Field label="Notes" className="col-span-2">
-            <textarea disabled={off} value={v.notes} onChange={(e) => ed.set({ notes: e.target.value })} className="input" />
-          </Field>
-        </div>
-      </DrawerSection>
     </Drawer>
   );
 }

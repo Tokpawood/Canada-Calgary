@@ -54,7 +54,9 @@ function pointAt(fraction: number) {
   if (i <= 0) i = 1;
   const a = SAMPLES.pts[i - 1];
   const b = SAMPLES.pts[i];
-  return { x: b.x, y: b.y, angle: (Math.atan2(b.y - a.y, b.x - a.x) * 180) / Math.PI };
+  // Arrondi : le serveur et le navigateur ne calculent pas tout à fait les mêmes décimales (erreur d'hydratation sinon).
+  const r = (n: number) => Math.round(n * 100) / 100;
+  return { x: r(b.x), y: r(b.y), angle: r((Math.atan2(b.y - a.y, b.x - a.x) * 180) / Math.PI) };
 }
 
 export function Hero({ phases, overallPct, nextStep, done, counted, late, countdown, activePhase = -1, onPhase, onOpenNext, children }: Props) {

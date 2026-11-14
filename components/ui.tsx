@@ -200,11 +200,20 @@ export function Drawer({
   children,
   footer,
   label,
+  header,
+  tabs,
+  topActions,
 }: {
   onClose: () => void;
   children: ReactNode;
   footer?: ReactNode;
   label: string;
+  /** En-tête sombre (titre, statut, chiffres clés), dans le style des pages. */
+  header?: ReactNode;
+  /** Onglets affichés en bas de l'en-tête sombre. */
+  tabs?: ReactNode;
+  /** Boutons à côté de « Fermer » (ex. précédente / suivante). */
+  topActions?: ReactNode;
 }) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -224,9 +233,35 @@ export function Drawer({
         role="dialog"
         aria-modal="true"
         aria-label={label}
-        className="anim-drawer flex h-full w-full max-w-[480px] flex-col bg-surface shadow-2xl"
+        className={`anim-drawer flex h-full w-full flex-col bg-surface shadow-2xl ${header ? "max-w-[560px] bg-bg" : "max-w-[480px]"}`}
         onClick={(e) => e.stopPropagation()}
       >
+        {header ? (
+          <>
+            <div className="relative shrink-0 overflow-hidden bg-night text-night-ink">
+              <div
+                aria-hidden
+                className="pointer-events-none absolute inset-0 opacity-[0.06]"
+                style={{ backgroundImage: "radial-gradient(circle at 1px 1px, #fff 1px, transparent 0)", backgroundSize: "20px 20px" }}
+              />
+              <div aria-hidden className="pointer-events-none absolute -top-20 -right-20 h-56 w-56 rounded-full bg-signal opacity-[0.07] blur-3xl" />
+              <div className="absolute top-3.5 right-3.5 z-10 flex items-center gap-1">
+                {topActions}
+                <button
+                  type="button"
+                  onClick={onClose}
+                  aria-label="Fermer"
+                  className="grid h-8 w-8 place-items-center rounded-lg text-night-muted hover:bg-white/10 hover:text-night-ink"
+                >
+                  <IconX size={18} />
+                </button>
+              </div>
+              <div className="relative px-5 pt-5 pb-4 sm:px-6">{header}</div>
+              {tabs && <div className="relative border-t border-white/10 pt-1.5 [&>div]:px-3 sm:[&>div]:px-4">{tabs}</div>}
+            </div>
+            <div className="flex-1 overflow-y-auto px-5 pt-5 pb-8 sm:px-6">{children}</div>
+          </>
+        ) : (
         <div className="relative flex-1 overflow-y-auto px-5 pt-5 pb-8 sm:px-6">
           <button
             type="button"
@@ -238,6 +273,7 @@ export function Drawer({
           </button>
           {children}
         </div>
+        )}
         {footer && <div className="border-t border-line bg-surface px-5 py-3 sm:px-6">{footer}</div>}
       </aside>
     </div>
