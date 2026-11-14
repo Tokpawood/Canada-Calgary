@@ -121,7 +121,7 @@ export function VaultBoard({ dossierId, initialFiles, documentNames }: Props) {
     <>
       <PageHeader
         title="Coffre"
-        description="Vos scans dans un stockage privé. Chaque aperçu ou téléchargement passe par un lien sécurisé valable 5 minutes."
+        description="Vos scans sont enregistrés dans votre Google Drive. Chaque aperçu ou téléchargement passe par l'application, réservée au titulaire."
         actions={
           <button type="button" onClick={() => setTab("deposer")} className="btn btn-primary">
             <IconUpload size={16} /> Déposer
@@ -156,7 +156,7 @@ export function VaultBoard({ dossierId, initialFiles, documentNames }: Props) {
         }
       >
         <p className="flex items-center gap-2 text-[11px] font-semibold tracking-[0.12em] text-night-muted uppercase">
-          <IconLock size={13} /> Stockage privé
+          <IconLock size={13} /> Google Drive
         </p>
         <p className="mt-1 font-display text-[52px] leading-none font-extrabold tracking-tight">
           {files.length}
@@ -168,7 +168,7 @@ export function VaultBoard({ dossierId, initialFiles, documentNames }: Props) {
         <div className="mt-4 flex flex-wrap gap-2">
           {[
             { icon: <IconShield size={13} />, text: "Accès réservé au titulaire" },
-            { icon: <IconLock size={13} />, text: "Liens signés de 5 minutes" },
+            { icon: <IconLock size={13} />, text: "Stocké sur Google Drive" },
             { icon: <IconCheck size={13} />, text: "Type réel vérifié" },
           ].map((p) => (
             <span key={p.text} className="inline-flex items-center gap-1.5 rounded-full bg-white/[0.08] px-2.5 py-1 text-[12px] font-semibold">

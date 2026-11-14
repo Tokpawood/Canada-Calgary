@@ -110,11 +110,11 @@ export function FilePreview({ files, index, documentLabel, signUrl, onIndex, onD
           {url === undefined ? (
             <p className="text-sm text-white/60">Chargement de l&apos;aperçu…</p>
           ) : url === null ? (
-            <p className="text-sm text-white/70">Aperçu indisponible : le lien sécurisé n&apos;a pas pu être créé.</p>
+            <p className="text-sm text-white/70">Aperçu indisponible : le fichier n&apos;a pas pu être lu.</p>
           ) : isPdf(file) ? (
             <iframe key={file.id} src={`${url}#view=FitH`} title={file.name} className="h-full w-full max-w-5xl rounded-lg bg-white" />
           ) : (
-            // eslint-disable-next-line @next/next/no-img-element -- lien signé temporaire du stockage privé, hors optimiseur d'images
+            // eslint-disable-next-line @next/next/no-img-element -- fichier servi par l'application après contrôle d'accès, hors optimiseur d'images
             <img key={file.id} src={url} alt={file.name} className="max-h-full max-w-full rounded-lg object-contain shadow-2xl" />
           )}
         </div>
@@ -148,7 +148,7 @@ export function FilePreview({ files, index, documentLabel, signUrl, onIndex, onD
       </div>
 
       <p className="flex items-center justify-center gap-1.5 pb-3 text-[11.5px] text-white/50" style={{ paddingBottom: "max(0.75rem, env(safe-area-inset-bottom, 0px))" }}>
-        <IconFile size={12} /> Lien sécurisé valable 5 minutes · ← → pour naviguer · Échap pour fermer
+        <IconFile size={12} /> Google Drive · ← → pour naviguer · Échap pour fermer
       </p>
     </div>
   );

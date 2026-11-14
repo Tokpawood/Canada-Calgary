@@ -19,7 +19,7 @@ export function VaultFileRow({ file, onOpen, onDelete }: { file: VaultFile; onOp
       <span className={`grid h-9 w-9 shrink-0 place-items-center rounded-lg ${isPdf ? "bg-bad-bg text-bad" : "bg-run-bg text-run"}`}>
         {isPdf ? <IconFile size={17} /> : <IconImage size={17} />}
       </span>
-      <button type="button" onClick={onOpen} className="min-w-0 flex-1 text-left" title="Aperçu (lien sécurisé valable 5 minutes)">
+      <button type="button" onClick={onOpen} className="min-w-0 flex-1 text-left" title="Aperçu (lu depuis Google Drive)">
         <span className="block truncate text-[13.5px] font-semibold hover:text-act hover:underline">{file.name}</span>
         <span className="mono block text-[11px] text-faint">
           {isPdf ? "PDF" : file.mime.replace("image/", "").toUpperCase()} · {formatSize(file.size)}

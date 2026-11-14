@@ -301,7 +301,7 @@ export function DocumentDrawer({ doc, onChange, onDelete, onClose }: Props) {
       )}
 
       {tab === "scans" && (
-      <DrawerCard title="Scans dans le coffre" sub="Stockage privé, aperçu par lien sécurisé de 5 minutes." aside={<span className="mono text-[12px] text-muted">{doc.files.length}</span>}>
+      <DrawerCard title="Scans dans le coffre" sub="Enregistrés dans votre Google Drive, lus via l'application." aside={<span className="mono text-[12px] text-muted">{doc.files.length}</span>}>
         {doc.files.length > 0 && (
           <ul className="mb-3 flex flex-col gap-1.5">
             {doc.files.map((f) => (
