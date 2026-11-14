@@ -7,7 +7,12 @@ import type { Contact } from "@/lib/types";
 import { newId } from "@/lib/ids";
 import { changedFields } from "@/components/editable";
 import { ConfirmButton, EmptyState, Field, PageHeader } from "@/components/ui";
-import { IconArrowRight, IconCheck, IconGlobe, IconMail, IconPencil, IconPhone, IconPlus, IconTrash, IconUser, IconUsers } from "@/components/icons";
+import { IconArrowRight, IconCheck, IconGlobe, IconMail, IconPencil, IconPhone, IconPlus, IconSearch, IconTrash, IconUser, IconUsers } from "@/components/icons";
+import { DarkHeader, DarkTiles, HeaderTabs, useHashTab } from "@/components/DarkHeader";
+import { CopyButton } from "@/components/profil/FieldGrid";
+
+const TABS = ["tous", "a-relancer", "annuaire"] as const;
+type Tab = (typeof TABS)[number];
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const PHONE_RE = /^\+?[\d][\d\s().-]{6,}$/;
@@ -26,6 +31,8 @@ export function ContactsBoard({ dossierId, initialContacts }: { dossierId: strin
   const [editing, setEditing] = useState<string | null>(null);
   /** Contact ajouté mais pas encore enregistré en base. */
   const [pendingNew, setPendingNew] = useState<string | null>(null);
+  const [query, setQuery] = useState("");
+  const [tab, setTab] = useHashTab<Tab>(TABS, "tous");
   const supabase = createClient();
 
   function addContact() {
@@ -69,26 +76,162 @@ export function ContactsBoard({ dossierId, initialContacts }: { dossierId: strin
   }
 
   const withNext = contacts.filter((c) => c.next.trim()).length;
+  const reachable = contacts.filter((c) => c.contact && contactLink(c.contact)).length;
+  const people = contacts.filter((c) => c.person.trim()).length;
+
+  const q = query.trim().toLowerCase();
+  const matches = (c: Contact) => pendingNew === c.id || editing === c.id || !q || `${c.org} ${c.role} ${c.person} ${c.contact} ${c.next} ${c.notes}`.toLowerCase().includes(q);
+  const visible = contacts.filter((c) => matches(c) && (tab !== "a-relancer" || c.next.trim() || editing === c.id));
 
   return (
     <>
       <PageHeader
         title="Contacts"
-        description={`Organismes et interlocuteurs du dossier${withNext ? ` · ${withNext} action(s) en attente` : ""}.`}
+        description="Organismes et interlocuteurs du dossier."
         actions={
-          <button type="button" onClick={addContact} disabled={editing !== null} className="btn btn-primary">
+          <button
+            type="button"
+            onClick={() => {
+              if (tab === "annuaire") setTab("tous");
+              addContact();
+            }}
+            disabled={editing !== null}
+            className="btn btn-primary"
+          >
             <IconPlus size={16} /> Contact
           </button>
         }
       />
 
+      <DarkHeader
+        aside={
+          <DarkTiles
+            items={[
+              { label: "Actions en attente", value: String(withNext), sub: withNext ? "prochaines actions à mener" : "rien à relancer", tone: withNext ? "signal" : undefined },
+              { label: "Joignables", value: String(reachable), unit: `/ ${contacts.length}`, sub: "courriel, téléphone ou site", pct: contacts.length ? (reachable / contacts.length) * 100 : 0, tone: "ok" },
+            ]}
+          />
+        }
+        tabs={
+          <HeaderTabs
+            label="Vues des contacts"
+            active={tab}
+            onSelect={setTab}
+            tabs={[
+              { id: "tous", label: "Tous", icon: <IconUsers size={15} />, badge: { text: String(contacts.length) }, dirty: editing !== null },
+              { id: "a-relancer", label: "À relancer", icon: <IconArrowRight size={15} />, badge: withNext ? { text: String(withNext), tone: "signal" } : null },
+              { id: "annuaire", label: "Annuaire", icon: <IconPhone size={15} /> },
+            ]}
+          />
+        }
+      >
+        <p className="text-[11px] font-semibold tracking-[0.12em] text-night-muted uppercase">Carnet du dossier</p>
+        <p className="mt-1 font-display text-[44px] leading-none font-extrabold tracking-tight sm:text-[52px]">
+          {contacts.length}
+          <span className="ml-2 text-[20px] font-bold text-signal">organisme{contacts.length > 1 ? "s" : ""}</span>
+        </p>
+        <p className="mt-2 text-[13px] text-night-muted">
+          {people} interlocuteur{people > 1 ? "s" : ""} identifié{people > 1 ? "s" : ""}
+          {withNext ? ` · ${withNext} action(s) en attente` : ""}
+        </p>
+        {contacts.length > 0 && (
+          <div className="mt-4 flex flex-wrap gap-1.5">
+            {contacts.slice(0, 8).map((c) => (
+              <span key={c.id} className="rounded-md bg-white/10 px-2 py-0.5 text-[12px] font-semibold">
+                {c.org || "Sans nom"}
+              </span>
+            ))}
+            {contacts.length > 8 && <span className="px-1 text-[12px] text-night-muted">+{contacts.length - 8}</span>}
+          </div>
+        )}
+      </DarkHeader>
+
+      <div className="mt-5" role="tabpanel">
+      {contacts.length > 0 && (
+        <div className="card mb-4 flex items-center gap-2 px-3 py-2">
+          <IconSearch size={16} className="shrink-0 text-faint" />
+          <input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Rechercher un organisme, une personne, une note…"
+            aria-label="Rechercher un contact"
+            className="min-w-0 flex-1 bg-transparent py-1 text-[14px] outline-none placeholder:text-faint"
+          />
+          <span className="mono shrink-0 text-[12px] text-muted">
+            {visible.length} / {contacts.length}
+          </span>
+        </div>
+      )}
+
       {contacts.length === 0 ? (
         <EmptyState icon={<IconUsers size={20} />} title="Aucun contact">
           Ajoutez les organismes avec lesquels vous échangez : ambassade, école, employeur, centre de tests…
         </EmptyState>
+      ) : visible.length === 0 ? (
+        <EmptyState icon={<IconUsers size={20} />} title={tab === "a-relancer" && !q ? "Rien à relancer" : "Aucun contact trouvé"}>
+          {tab === "a-relancer" && !q ? "Aucun contact n'a de prochaine action." : "Essayez une autre recherche."}
+        </EmptyState>
+      ) : tab === "annuaire" ? (
+        <section className="card overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[640px] text-[13.5px]">
+              <thead>
+                <tr className="border-b border-line text-left text-[11.5px] text-muted">
+                  <th className="px-4 py-2 font-medium sm:px-5">Organisme</th>
+                  <th className="px-3 py-2 font-medium">Interlocuteur</th>
+                  <th className="px-3 py-2 font-medium">Contact</th>
+                  <th className="w-24 px-4 py-2 sm:px-5" />
+                </tr>
+              </thead>
+              <tbody>
+                {visible.map((c) => {
+                  const link = c.contact ? contactLink(c.contact) : null;
+                  return (
+                    <tr key={c.id} className="group border-b border-line last:border-0 hover:bg-surface-2/60">
+                      <td className="px-4 py-2.5 sm:px-5">
+                        <span className="block font-semibold">{c.org || "Sans nom"}</span>
+                        {c.role && <span className="block text-[12px] text-muted">{c.role}</span>}
+                      </td>
+                      <td className="px-3 py-2.5">{c.person || <span className="text-faint">—</span>}</td>
+                      <td className="px-3 py-2.5">
+                        {c.contact ? (
+                          <span className="flex items-center gap-1">
+                            {link ? (
+                              <a href={link.href} target={link.kind === "web" ? "_blank" : undefined} rel="noopener noreferrer" className="truncate font-medium text-act hover:underline">
+                                {c.contact}
+                              </a>
+                            ) : (
+                              <span className="truncate">{c.contact}</span>
+                            )}
+                            <CopyButton text={c.contact} label={`contact ${c.org}`} />
+                          </span>
+                        ) : (
+                          <span className="text-faint">—</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-2.5 text-right sm:px-5">
+                        <button
+                          type="button"
+                          disabled={editing !== null}
+                          onClick={() => {
+                            setTab("tous");
+                            setEditing(c.id);
+                          }}
+                          className="btn btn-sm btn-ghost"
+                        >
+                          <IconPencil size={13} /> Modifier
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </section>
       ) : (
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-          {contacts.map((c) =>
+          {visible.map((c) =>
             editing === c.id ? (
               <ContactEditor
                 key={c.id}
@@ -104,6 +247,7 @@ export function ContactsBoard({ dossierId, initialContacts }: { dossierId: strin
           )}
         </div>
       )}
+      </div>
     </>
   );
 }

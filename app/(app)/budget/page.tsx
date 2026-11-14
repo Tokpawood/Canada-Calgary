@@ -13,7 +13,6 @@ export default async function BudgetPage() {
   const upcoming = steps
     .filter((s) => isOpenStep(s.status) && (s.planned ?? 0) > 0 && s.actual == null)
     .sort((a, b) => (a.due ?? "9999").localeCompare(b.due ?? "9999"))
-    .slice(0, 8)
     .map((s) => ({ id: s.id, title: s.title, due: s.due, planned: s.planned ?? 0, phase: s.phase }));
 
   return <BudgetBoard dossier={dossier} rows={budgetByPhase(steps)} upcoming={upcoming} />;

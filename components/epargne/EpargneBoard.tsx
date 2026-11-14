@@ -5,14 +5,20 @@ import { createClient } from "@/lib/supabase/client";
 import { fundsProgress } from "@/lib/rules";
 import type { Dossier, Saving } from "@/lib/types";
 import { newId } from "@/lib/ids";
-import { EmptyState, Meter, PageHeader, fcfa } from "@/components/ui";
+import { EmptyState, PageHeader, fcfa } from "@/components/ui";
 import { EditBar, useEditable } from "@/components/editable";
 import { syncRows } from "@/lib/syncRows";
-import { IconCheck, IconPiggy, IconPlus, IconTrash } from "@/components/icons";
+import { IconCheck, IconPiggy, IconPlus, IconTrash, IconWallet } from "@/components/icons";
+import { DarkHeader, DarkTiles, HeaderTabs, useHashTab } from "@/components/DarkHeader";
+import { StatsRow } from "@/components/StatsRow";
+
+const TABS = ["evolution", "versements", "objectifs"] as const;
+type Tab = (typeof TABS)[number];
 
 export function EpargneBoard({ dossier, initialSavings }: { dossier: Dossier; initialSavings: Saving[] }) {
   const [savedRows, setSavedRows] = useState(initialSavings);
   const [funds, setFunds] = useState({ fundsMin: dossier.fundsMin, fundsTarget: dossier.fundsTarget });
+  const [tab, setTab] = useHashTab<Tab>(TABS, "evolution");
   const supabase = createClient();
 
   const fundsEd = useEditable(funds, async (d) => {
@@ -40,7 +46,15 @@ export function EpargneBoard({ dossier, initialSavings }: { dossier: Dossier; in
     [savings],
   );
 
+  const paid = savings.filter((s) => s.actual != null && s.actual > 0);
+  const avg = paid.length ? paid.reduce((s, r) => s + (r.actual ?? 0), 0) / paid.length : 0;
+  const best = paid.reduce<Saving | null>((b, s) => (!b || (s.actual ?? 0) > (b.actual ?? 0) ? s : b), null);
+  const gap = paid.reduce((s, r) => s + (r.actual ?? 0) - (r.planned ?? 0), 0);
+  const monthsToMin = !progress.minReached && avg > 0 ? Math.ceil(toMin / avg) : null;
+  const monthsToTarget = !progress.targetReached && avg > 0 ? Math.ceil(toTarget / avg) : null;
+
   function addRow() {
+    setTab("versements");
     if (!rowsEd.editing) rowsEd.start();
     rowsEd.update((d) => [...d, { id: newId("e"), dossierId: dossier.id, label: "", planned: null, actual: null, notes: "" }]);
   }
@@ -69,91 +83,99 @@ export function EpargneBoard({ dossier, initialSavings }: { dossier: Dossier; in
         }
       />
 
-      <section className="card p-4 sm:p-6">
-        <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_260px]">
-          <div>
-            <p className="text-[12.5px] font-medium text-muted">Épargne constituée</p>
-            <p className="mt-1 font-display text-[44px] leading-none font-extrabold tracking-tight">
-              {fcfa(progress.saved)}
-              <span className="ml-1.5 text-lg font-semibold text-muted">F</span>
-            </p>
-            <p className="mt-1.5 text-[13px] text-muted">
-              soit <span className="mono font-semibold text-ink">{Math.round(progress.pctOfTarget)} %</span> de la cible de {fcfa(fundsTarget)} F
-            </p>
-
-            <Meter
-              className="mt-5"
-              height={10}
-              value={progress.pctOfTarget}
-              tone={progress.minReached ? "ok" : "act"}
-              label="Épargne par rapport à la cible"
-              markers={[{ pct: progress.minMarkPct, label: `Minimum exigé : ${fcfa(fundsMin)} F` }]}
-            />
-            <div className="mono relative mt-2 h-4 text-[10.5px] text-faint">
-              <span className="absolute left-0">0</span>
-              <span className="absolute -translate-x-1/2 whitespace-nowrap" style={{ left: `${Math.min(88, progress.minMarkPct)}%` }}>
-                minimum
-              </span>
-              {progress.minMarkPct < 88 && <span className="absolute right-0">cible</span>}
-            </div>
-
-            <div className="mt-4 grid gap-2 sm:grid-cols-2">
-              <Goal reached={progress.minReached} label="Minimum exigé" rest={toMin} />
-              <Goal reached={progress.targetReached} label="Cible" rest={toTarget} />
-            </div>
+      <DarkHeader
+        aside={
+          <DarkTiles
+            items={[
+              {
+                label: "Minimum exigé",
+                value: progress.minReached ? "Atteint" : fcfa(toMin),
+                unit: progress.minReached ? undefined : "F",
+                sub: progress.minReached ? `${fcfa(fundsMin)} F` : monthsToMin != null ? `≈ ${monthsToMin} mois au rythme actuel` : "restant à épargner",
+                pct: fundsMin ? (progress.saved / fundsMin) * 100 : 0,
+                tone: progress.minReached ? "ok" : "signal",
+              },
+              {
+                label: "Cible",
+                value: progress.targetReached ? "Atteinte" : fcfa(toTarget),
+                unit: progress.targetReached ? undefined : "F",
+                sub: progress.targetReached ? `${fcfa(fundsTarget)} F` : monthsToTarget != null ? `≈ ${monthsToTarget} mois au rythme actuel` : "restant à épargner",
+                pct: progress.pctOfTarget,
+                tone: progress.targetReached ? "ok" : "signal",
+              },
+            ]}
+          />
+        }
+        tabs={
+          <HeaderTabs
+            label="Sections de l'épargne"
+            active={tab}
+            onSelect={setTab}
+            tabs={[
+              { id: "evolution", label: "Évolution", icon: <IconPiggy size={15} /> },
+              { id: "versements", label: "Versements", icon: <IconWallet size={15} />, badge: { text: String(savings.length) }, dirty: rowsEd.editing },
+              { id: "objectifs", label: "Objectifs", icon: <IconCheck size={15} />, dirty: fundsEd.editing },
+            ]}
+          />
+        }
+      >
+        <p className="text-[11px] font-semibold tracking-[0.12em] text-night-muted uppercase">Épargne constituée</p>
+        <p className="mt-1 font-display text-[44px] leading-none font-extrabold tracking-tight sm:text-[52px]">
+          {fcfa(progress.saved)}
+          <span className="ml-1.5 text-[22px] text-signal">F</span>
+        </p>
+        <p className="mt-2 text-[13px] text-night-muted">
+          soit <span className="mono font-semibold text-night-ink">{Math.round(progress.pctOfTarget)} %</span> de la cible de {fcfa(fundsTarget)} F
+        </p>
+        <div className="relative mt-5">
+          <div className="h-2.5 overflow-hidden rounded-full bg-white/10">
+            <div className={`h-full rounded-full ${progress.minReached ? "bg-ok" : "bg-signal"}`} style={{ width: `${Math.min(100, progress.pctOfTarget)}%` }} />
           </div>
-
-          <div className={`flex flex-col gap-3 rounded-xl border p-4 ${fundsEd.editing ? "border-act/30 bg-surface" : "border-transparent bg-surface-2/70"}`}>
-            <div className="flex items-center justify-between gap-2">
-              <span className="text-[13px] font-semibold">Objectifs</span>
-              {!fundsEd.editing && <EditBar edit={fundsEd} />}
-            </div>
-            <label>
-              <span className="field-label">Minimum exigé (FCFA)</span>
-              <input
-                type="number"
-                inputMode="numeric"
-                disabled={!fundsEd.editing}
-                value={fundsMin}
-                onChange={(e) => fundsEd.set({ fundsMin: Number(e.target.value) || 0 })}
-                className="input mono text-right"
-              />
-            </label>
-            <label>
-              <span className="field-label">Cible personnelle (FCFA)</span>
-              <input
-                type="number"
-                inputMode="numeric"
-                disabled={!fundsEd.editing}
-                value={fundsTarget}
-                onChange={(e) => fundsEd.set({ fundsTarget: Number(e.target.value) || 0 })}
-                className="input mono text-right"
-              />
-            </label>
-            {fundsEd.editing && <EditBar edit={fundsEd} />}
-            <p className="text-[11.5px] text-faint">Le minimum suit le barème IRCC des fonds d&apos;établissement ; mettez-le à jour chaque année.</p>
-          </div>
+          <span
+            className="absolute -top-1 h-[18px] w-0.5 rounded bg-night-ink"
+            style={{ left: `${Math.min(100, progress.minMarkPct)}%` }}
+            title={`Minimum exigé : ${fcfa(fundsMin)} F`}
+          />
         </div>
-      </section>
-
-      {savings.length === 0 && !rowsEd.editing ? (
-        <div className="mt-5">
-          <EmptyState icon={<IconPiggy size={20} />} title="Aucun versement">
-            Ajoutez un premier versement mensuel pour suivre votre épargne.
-          </EmptyState>
+        <div className="mono relative mt-2 h-4 text-[10.5px] text-night-muted">
+          <span className="absolute left-0">0</span>
+          <span className="absolute -translate-x-1/2 whitespace-nowrap" style={{ left: `${Math.min(88, progress.minMarkPct)}%` }}>
+            minimum
+          </span>
+          {progress.minMarkPct < 88 && <span className="absolute right-0">cible</span>}
         </div>
-      ) : (
-        <section className={`card mt-5 overflow-hidden ${rowsEd.editing ? "ring-2 ring-act-soft" : ""}`}>
-          <div className="flex flex-wrap items-center justify-between gap-2 px-4 pt-4 sm:px-5">
-            <div>
-              <h2 className="text-[17px] font-bold">Versements</h2>
-              <p className="text-[12.5px] text-muted">
-                Prévu <span className="mono text-ink">{fcfa(totalPlanned)} F</span> · versé <span className="mono text-ink">{fcfa(progress.saved)} F</span>
-              </p>
-            </div>
-            <EditBar edit={rowsEd} />
-          </div>
+      </DarkHeader>
 
+      <div className="mt-5" role="tabpanel">
+      {tab === "evolution" && (
+        <div className="flex flex-col gap-5">
+          <StatsRow
+            className=""
+            stats={[
+              { label: "Versements", value: String(paid.length), unit: `/ ${savings.length}`, sub: "mois avec un versement" },
+              { label: "Moyenne mensuelle", value: fcfa(avg), unit: "F", sub: "sur les mois versés" },
+              { label: "Meilleur mois", value: best ? fcfa(best.actual) : "—", unit: best ? "F" : undefined, sub: best?.label || "aucun versement" },
+              {
+                label: "Écart au prévu",
+                value: `${gap > 0 ? "+" : gap < 0 ? "−" : ""}${fcfa(Math.abs(gap))}`,
+                unit: "F",
+                sub: "versé moins prévu, mois versés",
+                valueTone: gap < 0 ? "bad" : "ok",
+              },
+            ]}
+          />
+          {savings.length === 0 ? (
+            <EmptyState icon={<IconPiggy size={20} />} title="Aucun versement">
+              Ajoutez un premier versement mensuel pour suivre votre épargne.
+            </EmptyState>
+          ) : (
+          <section className="card overflow-hidden pb-4">
+          <div className="px-4 pt-4 sm:px-5">
+            <h2 className="text-[16px] font-bold">Versements par mois</h2>
+            <p className="text-[12.5px] text-muted">
+              Prévu <span className="mono text-ink">{fcfa(totalPlanned)} F</span> · versé <span className="mono text-ink">{fcfa(progress.saved)} F</span>
+            </p>
+          </div>
           <div className="px-4 pt-4 sm:px-5">
             <div className="flex gap-1.5" role="img" aria-label="Versements réels par mois, avec le montant prévu en repère">
               {savings.map((s) => {
@@ -180,7 +202,24 @@ export function EpargneBoard({ dossier, initialSavings }: { dossier: Dossier; in
               </li>
             </ul>
           </div>
+          </section>
+          )}
+        </div>
+      )}
 
+      {tab === "versements" && (
+        <section className={`card overflow-hidden ${rowsEd.editing ? "ring-2 ring-act-soft" : ""}`}>
+          <div className="flex flex-wrap items-center justify-between gap-2 px-4 pt-4 sm:px-5">
+            <div>
+              <h2 className="text-[16px] font-bold">Versements</h2>
+              <p className="text-[12.5px] text-muted">Un mois par ligne ; l&apos;écart compare le versé au prévu.</p>
+            </div>
+            <EditBar edit={rowsEd} />
+          </div>
+          {savings.length === 0 && (
+            <p className="px-4 py-8 text-center text-[13px] text-muted">Aucun versement. Utilisez le bouton « Versement » pour en ajouter un.</p>
+          )}
+          {savings.length > 0 && (
           <div className="mt-3 overflow-x-auto">
             <table className="w-full min-w-[720px] text-[13.5px]">
               <thead>
@@ -228,8 +267,60 @@ export function EpargneBoard({ dossier, initialSavings }: { dossier: Dossier; in
               </tbody>
             </table>
           </div>
+          )}
         </section>
       )}
+
+      {tab === "objectifs" && (
+        <div className="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1fr)_340px]">
+          <section className={`card p-4 sm:p-6 ${fundsEd.editing ? "ring-2 ring-act-soft" : ""}`}>
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <h2 className="text-[16px] font-bold">Objectifs d&apos;épargne</h2>
+                <p className="text-[12.5px] text-muted">Le minimum IRCC et votre cible personnelle.</p>
+              </div>
+              <EditBar edit={fundsEd} />
+            </div>
+            <div className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <label>
+                <span className="field-label">Minimum exigé (FCFA)</span>
+                <input
+                  type="number"
+                  inputMode="numeric"
+                  disabled={!fundsEd.editing}
+                  value={fundsMin}
+                  onChange={(e) => fundsEd.set({ fundsMin: Number(e.target.value) || 0 })}
+                  className="input mono text-right text-[16px] font-semibold"
+                />
+              </label>
+              <label>
+                <span className="field-label">Cible personnelle (FCFA)</span>
+                <input
+                  type="number"
+                  inputMode="numeric"
+                  disabled={!fundsEd.editing}
+                  value={fundsTarget}
+                  onChange={(e) => fundsEd.set({ fundsTarget: Number(e.target.value) || 0 })}
+                  className="input mono text-right text-[16px] font-semibold"
+                />
+              </label>
+            </div>
+            <div className="mt-5 grid gap-2 sm:grid-cols-2">
+              <Goal reached={progress.minReached} label="Minimum exigé" rest={toMin} months={monthsToMin} />
+              <Goal reached={progress.targetReached} label="Cible" rest={toTarget} months={monthsToTarget} />
+            </div>
+          </section>
+          <aside className="card self-start p-4 sm:p-5">
+            <p className="text-[13px] font-bold">Bon à savoir</p>
+            <ul className="mt-3 flex flex-col gap-2.5 text-[12.5px] leading-relaxed text-muted">
+              <li>Le minimum suit le barème IRCC des fonds d&apos;établissement : mettez-le à jour chaque année.</li>
+              <li>Les fonds doivent être disponibles et justifiés par des relevés bancaires récents.</li>
+              <li>La projection en mois se base sur votre moyenne mensuelle ({fcfa(avg)} F).</li>
+            </ul>
+          </aside>
+        </div>
+      )}
+      </div>
     </>
   );
 }
@@ -241,7 +332,7 @@ function shortLabel(label: string): string {
   return label.trim().split(/\s+/)[0] ?? "";
 }
 
-function Goal({ reached, label, rest }: { reached: boolean; label: string; rest: number }) {
+function Goal({ reached, label, rest, months }: { reached: boolean; label: string; rest: number; months: number | null }) {
   return (
     <div className={`flex items-center gap-2.5 rounded-xl border px-3 py-2.5 ${reached ? "border-ok/30 bg-ok-bg" : "border-line"}`}>
       <span className={`grid h-7 w-7 shrink-0 place-items-center rounded-full ${reached ? "bg-ok text-surface" : "bg-surface-2 text-muted"}`}>
@@ -249,7 +340,7 @@ function Goal({ reached, label, rest }: { reached: boolean; label: string; rest:
       </span>
       <span className="text-[13px]">
         <span className="block font-semibold">{label}</span>
-        <span className={reached ? "text-ok" : "text-muted"}>{reached ? "atteint" : <>encore <span className="mono">{fcfa(rest)} F</span></>}</span>
+        <span className={reached ? "text-ok" : "text-muted"}>{reached ? "atteint" : <>encore <span className="mono">{fcfa(rest)} F</span>{months != null && <> · ≈ {months} mois</>}</>}</span>
       </span>
     </div>
   );
