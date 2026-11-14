@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { parseD } from "@/lib/rules";
 import { IconAlert, IconArrowRight, IconCalendar, IconCheck } from "@/components/icons";
+import { CountUp } from "@/components/CountUp";
 
 export interface NextStepInfo {
   title: string;
@@ -78,12 +79,12 @@ export function Hero({ phases, overallPct, nextStep, done, counted, late, countd
           <div className="mt-1 flex flex-wrap items-end gap-x-6 gap-y-3">
             <div className="flex items-end gap-3">
               <p className="font-display text-[56px] leading-none font-extrabold tracking-tight">
-                {overallPct}
+                <CountUp value={overallPct} duration={1400} />
                 <span className="text-[28px] text-signal"> %</span>
               </p>
               <p className="pb-2 text-sm text-night-muted">du parcours effectué</p>
             </div>
-            <ul className="flex flex-wrap gap-2 pb-1.5">
+            <ul className="stagger flex flex-wrap gap-2 pb-1.5">
               <HeroPill icon={<IconCheck size={13} strokeWidth={2.6} />}>
                 <span className="mono">{done}</span>/{counted} étapes faites
               </HeroPill>
@@ -102,15 +103,16 @@ export function Hero({ phases, overallPct, nextStep, done, counted, late, countd
 
           <svg viewBox="0 0 1000 140" className="mt-4 w-full overflow-visible" role="img" aria-label={`Trajet ABJ vers YYC, ${overallPct} % parcouru`}>
             <path d={PATH} fill="none" stroke="rgba(255,255,255,0.18)" strokeWidth="2" strokeDasharray="2 9" strokeLinecap="round" />
-            <path d={PATH} fill="none" stroke="var(--signal)" strokeWidth="2.5" strokeLinecap="round" pathLength={100} strokeDasharray={`${overallPct} 100`} />
+            <path d={PATH} fill="none" stroke="var(--signal)" strokeWidth="2.5" strokeLinecap="round" pathLength={100} strokeDasharray={`${overallPct} 100`} className="draw" style={{ ["--draw-from" as string]: overallPct, animationDuration: "1.8s" }} />
             {waypoints.map((w, i) => {
               const on = i === activePhase;
               const full = w.pct === 100;
               return (
                 <g
                   key={w.phase}
+                  className={`hero-waypoint ${onPhase ? "cursor-pointer" : ""}`}
+                  style={{ animationDelay: `${300 + i * 140}ms` }}
                   onClick={onPhase ? () => onPhase(i) : undefined}
-                  className={onPhase ? "cursor-pointer" : undefined}
                   role={onPhase ? "button" : undefined}
                   aria-label={onPhase ? `Ouvrir la phase ${w.phase}` : undefined}
                 >
@@ -132,22 +134,25 @@ export function Hero({ phases, overallPct, nextStep, done, counted, late, countd
               );
             })}
             <circle cx={P0.x} cy={P0.y} r="5" fill="var(--signal)" />
+            <circle cx={P0.x} cy={P0.y} r="5" fill="none" stroke="var(--signal)" strokeWidth="2" className="pulse-ring" />
             <circle cx={P2.x} cy={P2.y} r="5" fill="none" stroke="rgba(255,255,255,0.6)" strokeWidth="2" />
             <text x={P0.x} y={P0.y + 20} fill="var(--night-muted)" fontSize="15" fontFamily="var(--font-mono)" textAnchor="middle">ABJ</text>
             <text x={P2.x} y={P2.y + 20} fill="var(--night-muted)" fontSize="15" fontFamily="var(--font-mono)" textAnchor="middle">YYC</text>
             <g transform={`translate(${plane.x} ${plane.y}) rotate(${plane.angle + 45})`} pointerEvents="none">
-              <circle r="15" fill="var(--signal)" opacity="0.18" />
+              <g className="hero-plane">
+              <circle r="15" fill="var(--signal)" opacity="0.18" className="hero-plane-halo" />
               <path
                 transform="translate(-12 -12)"
                 d="M17.8 19.2 16 11l3.5-3.5C21 6 21.5 4 21 3c-1-.5-3 0-4.5 1.5L13 8 4.8 6.2c-.5-.1-.9.1-1.1.5l-.3.5c-.2.5-.1 1 .3 1.3L9 12l-2 3H4l-1 1 3 2 2 3 1-1v-3l3-2 3.5 5.3c.3.4.8.5 1.3.3l.5-.2c.4-.3.6-.7.5-1.2z"
                 fill="var(--signal)"
               />
+              </g>
             </g>
           </svg>
         </div>
 
         {nextStep ? (
-          <div className="flex flex-col self-start rounded-2xl border border-white/10 bg-night-2/90 p-5 backdrop-blur-sm">
+          <div className="anim-pop flex flex-col self-start rounded-2xl border border-white/10 bg-night-2/90 p-5 backdrop-blur-sm [animation-delay:200ms]">
             <div className="flex items-center justify-between gap-2">
               <p className="text-[11px] font-semibold tracking-[0.12em] text-signal uppercase">Prochaine étape</p>
               <p className="truncate text-[11px] text-night-muted" title={nextStep.phase}>
@@ -166,7 +171,7 @@ export function Hero({ phases, overallPct, nextStep, done, counted, late, countd
                   </span>
                 </div>
                 <div className="mt-1.5 h-1 rounded-full bg-white/10">
-                  <div className="h-full rounded-full bg-signal" style={{ width: `${(nextStep.tasksDone / nextStep.tasksTotal) * 100}%` }} />
+                  <div className="bar-grow h-full rounded-full bg-signal" style={{ width: `${(nextStep.tasksDone / nextStep.tasksTotal) * 100}%` }} />
                 </div>
               </div>
             )}
@@ -190,9 +195,9 @@ export function Hero({ phases, overallPct, nextStep, done, counted, late, countd
               <button
                 type="button"
                 onClick={onOpenNext}
-                className="mt-4 inline-flex items-center justify-center gap-2 rounded-xl bg-night-ink px-3 py-2 text-[13px] font-semibold text-night transition-opacity hover:opacity-90"
+                className="group/open mt-4 inline-flex items-center justify-center gap-2 rounded-xl bg-night-ink px-3 py-2 text-[13px] font-semibold text-night transition-[opacity,transform] hover:opacity-90 active:scale-[0.97]"
               >
-                Ouvrir l&apos;étape <IconArrowRight size={14} />
+                Ouvrir l&apos;étape <IconArrowRight size={14} className="transition-transform group-hover/open:translate-x-1" />
               </button>
             )}
           </div>

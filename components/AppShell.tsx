@@ -1,6 +1,8 @@
 "use client";
 
 import Link from "next/link";
+import { Logo } from "@/components/Logo";
+import { CountUp } from "@/components/CountUp";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useSyncExternalStore, type ReactNode } from "react";
 import { createClient } from "@/lib/supabase/client";
@@ -12,7 +14,6 @@ import {
   IconMonitor,
   IconMoon,
   IconPiggy,
-  IconPlane,
   IconRoute,
   IconSun,
   IconUser,
@@ -85,10 +86,8 @@ export function AppShell({
   return (
     <div className="min-h-screen lg:grid lg:grid-cols-[272px_minmax(0,1fr)]">
       <aside className="no-print sticky top-0 hidden h-screen flex-col overflow-y-auto border-r border-white/10 bg-night px-4 pt-5 pb-4 text-night-ink lg:flex">
-        <Link href="/parcours" className="flex items-center gap-3 rounded-xl px-1.5 py-1">
-          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-signal text-[#1b1206]">
-            <IconPlane size={19} />
-          </span>
+        <Link href="/parcours" className="logo-link flex items-center gap-3 rounded-xl px-1.5 py-1">
+          <Logo size={42} />
           <span className="min-w-0">
             <span className="flex items-baseline gap-1.5 font-mono text-[17px] leading-tight font-semibold tracking-wide">
               ABJ <span className="text-signal">→</span> YYC
@@ -113,18 +112,18 @@ export function AppShell({
                       key={n.href}
                       href={n.href}
                       aria-current={active ? "page" : undefined}
-                      className={`group relative flex items-center gap-3 rounded-lg px-3 py-1.5 text-[14px] font-semibold transition-colors ${
+                      className={`nav-link group relative flex items-center gap-3 rounded-lg px-3 py-1.5 text-[14px] font-semibold transition-colors ${
                         active ? "bg-white/10 text-night-ink" : "text-night-muted hover:bg-white/5 hover:text-night-ink"
                       }`}
                     >
-                      {active && <span aria-hidden className="absolute top-1.5 bottom-1.5 left-0 w-[3px] rounded-r-full bg-signal" />}
+                      {active && <span aria-hidden className="nav-active-bar absolute top-1.5 bottom-1.5 left-0 w-[3px] rounded-r-full bg-signal" />}
                       <span className={`grid h-7 w-7 shrink-0 place-items-center rounded-md transition-colors ${active ? "bg-signal/15 text-signal" : "group-hover:text-night-ink"}`}>
                         <Icon size={17} />
                       </span>
                       <span className="flex-1">{n.label}</span>
                       {badge && (
                         <span
-                          className={`mono rounded-full px-1.5 text-[10.5px] leading-[18px] font-semibold ${badge.alert ? "bg-bad text-white" : "bg-white/10 text-night-muted"}`}
+                          className={`badge-in mono rounded-full px-1.5 text-[10.5px] leading-[18px] font-semibold ${badge.alert ? "bg-bad text-white nav-alert" : "bg-white/10 text-night-muted"}`}
                           title={badge.title}
                         >
                           {badge.text}
@@ -164,9 +163,7 @@ export function AppShell({
         <header className="no-print sticky top-0 z-30 border-b border-white/10 bg-night text-night-ink lg:hidden" style={{ paddingTop: "env(safe-area-inset-top, 0px)" }}>
           <div className="flex items-center justify-between gap-3 px-4 py-3">
             <Link href="/parcours" className="flex items-center gap-2 font-mono font-semibold">
-              <span className="grid h-7 w-7 place-items-center rounded-lg bg-signal text-[#1b1206]">
-                <IconPlane size={15} />
-              </span>
+              <Logo size={30} animated={false} />
               <span>
                 ABJ <span className="text-signal">→</span> YYC
               </span>
@@ -175,7 +172,7 @@ export function AppShell({
               {summary && (
                 <span className="flex items-center gap-2 rounded-full bg-white/10 px-2.5 py-1">
                   <span className="h-1 w-10 overflow-hidden rounded-full bg-white/15">
-                    <span className="block h-full rounded-full bg-signal" style={{ width: `${Math.max(4, summary.overallPct)}%` }} />
+                    <span className="bar-grow block h-full rounded-full bg-signal" style={{ width: `${Math.max(4, summary.overallPct)}%` }} />
                   </span>
                   <span className="mono text-[12px]">{summary.overallPct} %</span>
                 </span>
@@ -219,7 +216,7 @@ function JourneyCard({ summary }: { summary: ShellSummary }) {
   const y = (1 - t) * (1 - t) * 34 + 2 * (1 - t) * t * -6 + t * t * 34;
 
   return (
-    <Link href="/parcours#apercu" className="group relative mt-5 block shrink-0 overflow-hidden rounded-2xl border border-white/10 bg-night-2 p-3.5 transition-colors hover:border-white/20">
+    <Link href="/parcours#apercu" className="anim-rise group relative mt-5 block shrink-0 overflow-hidden rounded-2xl border border-white/10 bg-night-2 p-3.5 transition-[border-color,transform] duration-300 hover:-translate-y-0.5 hover:border-white/20 [animation-delay:100ms]">
       <div
         aria-hidden
         className="pointer-events-none absolute inset-0 opacity-[0.07]"
@@ -230,7 +227,7 @@ function JourneyCard({ summary }: { summary: ShellSummary }) {
           <div>
             <p className="text-[10.5px] font-semibold tracking-[0.14em] text-night-muted uppercase">Parcours</p>
             <p className="font-display text-[30px] leading-none font-extrabold tracking-tight">
-              {summary.overallPct}
+              <CountUp value={summary.overallPct} duration={1200} />
               <span className="text-[16px] text-signal"> %</span>
             </p>
           </div>
@@ -238,10 +235,10 @@ function JourneyCard({ summary }: { summary: ShellSummary }) {
 
         <svg viewBox="0 0 200 44" className="mt-2 w-full" aria-hidden>
           <path d="M 8 34 Q 100 -6 192 34" fill="none" stroke="rgba(255,255,255,0.18)" strokeWidth="1.5" strokeDasharray="1.5 5" strokeLinecap="round" />
-          <path d="M 8 34 Q 100 -6 192 34" fill="none" stroke="var(--signal)" strokeWidth="2" strokeLinecap="round" pathLength={100} strokeDasharray={`${pct} 100`} />
+          <path d="M 8 34 Q 100 -6 192 34" fill="none" stroke="var(--signal)" strokeWidth="2" strokeLinecap="round" pathLength={100} strokeDasharray={`${pct} 100`} className="draw" style={{ ["--draw-from" as string]: pct }} />
           <circle cx="8" cy="34" r="3" fill="var(--signal)" />
           <circle cx="192" cy="34" r="3" fill="none" stroke="rgba(255,255,255,0.6)" strokeWidth="1.5" />
-          <circle cx={x} cy={y} r="6" fill="var(--signal)" opacity="0.25" />
+          <circle cx={x} cy={y} r="6" fill="var(--signal)" opacity="0.25" className="pulse-soft" />
           <circle cx={x} cy={y} r="3" fill="var(--signal)" />
           <text x="8" y="43" fill="var(--night-muted)" fontSize="7" fontFamily="var(--font-mono)" textAnchor="middle">ABJ</text>
           <text x="192" y="43" fill="var(--night-muted)" fontSize="7" fontFamily="var(--font-mono)" textAnchor="middle">YYC</text>
@@ -277,6 +274,8 @@ function subscribeTheme(cb: () => void) {
 
 function applyTheme(next: ThemeChoice) {
   const root = document.documentElement;
+  root.classList.add("theme-switching");
+  window.setTimeout(() => root.classList.remove("theme-switching"), 450);
   if (next === "system") delete root.dataset.theme;
   else root.dataset.theme = next;
   document.cookie = next === "system" ? "theme=; path=/; max-age=0; samesite=lax" : `theme=${next}; path=/; max-age=31536000; samesite=lax`;

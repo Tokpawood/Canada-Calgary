@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, type ReactNode } from "react";
+import { CountUp } from "./CountUp";
 
 /** En-tête sombre commun (Parcours, Profil, Budget, Épargne, Contacts) : contenu à gauche, indicateurs à droite, onglets en bas. */
 export function DarkHeader({ children, aside, tabs }: { children: ReactNode; aside?: ReactNode; tabs?: ReactNode }) {
@@ -12,7 +13,7 @@ export function DarkHeader({ children, aside, tabs }: { children: ReactNode; asi
         style={{ backgroundImage: "radial-gradient(circle at 1px 1px, #fff 1px, transparent 0)", backgroundSize: "22px 22px" }}
       />
       <div aria-hidden className="pointer-events-none absolute -top-24 -right-24 h-72 w-72 rounded-full bg-signal opacity-[0.06] blur-3xl" />
-      <div className="relative flex flex-col gap-5 p-5 sm:p-7 xl:flex-row xl:items-center">
+      <div className="stagger relative flex flex-col gap-5 p-5 sm:p-7 xl:flex-row xl:items-center">
         <div className="min-w-0 flex-1">{children}</div>
         {aside && <div className="shrink-0 xl:w-[360px]">{aside}</div>}
       </div>
@@ -24,18 +25,20 @@ export function DarkHeader({ children, aside, tabs }: { children: ReactNode; asi
 /** Tuiles d'indicateurs sur fond sombre (2 colonnes). */
 export function DarkTiles({ items }: { items: Array<{ label: string; value: ReactNode; unit?: string; sub?: ReactNode; pct?: number; tone?: "ok" | "signal" | "bad" }> }) {
   return (
-    <div className="grid grid-cols-2 gap-px overflow-hidden rounded-xl bg-white/10">
+    <div className="stagger grid grid-cols-2 gap-px overflow-hidden rounded-xl bg-white/10">
       {items.map((t) => (
         <div key={t.label} className="min-w-0 bg-night-2 px-4 py-3.5">
           <p className="truncate text-[11px] font-semibold tracking-wide text-night-muted uppercase">{t.label}</p>
           <p className="mt-1 flex items-baseline gap-1.5">
-            <span className={`mono truncate text-[22px] leading-none font-semibold ${t.tone === "bad" ? "text-[#f6b4ac]" : ""}`}>{t.value}</span>
+            <span className={`mono truncate text-[22px] leading-none font-semibold ${t.tone === "bad" ? "text-[#f6b4ac]" : ""}`}>
+              {typeof t.value === "string" && /^\d{1,6}$/.test(t.value) ? <CountUp value={Number(t.value)} /> : t.value}
+            </span>
             {t.unit && <span className="text-[12px] text-night-muted">{t.unit}</span>}
           </p>
           {t.pct != null && (
             <div className="mt-2.5 h-1 rounded-full bg-white/10" aria-hidden>
               <div
-                className={`h-full rounded-full ${t.tone === "ok" ? "bg-ok" : t.tone === "bad" ? "bg-bad" : "bg-signal"}`}
+                className={`bar-grow h-full rounded-full ${t.tone === "ok" ? "bg-ok" : t.tone === "bad" ? "bg-bad" : "bg-signal"}`}
                 style={{ width: `${Math.min(100, Math.max(0, t.pct))}%` }}
               />
             </div>
@@ -77,7 +80,7 @@ export function HeaderTabs<K extends string>({ tabs, active, onSelect, label }: 
             {t.icon}
             {t.label}
             {t.badge && (
-              <span className={`mono rounded-full px-1.5 text-[10.5px] leading-[18px] font-semibold ${on ? "bg-white/20 text-night-ink" : BADGE[t.badge.tone ?? "plain"]}`}>
+              <span className={`badge-in mono rounded-full px-1.5 text-[10.5px] leading-[18px] font-semibold ${on ? "bg-white/20 text-night-ink" : BADGE[t.badge.tone ?? "plain"]}`}>
                 {t.badge.text}
               </span>
             )}

@@ -123,7 +123,7 @@ export function Meter({
       className={`relative rounded-full bg-surface-2 ${className}`}
       style={{ height }}
     >
-      <span className={`block h-full rounded-full ${TONE_DOT[tone]} transition-[width] duration-500`} style={{ width: `${pct}%`, minWidth: pct > 0 ? height : 0 }} />
+      <span className={`bar-grow block h-full rounded-full ${TONE_DOT[tone]} transition-[width] duration-500`} style={{ width: `${pct}%`, minWidth: pct > 0 ? height : 0 }} />
       {markers.map((m) => (
         <span
           key={m.label}
@@ -228,7 +228,7 @@ export function Drawer({
   }, [onClose]);
 
   return (
-    <div className="anim-fade fixed inset-0 z-50 flex justify-end bg-black/55 backdrop-blur-[2px]" onClick={onClose}>
+    <div className="anim-fade fixed inset-0 z-50 flex justify-end bg-black/55 backdrop-blur-[3px]" onClick={onClose}>
       <aside
         role="dialog"
         aria-modal="true"
@@ -256,10 +256,10 @@ export function Drawer({
                   <IconX size={18} />
                 </button>
               </div>
-              <div className="relative px-5 pt-5 pb-4 sm:px-6">{header}</div>
+              <div className="anim-rise relative px-5 pt-5 pb-4 [animation-delay:120ms] sm:px-6">{header}</div>
               {tabs && <div className="relative border-t border-white/10 pt-1.5 [&>div]:px-3 sm:[&>div]:px-4">{tabs}</div>}
             </div>
-            <div className="flex-1 overflow-y-auto px-5 pt-5 pb-8 sm:px-6">{children}</div>
+            <div className="stagger flex-1 overflow-y-auto px-5 pt-5 pb-8 sm:px-6">{children}</div>
           </>
         ) : (
         <div className="relative flex-1 overflow-y-auto px-5 pt-5 pb-8 sm:px-6">

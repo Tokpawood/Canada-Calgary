@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { Meter, type Tone } from "./ui";
+import { CountUp } from "./CountUp";
 
 export interface Stat {
   label: string;
@@ -22,12 +23,12 @@ const VALUE_TONE = { bad: "text-bad", opt: "text-opt", ok: "text-ok" } as const;
 export function StatsRow({ stats, className = "my-5" }: { stats: Stat[]; className?: string }) {
   return (
     <div className={`overflow-hidden rounded-2xl border border-line bg-line shadow-[var(--shadow)] ${className}`}>
-      <div className={`grid gap-px ${stats.length >= 4 ? "grid-cols-2 xl:grid-cols-4" : stats.length === 3 ? "grid-cols-1 sm:grid-cols-3" : "grid-cols-2"}`}>
+      <div className={`stagger grid gap-px ${stats.length >= 4 ? "grid-cols-2 xl:grid-cols-4" : stats.length === 3 ? "grid-cols-1 sm:grid-cols-3" : "grid-cols-2"}`}>
         {stats.map((s) => (
           <div key={s.label} className="flex min-w-0 flex-col bg-surface px-4 py-3.5 sm:px-5">
             <p className="eyebrow">{s.label}</p>
             <p className={`mono mt-1.5 text-[24px] leading-none font-semibold tracking-tight ${s.valueTone ? VALUE_TONE[s.valueTone] : ""}`}>
-              {s.value}
+              {/^\d{1,6}$/.test(s.value) ? <CountUp value={Number(s.value)} /> : s.value}
               {s.unit && <span className="ml-1 text-[13px] font-medium text-muted">{s.unit}</span>}
             </p>
             {s.sub && <p className="mt-1.5 truncate text-[12px] text-muted">{s.sub}</p>}
