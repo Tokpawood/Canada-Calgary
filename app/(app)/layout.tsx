@@ -4,6 +4,7 @@ import { getDossierForUser, getStepsWithDetails } from "@/lib/queries";
 import { daysUntil, isLate, nextOpenStep, overallProgress, parseD } from "@/lib/rules";
 import { DossierProvider } from "@/lib/dossier-context";
 import { AppShell, type ShellSummary } from "@/components/AppShell";
+import { getAccount } from "@/lib/account";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createClient();
@@ -43,9 +44,11 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     };
   }
 
+  const account = await getAccount(supabase, userData.user, dossier?.id ?? null);
+
   return (
     <DossierProvider dossierId={dossier?.id ?? null}>
-      <AppShell summary={summary} isOwner={!dossier || dossier.ownerId === userData.user.id} email={userData.user.email ?? ""}>
+      <AppShell summary={summary} isOwner={!dossier || dossier.ownerId === userData.user.id} account={account}>
         {children}
       </AppShell>
     </DossierProvider>

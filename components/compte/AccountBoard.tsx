@@ -8,6 +8,8 @@ import { PageHeader } from "@/components/ui";
 import { DarkHeader, DarkTiles } from "@/components/DarkHeader";
 import { PasswordInput, authErrorFr } from "@/components/PasswordInput";
 import { IconCheck, IconInfo, IconLock, IconLogout, IconShield } from "@/components/icons";
+import { Avatar } from "@/components/Avatar";
+import type { Account } from "@/lib/account";
 
 const MIN = 7;
 
@@ -24,11 +26,13 @@ function strength(p: string): { score: number; label: string } {
 
 export function AccountBoard({
   email,
+  account,
   lastSignIn,
   createdAt,
   children,
 }: {
   email: string;
+  account: Account;
   lastSignIn: string | null;
   createdAt: string | null;
   children?: React.ReactNode;
@@ -103,7 +107,13 @@ export function AccountBoard({
         <p className="flex items-center gap-2 text-[11px] font-semibold tracking-[0.12em] text-night-muted uppercase">
           <IconShield size={13} /> Titulaire du dossier
         </p>
-        <p className="mt-1.5 font-display text-[30px] leading-tight font-extrabold break-all sm:text-[34px]">{email}</p>
+        <div className="mt-3 flex items-center gap-4">
+          <Avatar url={account.avatarUrl} initials={account.initials} size={64} />
+          <div className="min-w-0">
+            <p className="font-display text-[30px] leading-tight font-extrabold sm:text-[34px]">{account.fullName}</p>
+            <p className="truncate text-[13px] text-night-muted">{email}</p>
+          </div>
+        </div>
         <div className="mt-4 flex flex-wrap gap-2">
           {["Connexion par courriel et mot de passe", "Création de compte désactivée", "Coffre réservé au titulaire"].map((t) => (
             <span key={t} className="inline-flex items-center gap-1.5 rounded-full bg-white/[0.08] px-2.5 py-1 text-[12px] font-semibold">
@@ -200,7 +210,7 @@ export function AccountBoard({
           </aside>
         </div>
       </div>
-      {children && <div className="mt-5">{children}</div>}
+      {children && <div className="mt-5 flex flex-col gap-5">{children}</div>}
     </>
   );
 }

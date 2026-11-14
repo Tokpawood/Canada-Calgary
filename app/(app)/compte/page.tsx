@@ -3,6 +3,8 @@ import { createClient } from "@/lib/supabase/server";
 import { AccountBoard } from "@/components/compte/AccountBoard";
 import { DriveCard, type DriveStatus } from "@/components/compte/DriveCard";
 import { driveConfigured, folderLink, getConnection } from "@/lib/drive";
+import { getAccount } from "@/lib/account";
+import { AccountIdentityCard } from "@/components/compte/AccountIdentityCard";
 
 export default async function ComptePage({ searchParams }: { searchParams: Promise<{ drive?: string }> }) {
   const supabase = await createClient();
@@ -24,8 +26,11 @@ export default async function ComptePage({ searchParams }: { searchParams: Promi
     };
   }
 
+  const account = await getAccount(supabase, data.user, (dossier?.id as string | undefined) ?? null);
+
   return (
-    <AccountBoard email={data.user.email ?? ""} lastSignIn={data.user.last_sign_in_at ?? null} createdAt={data.user.created_at ?? null}>
+    <AccountBoard email={data.user.email ?? ""} account={account} lastSignIn={data.user.last_sign_in_at ?? null} createdAt={data.user.created_at ?? null}>
+      <AccountIdentityCard account={account} />
       {drive && <DriveCard status={drive} />}
     </AccountBoard>
   );

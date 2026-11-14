@@ -3,19 +3,20 @@
 import Link from "next/link";
 import { Logo } from "@/components/Logo";
 import { CountUp } from "@/components/CountUp";
+import { UserMenu } from "@/components/UserMenu";
+import { Avatar } from "@/components/Avatar";
+import { ThemeToggle } from "@/components/Theme";
+import type { Account } from "@/lib/account";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useSyncExternalStore, type ReactNode } from "react";
+import { useEffect, type ReactNode } from "react";
 import { createClient } from "@/lib/supabase/client";
 import {
   IconArrowRight,
   IconFile,
   IconLock,
   IconLogout,
-  IconMonitor,
-  IconMoon,
   IconPiggy,
   IconRoute,
-  IconSun,
   IconUser,
   IconUsers,
   IconWallet,
@@ -54,12 +55,12 @@ const NAV_GROUPS: Array<{ title: string; items: NavItem[] }> = [
 export function AppShell({
   summary,
   isOwner,
-  email,
+  account,
   children,
 }: {
   summary: ShellSummary | null;
   isOwner: boolean;
-  email: string;
+  account: Account;
   children: ReactNode;
 }) {
   const pathname = usePathname() ?? "";
@@ -138,24 +139,7 @@ export function AppShell({
         </nav>
 
         <div className="mt-auto shrink-0 pt-5">
-          <div className="rounded-xl border border-white/10 bg-night-2 p-2.5">
-            <div className="flex items-center gap-1">
-              <Link
-                href="/compte"
-                aria-current={pathname.startsWith("/compte") ? "page" : undefined}
-                title="Compte et sécurité"
-                className={`flex min-w-0 flex-1 items-center gap-2.5 rounded-lg p-1 transition-colors hover:bg-white/5 ${pathname.startsWith("/compte") ? "bg-white/10" : ""}`}
-              >
-                <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-white/10 text-[13px] font-bold uppercase">{(email.trim()[0] ?? "?").toUpperCase()}</span>
-                <span className="min-w-0 flex-1">
-                  <span className="block truncate text-[12.5px] font-semibold">{email}</span>
-                  <span className="block text-[11px] text-night-muted">Compte et sécurité</span>
-                </span>
-              </Link>
-              <SignOut compact />
-            </div>
-            <ThemeSegment />
-          </div>
+          <UserMenu account={account} />
         </div>
       </aside>
 
@@ -178,6 +162,9 @@ export function AppShell({
                 </span>
               )}
               <ThemeToggle />
+              <Link href="/compte" aria-label="Compte et sécurité" title={account.fullName}>
+                <Avatar url={account.avatarUrl} initials={account.initials} size={30} />
+              </Link>
               <SignOut compact />
             </div>
           </div>
@@ -252,84 +239,6 @@ function JourneyCard({ summary }: { summary: ShellSummary }) {
         )}
       </div>
     </Link>
-  );
-}
-
-type ThemeChoice = "system" | "light" | "dark";
-const THEME_ORDER: ThemeChoice[] = ["system", "light", "dark"];
-const THEME_LABEL: Record<ThemeChoice, string> = { system: "Thème système", light: "Thème clair", dark: "Thème sombre" };
-const THEME_ICON = { system: IconMonitor, light: IconSun, dark: IconMoon } as const;
-
-const themeListeners = new Set<() => void>();
-
-function readTheme(): ThemeChoice {
-  const t = document.documentElement.dataset.theme;
-  return t === "light" || t === "dark" ? t : "system";
-}
-
-function subscribeTheme(cb: () => void) {
-  themeListeners.add(cb);
-  return () => themeListeners.delete(cb);
-}
-
-function applyTheme(next: ThemeChoice) {
-  const root = document.documentElement;
-  root.classList.add("theme-switching");
-  window.setTimeout(() => root.classList.remove("theme-switching"), 450);
-  if (next === "system") delete root.dataset.theme;
-  else root.dataset.theme = next;
-  document.cookie = next === "system" ? "theme=; path=/; max-age=0; samesite=lax" : `theme=${next}; path=/; max-age=31536000; samesite=lax`;
-  themeListeners.forEach((l) => l());
-}
-
-function useTheme() {
-  return useSyncExternalStore(subscribeTheme, readTheme, () => "system" as ThemeChoice);
-}
-
-/** Bouton compact (en-tête mobile) : fait défiler système → clair → sombre. */
-function ThemeToggle() {
-  const theme = useTheme();
-  const Icon = THEME_ICON[theme];
-  return (
-    <button
-      type="button"
-      onClick={() => applyTheme(THEME_ORDER[(THEME_ORDER.indexOf(readTheme()) + 1) % THEME_ORDER.length])}
-      aria-label={THEME_LABEL[theme]}
-      title={THEME_LABEL[theme]}
-      className="grid h-8 w-8 place-items-center rounded-lg text-night-muted hover:bg-white/10 hover:text-night-ink"
-    >
-      <Icon size={17} />
-    </button>
-  );
-}
-
-/** Sélecteur à trois positions (barre latérale). */
-function ThemeSegment() {
-  const theme = useTheme();
-  return (
-    <div role="radiogroup" aria-label="Thème" className="mt-2.5 grid grid-cols-3 gap-1 rounded-lg bg-black/40 p-1">
-      {THEME_ORDER.map((t) => {
-        const Icon = THEME_ICON[t];
-        const on = theme === t;
-        return (
-          <button
-            key={t}
-            type="button"
-            role="radio"
-            aria-checked={on}
-            aria-label={THEME_LABEL[t]}
-            title={THEME_LABEL[t]}
-            onClick={() => applyTheme(t)}
-            className={`flex items-center justify-center gap-1.5 rounded-md py-1.5 text-[11.5px] font-semibold transition-colors ${
-              on ? "bg-white/15 text-night-ink" : "text-night-muted hover:text-night-ink"
-            }`}
-          >
-            <Icon size={14} />
-            {t === "system" ? "Auto" : t === "light" ? "Clair" : "Sombre"}
-          </button>
-        );
-      })}
-    </div>
   );
 }
 
