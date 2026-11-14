@@ -17,6 +17,31 @@ function base({ size = 18, ...rest }: IconProps) {
   };
 }
 
+export const IconCopy = (p: IconProps) => (
+  <svg {...base(p)}>
+    <rect x="9" y="9" width="12" height="12" rx="2" />
+    <path d="M5 15H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1" />
+  </svg>
+);
+export const IconHome = (p: IconProps) => (
+  <svg {...base(p)}>
+    <path d="M3 10.5 12 3l9 7.5" />
+    <path d="M5 9.5V21h14V9.5" />
+  </svg>
+);
+export const IconBriefcase = (p: IconProps) => (
+  <svg {...base(p)}>
+    <rect x="3" y="7" width="18" height="13" rx="2" />
+    <path d="M9 7V5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2M3 13h18" />
+  </svg>
+);
+export const IconGauge = (p: IconProps) => (
+  <svg {...base(p)}>
+    <path d="M4 18a9 9 0 1 1 16 0" />
+    <path d="m12 14 4-5" />
+  </svg>
+);
+
 export const IconRoute = (p: IconProps) => (
   <svg {...base(p)}>
     <circle cx="6" cy="19" r="2.5" />

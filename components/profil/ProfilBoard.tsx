@@ -8,11 +8,23 @@ import { FswGrid } from "./FswGrid";
 import { AddressesTable, HistoryTable } from "./HistoryAddressTables";
 import { FieldGrid, type FieldDef } from "./FieldGrid";
 import { AuditPanel } from "@/components/AuditPanel";
-import { Chip, Meter, PageHeader, TONE_CLASS, type Tone } from "@/components/ui";
+import { PageHeader, type Tone } from "@/components/ui";
 import { newId } from "@/lib/ids";
 import { syncRows } from "@/lib/syncRows";
 import { EditBar, changedFields, useEditable } from "@/components/editable";
-import { IconDownload, IconGlobe, IconPrinter, IconRoute, IconUser } from "@/components/icons";
+import {
+  IconBriefcase,
+  IconDownload,
+  IconGauge,
+  IconGlobe,
+  IconHome,
+  IconInfo,
+  IconMail,
+  IconPrinter,
+  IconRoute,
+  IconShield,
+  IconUser,
+} from "@/components/icons";
 
 export interface AuditSnapshot {
   steps: AuditInput["steps"];
@@ -44,9 +56,11 @@ const ID_FIELDS: Array<FieldDef<IdKey>> = [
   { key: "statut", label: "État civil" },
 ];
 
-const PROFILE_GROUPS: Array<{ title: string; fields: Array<FieldDef<ProfileKey>> }> = [
+const PROFILE_GROUPS: Array<{ title: string; sub: string; icon: ReactNode; fields: Array<FieldDef<ProfileKey>> }> = [
   {
     title: "Projet",
+    sub: "Programme, emploi visé et destination.",
+    icon: <IconRoute size={15} />,
     fields: [
       { key: "programme", label: "Programme" },
       { key: "titre", label: "Titre professionnel" },
@@ -57,6 +71,8 @@ const PROFILE_GROUPS: Array<{ title: string; fields: Array<FieldDef<ProfileKey>>
   },
   {
     title: "Situation",
+    sub: "Nationalité, famille et pièces.",
+    icon: <IconUser size={15} />,
     fields: [
       { key: "nationalite", label: "Nationalité" },
       { key: "enfants", label: "Enfants" },
@@ -66,24 +82,37 @@ const PROFILE_GROUPS: Array<{ title: string; fields: Array<FieldDef<ProfileKey>>
   },
   {
     title: "Coordonnées",
+    sub: "Pour être joint par IRCC et les employeurs.",
+    icon: <IconMail size={15} />,
     fields: [
       { key: "telephone", label: "Téléphone", type: "tel" },
       { key: "courriel", label: "Courriel", type: "email" },
-      { key: "adresse", label: "Adresse actuelle", wide: true },
+      { key: "adresse", label: "Adresse actuelle" },
     ],
   },
 ];
 
 const PROFILE_KEYS = PROFILE_GROUPS.flatMap((g) => g.fields.map((f) => f.key));
 
-const SECTIONS = [
-  { id: "identite", label: "Identité" },
-  { id: "profil-ee", label: "Profil" },
-  { id: "grille", label: "Grille de points" },
-  { id: "historique", label: "Historique" },
-  { id: "adresses", label: "Adresses" },
+const TABS = [
+  { id: "identite", label: "Identité", icon: <IconUser size={15} /> },
+  { id: "profil", label: "Profil", icon: <IconGlobe size={15} /> },
+  { id: "grille", label: "Grille de points", icon: <IconGauge size={15} /> },
+  { id: "historique", label: "Historique", icon: <IconBriefcase size={15} /> },
+  { id: "adresses", label: "Adresses", icon: <IconHome size={15} /> },
+  { id: "controle", label: "Contrôle", icon: <IconShield size={15} /> },
 ] as const;
-const SECTION_IDS = SECTIONS.map((s) => s.id);
+type TabId = (typeof TABS)[number]["id"];
+const isTab = (v: string): v is TabId => TABS.some((t) => t.id === v);
+
+const BADGE_CLASS: Record<Tone, string> = {
+  ok: "bg-ok text-white",
+  bad: "bg-bad text-white",
+  opt: "bg-signal text-black",
+  act: "bg-night-ink text-night",
+  run: "bg-white/15 text-night-ink",
+  todo: "bg-white/15 text-night-ink",
+};
 
 export function ProfilBoard({ dossier, initialIdentity, initialProfile, initialFsw, initialHistory, initialAddresses, auditSnapshot }: Props) {
   const [identity, setIdentity] = useState(initialIdentity);
@@ -91,7 +120,24 @@ export function ProfilBoard({ dossier, initialIdentity, initialProfile, initialF
   const [fsw, setFsw] = useState(initialFsw);
   const [history, setHistory] = useState(initialHistory);
   const [addresses, setAddresses] = useState(initialAddresses);
+  const [tab, setTab] = useState<TabId>("identite");
   const supabase = createClient();
+
+  // L'onglet suit l'ancre de l'URL (#grille, #historique…) pour pouvoir y revenir directement.
+  useEffect(() => {
+    const read = () => {
+      const h = window.location.hash.slice(1);
+      if (isTab(h)) setTab(h);
+    };
+    read();
+    window.addEventListener("hashchange", read);
+    return () => window.removeEventListener("hashchange", read);
+  }, []);
+
+  function selectTab(id: TabId) {
+    setTab(id);
+    window.history.replaceState(null, "", `#${id}`);
+  }
 
   async function updateSingle<T extends object>(table: string, before: T, after: T) {
     const patch: Record<string, unknown> = changedFields(before, after);
@@ -156,17 +202,25 @@ export function ProfilBoard({ dossier, initialIdentity, initialProfile, initialF
   const completeness = Math.round(((totalFields - idMissing - profileMissing) / totalFields) * 100);
 
   const fswTone: Tone = fswResult.status === "Admissible" ? "ok" : fswResult.status === "À compléter" ? "todo" : "bad";
-  const sectionBadge: Record<(typeof SECTIONS)[number]["id"], { text: string; tone: Tone } | null> = {
+  const badges: Record<TabId, { text: string; tone: Tone } | null> = {
     identite: idMissing ? { text: String(idMissing), tone: "opt" } : null,
-    "profil-ee": profileMissing ? { text: String(profileMissing), tone: "opt" } : null,
+    profil: profileMissing ? { text: String(profileMissing), tone: "opt" } : null,
     grille: { text: String(fswResult.total), tone: fswTone },
     historique: histGaps.length ? { text: String(histGaps.length), tone: "bad" } : null,
     adresses: addrGaps.length ? { text: String(addrGaps.length), tone: "bad" } : null,
+    controle: auditItems.length ? { text: String(auditItems.length), tone: "opt" } : null,
+  };
+  const editingTab: Record<TabId, boolean> = {
+    identite: idEd.editing,
+    profil: profileEd.editing,
+    grille: fswEd.editing,
+    historique: histEd.editing,
+    adresses: addrEd.editing,
+    controle: false,
   };
 
-  const active = useActiveSection(SECTION_IDS);
-  const idv = idEd.current;
-  const pv = profileEd.current;
+  const idValues = (v: Identity) => ({ ...v, naissance: v.naissance ?? "" }) as Record<IdKey, string>;
+  const profileValues = (v: Profile) => v as unknown as Record<ProfileKey, string>;
 
   return (
     <>
@@ -188,181 +242,244 @@ export function ProfilBoard({ dossier, initialIdentity, initialProfile, initialF
         }
       />
 
-      <ProfileHero
+      <ProfileHeader
         identity={identity}
         profile={profile}
         completeness={completeness}
         missing={idMissing + profileMissing}
         fswTotal={fswResult.total}
         fswStatus={fswResult.status}
-        fswTone={fswTone}
-      />
-
-      <nav aria-label="Sections du profil" className="no-print no-scrollbar z-20 -mx-1 mt-5 mb-5 flex gap-1.5 overflow-x-auto px-1 py-1 lg:sticky lg:top-3">
-        <div className="card flex gap-1 p-1">
-          {SECTIONS.map((s) => {
-            const badge = sectionBadge[s.id];
-            const on = active === s.id;
+      >
+        <div role="tablist" aria-label="Sections du profil" className="no-scrollbar -mb-px flex gap-1 overflow-x-auto px-3 sm:px-5">
+          {TABS.map((t) => {
+            const on = tab === t.id;
+            const badge = badges[t.id];
             return (
-              <a
-                key={s.id}
-                href={`#${s.id}`}
-                aria-current={on ? "true" : undefined}
-                className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[13px] font-semibold whitespace-nowrap transition-colors ${
-                  on ? "bg-act text-act-ink" : "text-muted hover:bg-surface-2 hover:text-ink"
+              <button
+                key={t.id}
+                type="button"
+                role="tab"
+                id={`tab-${t.id}`}
+                aria-selected={on}
+                aria-controls={`panel-${t.id}`}
+                onClick={() => selectTab(t.id)}
+                className={`relative flex shrink-0 items-center gap-2 rounded-t-lg px-3 py-2.5 text-[13px] font-semibold whitespace-nowrap transition-colors ${
+                  on ? "bg-bg text-ink" : "text-night-muted hover:bg-white/5 hover:text-night-ink"
                 }`}
               >
-                {s.label}
+                {t.icon}
+                {t.label}
                 {badge && (
-                  <span className={`mono rounded-full px-1.5 text-[10.5px] ${on ? "bg-white/20 text-act-ink" : TONE_CLASS[badge.tone]}`}>{badge.text}</span>
+                  <span className={`mono rounded-full px-1.5 text-[10.5px] leading-[18px] font-semibold ${on ? "bg-act-soft text-ink" : BADGE_CLASS[badge.tone]}`}>
+                    {badge.text}
+                  </span>
                 )}
-              </a>
+                {editingTab[t.id] && <span className="h-1.5 w-1.5 rounded-full bg-signal" title="Modification en cours" />}
+              </button>
             );
           })}
         </div>
-      </nav>
+      </ProfileHeader>
 
-      <div className="grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,1fr)_320px]">
-        <div className="flex min-w-0 flex-col gap-5">
-          <div id="fiche-profil" className="flex flex-col gap-5">
-            <Section
-              id="identite"
-              icon={<IconUser size={17} />}
+      <div id={`panel-${tab}`} role="tabpanel" aria-labelledby={`tab-${tab}`} className="mt-5 print:hidden">
+        {tab === "identite" && (
+          <div className="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1fr)_300px]">
+            <Panel
+              icon={<IconUser size={18} />}
               title="Identité de référence"
               sub="À reproduire à l'identique sur chaque document et formulaire."
               editing={idEd.editing}
-              actions={<EditBar edit={idEd} className="no-print" />}
+              actions={<EditBar edit={idEd} />}
             >
               <FieldGrid
                 fields={ID_FIELDS}
-                values={{ ...idv, naissance: idv.naissance ?? "" } as Record<IdKey, string>}
+                values={idValues(idEd.current)}
                 editing={idEd.editing}
                 onChange={(k, v) => idEd.set({ [k]: k === "naissance" ? v || null : v } as Partial<Identity>)}
               />
-            </Section>
+            </Panel>
+            <Tips
+              title="Règles d'écriture"
+              items={[
+                "Recopiez le nom et les prénoms exactement comme sur le passeport, dans le même ordre.",
+                "Les noms des parents doivent correspondre à l'acte de naissance.",
+                "Toute différence entre deux pièces doit être expliquée par une lettre ou un acte.",
+                "Survolez une valeur pour la copier et la coller dans un formulaire en ligne.",
+              ]}
+            />
+          </div>
+        )}
 
-            <Section
-              id="profil-ee"
-              icon={<IconGlobe size={17} />}
-              title="Profil Entrée express"
-              sub="Les informations déclarées dans le profil en ligne."
-              editing={profileEd.editing}
-              actions={<EditBar edit={profileEd} className="no-print" />}
-            >
-              <div className="flex flex-col gap-5">
-                {PROFILE_GROUPS.map((g, i) => (
-                  <div key={g.title} className={i ? "border-t border-line pt-4" : ""}>
-                    <p className="eyebrow mb-3">{g.title}</p>
+        {tab === "profil" && (
+          <Panel
+            icon={<IconGlobe size={18} />}
+            title="Profil Entrée express"
+            sub="Les informations déclarées dans le profil en ligne."
+            editing={profileEd.editing}
+            actions={<EditBar edit={profileEd} />}
+            bare
+          >
+            <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+              {PROFILE_GROUPS.map((g, i) => {
+                const empty = g.fields.filter((f) => !String(profile[f.key] ?? "").trim()).length;
+                return (
+                  <section key={g.title} className={`card p-4 sm:p-5 ${i === 2 ? "lg:col-span-2" : ""} ${profileEd.editing ? "ring-2 ring-act-soft" : ""}`}>
+                    <div className="mb-2 flex items-start justify-between gap-3">
+                      <div className="flex items-start gap-2.5">
+                        <span className="mt-0.5 grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-surface-2 text-muted">{g.icon}</span>
+                        <div>
+                          <h3 className="text-[15px] font-bold">{g.title}</h3>
+                          <p className="text-[12px] text-muted">{g.sub}</p>
+                        </div>
+                      </div>
+                      <span className={`mono shrink-0 text-[11.5px] ${empty ? "text-opt" : "text-ok"}`}>
+                        {g.fields.length - empty}/{g.fields.length}
+                      </span>
+                    </div>
                     <FieldGrid
                       fields={g.fields}
-                      values={pv as unknown as Record<ProfileKey, string>}
+                      values={profileValues(profileEd.current)}
                       editing={profileEd.editing}
                       onChange={(k, v) => profileEd.set({ [k]: v } as Partial<Profile>)}
                     />
-                  </div>
-                ))}
-              </div>
-            </Section>
-          </div>
+                  </section>
+                );
+              })}
+            </div>
+          </Panel>
+        )}
 
-          <div id="grille" className="scroll-mt-20">
-            <FswGrid
-              fsw={fswEd.current}
-              naissance={identity.naissance}
-              profileDate={dossier.profileDate}
-              history={history}
-              editing={fswEd.editing}
-              onChange={fswEd.set}
-              actions={<EditBar edit={fswEd} />}
+        {tab === "grille" && (
+          <FswGrid
+            fsw={fswEd.current}
+            naissance={identity.naissance}
+            profileDate={dossier.profileDate}
+            history={history}
+            editing={fswEd.editing}
+            onChange={fswEd.set}
+            actions={<EditBar edit={fswEd} />}
+          />
+        )}
+
+        {tab === "historique" && (
+          <HistoryTable
+            rows={histRows}
+            gaps={histGaps}
+            naissance={identity.naissance}
+            editing={histEd.editing}
+            actions={<EditBar edit={histEd} />}
+            onAdd={() =>
+              histEd.update((d) => [...d, { id: newId("h"), dossierId: dossier.id, from: "", to: "", type: "Autre", activity: "", org: "", place: "", parallel: false }])
+            }
+            onUpdate={(id, patch) => histEd.update((d) => d.map((h) => (h.id === id ? { ...h, ...patch } : h)))}
+            onDelete={(id) => histEd.update((d) => d.filter((h) => h.id !== id))}
+          />
+        )}
+
+        {tab === "adresses" && (
+          <AddressesTable
+            rows={addrRows}
+            gaps={addrGaps}
+            naissance={identity.naissance}
+            editing={addrEd.editing}
+            actions={<EditBar edit={addrEd} />}
+            onAdd={() => addrEd.update((d) => [...d, { id: newId("a"), dossierId: dossier.id, from: "", to: "", address: "", city: "", note: "", parallel: false }])}
+            onUpdate={(id, patch) => addrEd.update((d) => d.map((a) => (a.id === id ? { ...a, ...patch } : a)))}
+            onDelete={(id) => addrEd.update((d) => d.filter((a) => a.id !== id))}
+          />
+        )}
+
+        {tab === "controle" && (
+          <div className="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1fr)_300px]">
+            <AuditPanel items={auditItems} limit={100} />
+            <Tips
+              title="Comment lire ce contrôle"
+              items={[
+                "Bloquant : empêche de soumettre le dossier, à traiter en priorité.",
+                "À traiter : incohérence ou échéance proche.",
+                "À compléter : information manquante sans urgence.",
+                "Le contrôle se met à jour dès que vous enregistrez une modification.",
+              ]}
             />
           </div>
+        )}
+      </div>
 
-          <div id="historique" className="scroll-mt-20">
-            <HistoryTable
-              rows={histRows}
-              gaps={histGaps}
-              naissance={identity.naissance}
-              editing={histEd.editing}
-              actions={<EditBar edit={histEd} />}
-              onAdd={() =>
-                histEd.update((d) => [...d, { id: newId("h"), dossierId: dossier.id, from: "", to: "", type: "Autre", activity: "", org: "", place: "", parallel: false }])
-              }
-              onUpdate={(id, patch) => histEd.update((d) => d.map((h) => (h.id === id ? { ...h, ...patch } : h)))}
-              onDelete={(id) => histEd.update((d) => d.filter((h) => h.id !== id))}
-            />
+      {/* Fiche imprimable : identité + profil, toujours en lecture. */}
+      <div id="fiche-profil" className="hidden print:mt-6 print:block">
+        <h2 className="mb-2 text-[16px] font-bold">Identité de référence</h2>
+        <FieldGrid fields={ID_FIELDS} values={idValues(identity)} editing={false} onChange={() => {}} />
+        {PROFILE_GROUPS.map((g) => (
+          <div key={g.title} className="mt-5 break-inside-avoid">
+            <h2 className="mb-2 text-[16px] font-bold">{g.title}</h2>
+            <FieldGrid fields={g.fields} values={profileValues(profile)} editing={false} onChange={() => {}} />
           </div>
-
-          <div id="adresses" className="scroll-mt-20">
-            <AddressesTable
-              rows={addrRows}
-              gaps={addrGaps}
-              naissance={identity.naissance}
-              editing={addrEd.editing}
-              actions={<EditBar edit={addrEd} />}
-              onAdd={() => addrEd.update((d) => [...d, { id: newId("a"), dossierId: dossier.id, from: "", to: "", address: "", city: "", note: "", parallel: false }])}
-              onUpdate={(id, patch) => addrEd.update((d) => d.map((a) => (a.id === id ? { ...a, ...patch } : a)))}
-              onDelete={(id) => addrEd.update((d) => d.filter((a) => a.id !== id))}
-            />
-          </div>
-        </div>
-
-        <div className="no-print xl:sticky xl:top-20 xl:self-start">
-          <AuditPanel items={auditItems} limit={8} />
-        </div>
+        ))}
       </div>
     </>
   );
 }
 
-/** Section qui met en avant la carte active pour le menu de navigation. */
-function useActiveSection(ids: readonly string[]): string {
-  const [active, setActive] = useState<string>(ids[0]);
-  useEffect(() => {
-    const els = ids.map((id) => document.getElementById(id)).filter((e): e is HTMLElement => e !== null);
-    const obs = new IntersectionObserver(
-      (entries) => {
-        const visible = entries.filter((e) => e.isIntersecting).sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top);
-        if (visible[0]) setActive(visible[0].target.id);
-      },
-      { rootMargin: "-90px 0px -55% 0px" },
-    );
-    els.forEach((e) => obs.observe(e));
-    return () => obs.disconnect();
-  }, [ids]);
-  return active;
-}
-
-function Section({
-  id,
+function Panel({
   icon,
   title,
   sub,
   editing,
   actions,
+  bare,
   children,
 }: {
-  id: string;
   icon: ReactNode;
   title: string;
   sub: string;
   editing: boolean;
   actions: ReactNode;
+  bare?: boolean;
   children: ReactNode;
 }) {
-  return (
-    <section id={id} className={`card scroll-mt-20 p-4 transition-shadow sm:p-5 ${editing ? "ring-2 ring-act-soft" : ""}`}>
-      <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
-        <div className="flex min-w-0 items-start gap-3">
-          <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-act-soft text-act">{icon}</span>
-          <div className="min-w-0">
-            <h2 className="text-[17px] font-bold">{title}</h2>
-            <p className="text-[12.5px] text-muted">{sub}</p>
-          </div>
+  const head = (
+    <div className={`flex flex-wrap items-start justify-between gap-3 ${bare ? "mb-4" : "mb-3"}`}>
+      <div className="flex min-w-0 items-start gap-3">
+        <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-act-soft text-act">{icon}</span>
+        <div className="min-w-0">
+          <h2 className="text-[18px] font-bold">{title}</h2>
+          <p className="text-[12.5px] text-muted">{sub}</p>
+          {editing && <p className="mt-1 text-[12px] font-semibold text-opt">Modification en cours — pensez à enregistrer.</p>}
         </div>
-        {actions}
       </div>
+      {actions}
+    </div>
+  );
+  if (bare)
+    return (
+      <div>
+        {head}
+        {children}
+      </div>
+    );
+  return (
+    <section className={`card p-4 transition-shadow sm:p-6 ${editing ? "ring-2 ring-act-soft" : ""}`}>
+      {head}
       {children}
     </section>
+  );
+}
+
+function Tips({ title, items }: { title: string; items: string[] }) {
+  return (
+    <aside className="card self-start p-4 sm:p-5">
+      <p className="flex items-center gap-2 text-[13px] font-bold">
+        <IconInfo size={15} className="text-muted" /> {title}
+      </p>
+      <ul className="mt-3 flex flex-col gap-2.5">
+        {items.map((t) => (
+          <li key={t} className="flex gap-2 text-[12.5px] leading-relaxed text-muted">
+            <span className="mt-[7px] h-1 w-1 shrink-0 rounded-full bg-faint" />
+            {t}
+          </li>
+        ))}
+      </ul>
+    </aside>
   );
 }
 
@@ -375,14 +492,14 @@ function ageFrom(naissance: string | null): number | null {
   return age;
 }
 
-function ProfileHero({
+function ProfileHeader({
   identity,
   profile,
   completeness,
   missing,
   fswTotal,
   fswStatus,
-  fswTone,
+  children,
 }: {
   identity: Identity;
   profile: Profile;
@@ -390,7 +507,7 @@ function ProfileHero({
   missing: number;
   fswTotal: number;
   fswStatus: string;
-  fswTone: Tone;
+  children: ReactNode;
 }) {
   const fullName = [identity.prenoms, identity.nom].filter(Boolean).join(" ");
   const initials = ((identity.prenoms.trim()[0] ?? "") + (identity.nom.trim()[0] ?? "")).toUpperCase() || "?";
@@ -401,49 +518,60 @@ function ProfileHero({
     profile.nationalite || null,
     identity.statut || null,
   ].filter(Boolean);
+  const tags = [profile.titre, profile.cnp ? `CNP ${profile.cnp}` : "", profile.ville ? `${profile.ville}${profile.repli ? ` · repli ${profile.repli}` : ""}` : ""].filter(Boolean);
+  const scorePct = Math.min(100, fswTotal);
 
   return (
-    <section className="card overflow-hidden">
-      <div className="grid gap-0 lg:grid-cols-[minmax(0,1fr)_300px]">
-        <div className="flex min-w-0 flex-col gap-4 p-5 sm:flex-row sm:items-center sm:p-6">
-          <span className="grid h-[72px] w-[72px] shrink-0 place-items-center rounded-2xl bg-night font-display text-[26px] font-bold text-night-ink">{initials}</span>
+    <section className="overflow-hidden rounded-2xl bg-night text-night-ink print:rounded-none print:bg-transparent print:text-ink">
+      <div className="flex flex-col gap-5 p-5 sm:p-6 lg:flex-row lg:items-center">
+        <div className="flex min-w-0 flex-1 items-center gap-4">
+          <span className="grid h-16 w-16 shrink-0 place-items-center rounded-2xl bg-white/10 font-display text-[24px] font-bold ring-1 ring-white/15 sm:h-[76px] sm:w-[76px] sm:text-[28px]">
+            {initials}
+          </span>
           <div className="min-w-0">
-            <h2 className="truncate font-display text-[24px] leading-tight font-bold">{fullName || "Identité à compléter"}</h2>
-            {facts.length > 0 && <p className="mt-1 text-[13px] text-muted">{facts.join(" · ")}</p>}
-            <div className="mt-3 flex flex-wrap gap-1.5">
-              {profile.titre && <Chip tone="todo">{profile.titre}</Chip>}
-              {profile.cnp && <Chip tone="todo">CNP {profile.cnp}</Chip>}
-              {profile.ville && (
-                <Chip tone="act">
-                  <IconRoute size={12} /> {profile.ville}
-                  {profile.repli ? ` · repli ${profile.repli}` : ""}
-                </Chip>
-              )}
-            </div>
+            <h2 className="font-display text-[22px] leading-tight font-bold break-words sm:text-[26px]">{fullName || "Identité à compléter"}</h2>
+            {facts.length > 0 && <p className="mt-1 text-[13px] text-night-muted print:text-muted">{facts.join(" · ")}</p>}
+            {tags.length > 0 && (
+              <div className="mt-3 flex flex-wrap gap-1.5">
+                {tags.map((t) => (
+                  <span key={t} className="rounded-md bg-white/10 px-2 py-0.5 text-[12px] font-semibold">
+                    {t}
+                  </span>
+                ))}
+              </div>
+            )}
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-px border-t border-line bg-line lg:grid-cols-1 lg:border-t-0 lg:border-l">
-          <div className="bg-surface px-5 py-4">
-            <p className="eyebrow">Grille de points</p>
-            <div className="mt-1.5 flex items-baseline gap-2">
-              <span className="mono text-[24px] leading-none font-semibold">{fswTotal}</span>
-              <span className="text-[12px] text-muted">/ 100 · seuil {FSW_PASS_THRESHOLD}</span>
+        <div className="no-print grid shrink-0 grid-cols-2 gap-px overflow-hidden rounded-xl bg-white/10 lg:w-[360px]">
+          <div className="bg-night-2 px-4 py-3.5">
+            <p className="text-[11px] font-semibold tracking-wide text-night-muted uppercase">Grille de points</p>
+            <p className="mt-1 flex items-baseline gap-1.5">
+              <span className="mono text-[26px] leading-none font-semibold">{fswTotal}</span>
+              <span className="text-[12px] text-night-muted">/ 100</span>
+            </p>
+            <div className="relative mt-2.5 h-1 rounded-full bg-white/10" aria-hidden>
+              <div className={`h-full rounded-full ${fswTotal >= FSW_PASS_THRESHOLD ? "bg-ok" : "bg-signal"}`} style={{ width: `${scorePct}%` }} />
+              <span className="absolute -top-1 h-3 w-0.5 rounded bg-night-ink" style={{ left: `${FSW_PASS_THRESHOLD}%` }} />
             </div>
-            <Chip tone={fswTone} dot className="mt-2">
-              {fswStatus}
-            </Chip>
+            <p className="mt-2 text-[11.5px] text-night-muted">
+              {fswStatus} · seuil {FSW_PASS_THRESHOLD}
+            </p>
           </div>
-          <div className="bg-surface px-5 py-4">
-            <p className="eyebrow">Fiche complétée</p>
-            <div className="mt-1.5 flex items-baseline gap-2">
-              <span className="mono text-[24px] leading-none font-semibold">{completeness} %</span>
-              <span className="text-[12px] text-muted">{missing ? `${missing} champ(s) vide(s)` : "complète"}</span>
+          <div className="bg-night-2 px-4 py-3.5">
+            <p className="text-[11px] font-semibold tracking-wide text-night-muted uppercase">Fiche complétée</p>
+            <p className="mt-1 flex items-baseline gap-1.5">
+              <span className="mono text-[26px] leading-none font-semibold">{completeness}</span>
+              <span className="text-[12px] text-night-muted">%</span>
+            </p>
+            <div className="mt-2.5 h-1 rounded-full bg-white/10" aria-hidden>
+              <div className={`h-full rounded-full ${completeness === 100 ? "bg-ok" : "bg-night-ink"}`} style={{ width: `${completeness}%` }} />
             </div>
-            <Meter value={completeness} tone={completeness === 100 ? "ok" : "act"} height={4} className="mt-3" label="Complétude de la fiche" />
+            <p className="mt-2 text-[11.5px] text-night-muted">{missing ? `${missing} champ(s) vide(s)` : "complète"}</p>
           </div>
         </div>
       </div>
+      <div className="no-print border-t border-white/10 pt-2">{children}</div>
     </section>
   );
 }

@@ -3,7 +3,8 @@
 import { eighteenthBirthdayIso, pd, today0 } from "@/lib/rules";
 import type { AddressEntry, HistoryEntry, HistoryType } from "@/lib/types";
 import type { ReactNode } from "react";
-import { IconAlert, IconCheck, IconPlus, IconTrash } from "@/components/icons";
+import { Chip, TONE_DOT, type Tone } from "@/components/ui";
+import { IconAlert, IconBriefcase, IconCheck, IconHome, IconPlus, IconTrash } from "@/components/icons";
 
 const HISTORY_TYPES: HistoryType[] = ["Travail", "Études", "Sans emploi", "Autre"];
 
@@ -110,12 +111,41 @@ function GapList({ gaps }: { gaps: string[] }) {
   );
 }
 
-function SectionHead({ title, sub, onAdd, addLabel, editing, actions }: { title: string; sub: string; onAdd: () => void; addLabel: string; editing: boolean; actions?: ReactNode }) {
+function SectionHead({
+  title,
+  sub,
+  onAdd,
+  addLabel,
+  editing,
+  actions,
+  icon,
+  count,
+  gaps,
+}: {
+  title: string;
+  sub: string;
+  onAdd: () => void;
+  addLabel: string;
+  editing: boolean;
+  actions?: ReactNode;
+  icon: ReactNode;
+  count: string;
+  gaps: number;
+}) {
   return (
-    <div className="flex flex-wrap items-start justify-between gap-2">
-      <div>
-        <h2 className="text-[17px] font-bold">{title}</h2>
-        <p className="text-[12.5px] text-muted">{sub}</p>
+    <div className="flex flex-wrap items-start justify-between gap-3">
+      <div className="flex min-w-0 items-start gap-3">
+        <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-act-soft text-act">{icon}</span>
+        <div className="min-w-0">
+          <h2 className="text-[18px] font-bold">{title}</h2>
+          <p className="text-[12.5px] text-muted">{sub}</p>
+          <div className="mt-1.5 flex flex-wrap gap-1.5">
+            <Chip tone="todo">{count}</Chip>
+            <Chip tone={gaps ? "bad" : "ok"} dot>
+              {gaps ? `${gaps} trou(s) à justifier` : "aucun trou"}
+            </Chip>
+          </div>
+        </div>
       </div>
       <div className="flex flex-wrap items-center gap-2">
         {editing && (
@@ -146,9 +176,25 @@ export function HistoryTable({ rows, gaps, naissance, onAdd, onUpdate, onDelete,
   const off = !editing;
   return (
     <section className={`card p-4 sm:p-5 ${editing ? "ring-2 ring-act-soft" : ""}`}>
-      <SectionHead title="Historique personnel" sub="Toutes les activités depuis vos 18 ans, sans trou de plus de 4 jours." onAdd={onAdd} addLabel="Période" editing={editing} actions={actions} />
+      <SectionHead title="Historique personnel" sub="Toutes les activités depuis vos 18 ans, sans trou de plus de 4 jours." onAdd={onAdd} addLabel="Période" editing={editing} actions={actions} icon={<IconBriefcase size={18} />} count={`${rows.length} période(s)`} gaps={gaps.length} />
       <CoverageTimeline naissance={naissance} rows={rows.map((r) => ({ id: r.id, from: r.from, to: r.to, parallel: r.parallel, label: r.activity || r.type }))} />
       <GapList gaps={gaps} />
+      {!editing ? (
+        <PeriodList
+          items={rows.map((r) => ({
+            id: r.id,
+            from: r.from,
+            to: r.to,
+            parallel: r.parallel,
+            title: r.activity || r.type,
+            sub: [r.org, r.place].filter(Boolean).join(" · "),
+            tag: r.type,
+            tone: TYPE_TONE[r.type],
+          }))}
+          ongoing="en cours"
+          empty="Aucune période déclarée."
+        />
+      ) : (
       <div className="-mx-1.5 mt-3 overflow-x-auto">
         <table className="w-full min-w-[820px] text-[13.5px]">
           <thead>
@@ -195,6 +241,7 @@ export function HistoryTable({ rows, gaps, naissance, onAdd, onUpdate, onDelete,
           </tbody>
         </table>
       </div>
+      )}
     </section>
   );
 }
@@ -214,9 +261,24 @@ export function AddressesTable({ rows, gaps, naissance, onAdd, onUpdate, onDelet
   const off = !editing;
   return (
     <section className={`card p-4 sm:p-5 ${editing ? "ring-2 ring-act-soft" : ""}`}>
-      <SectionHead title="Adresses" sub="Toutes les adresses de résidence depuis vos 18 ans." onAdd={onAdd} addLabel="Adresse" editing={editing} actions={actions} />
+      <SectionHead title="Adresses" sub="Toutes les adresses de résidence depuis vos 18 ans." onAdd={onAdd} addLabel="Adresse" editing={editing} actions={actions} icon={<IconHome size={18} />} count={`${rows.length} adresse(s)`} gaps={gaps.length} />
       <CoverageTimeline naissance={naissance} rows={rows.map((r) => ({ id: r.id, from: r.from, to: r.to, parallel: r.parallel, label: [r.address, r.city].filter(Boolean).join(", ") || "Adresse" }))} />
       <GapList gaps={gaps} />
+      {!editing ? (
+        <PeriodList
+          items={rows.map((r) => ({
+            id: r.id,
+            from: r.from,
+            to: r.to,
+            parallel: r.parallel,
+            title: r.address || "Adresse à préciser",
+            sub: [r.city, r.note].filter(Boolean).join(" · "),
+            tone: "act" as Tone,
+          }))}
+          ongoing="adresse actuelle"
+          empty="Aucune adresse déclarée."
+        />
+      ) : (
       <div className="-mx-1.5 mt-3 overflow-x-auto">
         <table className="w-full min-w-[700px] text-[13.5px]">
           <thead>
@@ -247,7 +309,68 @@ export function AddressesTable({ rows, gaps, naissance, onAdd, onUpdate, onDelet
           </tbody>
         </table>
       </div>
+      )}
     </section>
+  );
+}
+
+const TYPE_TONE: Record<HistoryType, Tone> = { Travail: "act", Études: "run", "Sans emploi": "opt", Autre: "todo" };
+
+interface PeriodItem {
+  id: string;
+  from: string;
+  to: string;
+  parallel: boolean;
+  title: string;
+  sub: string;
+  tag?: string;
+  tone: Tone;
+}
+
+function fmtPeriodDate(v: string): string {
+  const d = pd(v);
+  if (!d) return v || "?";
+  const hasDay = /^\d{4}-\d{2}-\d{2}$/.test(v.trim());
+  return d.toLocaleDateString("fr-FR", { ...(hasDay ? { day: "numeric" } : {}), month: "short", year: "numeric", timeZone: "UTC" });
+}
+
+function duration(from: string, to: string): string {
+  const a = pd(from);
+  const b = to ? pd(to, true) : today0();
+  if (!a || !b || b < a) return "";
+  let months = (b.getUTCFullYear() - a.getUTCFullYear()) * 12 + (b.getUTCMonth() - a.getUTCMonth());
+  if (b.getUTCDate() < a.getUTCDate()) months -= 1;
+  months = Math.max(0, months);
+  const y = Math.floor(months / 12);
+  const m = months % 12;
+  if (!y && !m) return "moins d'un mois";
+  return [y ? `${y} an${y > 1 ? "s" : ""}` : "", m ? `${m} mois` : ""].filter(Boolean).join(" ");
+}
+
+/** Lecture : frise verticale, de la période la plus récente à la plus ancienne. */
+function PeriodList({ items, ongoing, empty }: { items: PeriodItem[]; ongoing: string; empty: string }) {
+  if (items.length === 0) return <p className="mt-4 text-[13px] text-faint">{empty}</p>;
+  const sorted = [...items].sort((a, b) => (pd(b.from)?.getTime() ?? 0) - (pd(a.from)?.getTime() ?? 0));
+  return (
+    <ol className="relative mt-4 ml-1.5 border-l-2 border-line">
+      {sorted.map((it) => (
+        <li key={it.id} className="relative pb-4 pl-5 last:pb-0">
+          <span className={`absolute top-1.5 -left-[7px] h-3 w-3 rounded-full ring-4 ring-surface ${TONE_DOT[it.tone]} ${it.parallel ? "opacity-50" : ""}`} aria-hidden />
+          <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+            <span className="mono text-[12px] font-semibold text-muted">
+              {fmtPeriodDate(it.from)} → {it.to ? fmtPeriodDate(it.to) : <span className="text-ok">{ongoing}</span>}
+            </span>
+            {duration(it.from, it.to) && <span className="text-[11.5px] text-faint">· {duration(it.from, it.to)}</span>}
+          </div>
+          <div className="mt-0.5 flex flex-wrap items-center gap-2">
+            <span className="text-[14.5px] font-semibold">{it.title}</span>
+            {it.tag && <Chip tone={it.tone}>{it.tag}</Chip>}
+            {it.parallel && <Chip tone="todo">en parallèle</Chip>}
+          </div>
+          {it.sub && <p className="mt-0.5 text-[12.5px] text-muted">{it.sub}</p>}
+        </li>
+      ))}
+    </ol>
   );
 }
 

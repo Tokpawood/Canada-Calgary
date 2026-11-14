@@ -1,13 +1,14 @@
 "use client";
 
+import { useState } from "react";
 import { parseD } from "@/lib/rules";
+import { IconCheck, IconCopy } from "@/components/icons";
 
 export interface FieldDef<K extends string> {
   key: K;
   label: string;
   type?: "text" | "date" | "tel" | "email";
   placeholder?: string;
-  wide?: boolean;
   hint?: string;
 }
 
@@ -17,7 +18,11 @@ function display(type: FieldDef<string>["type"], value: string) {
   return d ? d.toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" }) : value;
 }
 
-/** Lecture : fiche label / valeur. Modification : champs de saisie à la même place. */
+/**
+ * Liste label / valeur à lignes fines, comme un formulaire officiel.
+ * En lecture, chaque valeur se copie d'un clic (pratique pour remplir les formulaires en ligne) ;
+ * en modification, la valeur devient un champ de saisie.
+ */
 export function FieldGrid<K extends string>({
   fields,
   values,
@@ -30,28 +35,33 @@ export function FieldGrid<K extends string>({
   onChange: (key: K, value: string) => void;
 }) {
   return (
-    <dl className="grid grid-cols-1 gap-x-6 gap-y-3.5 sm:grid-cols-2">
+    <dl className="m-0 divide-y divide-line">
       {fields.map((f) => {
         const value = values[f.key] ?? "";
         return (
-          <div key={f.key} className={f.wide ? "sm:col-span-2" : ""}>
-            <dt className="field-label">{f.label}</dt>
-            <dd className="m-0">
+          <div key={f.key} className="group grid grid-cols-1 gap-1 py-2.5 sm:grid-cols-[170px_minmax(0,1fr)] sm:items-center sm:gap-4">
+            <dt className="text-[12.5px] font-medium text-muted">{f.label}</dt>
+            <dd className="m-0 min-w-0">
               {editing ? (
-                <input
-                  type={f.type ?? "text"}
-                  value={value}
-                  placeholder={f.placeholder}
-                  aria-label={f.label}
-                  onChange={(e) => onChange(f.key, e.target.value)}
-                  className="input"
-                />
+                <>
+                  <input
+                    type={f.type ?? "text"}
+                    value={value}
+                    placeholder={f.placeholder}
+                    aria-label={f.label}
+                    onChange={(e) => onChange(f.key, e.target.value)}
+                    className="input"
+                  />
+                  {f.hint && <span className="mt-1 block text-[11.5px] text-faint">{f.hint}</span>}
+                </>
               ) : value ? (
-                <ReadValue type={f.type} value={value} />
+                <div className="flex min-w-0 items-center gap-2">
+                  <ReadValue type={f.type} value={value} />
+                  <CopyButton text={f.type === "date" ? value : value} label={f.label} />
+                </div>
               ) : (
-                <span className="text-[14px] text-faint italic">À compléter</span>
+                <span className="inline-flex items-center gap-1.5 rounded-md bg-opt-bg px-2 py-0.5 text-[12px] font-semibold text-opt">À compléter</span>
               )}
-              {editing && f.hint && <span className="mt-1 block text-[11.5px] text-faint">{f.hint}</span>}
             </dd>
           </div>
         );
@@ -61,7 +71,7 @@ export function FieldGrid<K extends string>({
 }
 
 function ReadValue({ type, value }: { type: FieldDef<string>["type"]; value: string }) {
-  const cls = "block text-[14.5px] leading-snug font-medium break-words";
+  const cls = "min-w-0 text-[14.5px] leading-snug font-semibold break-words";
   if (type === "email")
     return (
       <a href={`mailto:${value}`} className={`${cls} text-act hover:underline`}>
@@ -75,4 +85,29 @@ function ReadValue({ type, value }: { type: FieldDef<string>["type"]; value: str
       </a>
     );
   return <span className={cls}>{display(type, value)}</span>;
+}
+
+export function CopyButton({ text, label }: { text: string; label: string }) {
+  const [done, setDone] = useState(false);
+  return (
+    <button
+      type="button"
+      onClick={async () => {
+        try {
+          await navigator.clipboard.writeText(text);
+          setDone(true);
+          setTimeout(() => setDone(false), 1500);
+        } catch {
+          /* presse-papiers indisponible : on ne fait rien */
+        }
+      }}
+      aria-label={`Copier : ${label}`}
+      title={done ? "Copié" : "Copier"}
+      className={`no-print grid h-7 w-7 shrink-0 place-items-center rounded-md transition-opacity ${
+        done ? "text-ok opacity-100" : "text-faint hover:bg-surface-2 hover:text-ink focus-visible:opacity-100 pointer-fine:opacity-0 pointer-fine:group-hover:opacity-100"
+      }`}
+    >
+      {done ? <IconCheck size={14} strokeWidth={2.6} /> : <IconCopy size={14} />}
+    </button>
+  );
 }
