@@ -72,7 +72,7 @@ export function Hero({ phases, overallPct, nextStep, done, counted, late, countd
       />
       <div aria-hidden className="pointer-events-none absolute -top-24 -right-24 h-72 w-72 rounded-full bg-signal opacity-[0.07] blur-3xl" />
 
-      <div className="relative grid gap-6 p-5 sm:p-7 lg:grid-cols-[minmax(0,1fr)_340px]">
+      <div className="relative grid gap-6 p-5 sm:p-7 xl:grid-cols-[minmax(0,1fr)_340px]">
         <div className="min-w-0">
           <p className="text-[11px] font-semibold tracking-[0.12em] text-night-muted uppercase">Abidjan → Calgary · Entrée express</p>
           <div className="mt-1 flex flex-wrap items-end gap-x-6 gap-y-3">

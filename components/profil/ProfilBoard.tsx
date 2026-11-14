@@ -283,7 +283,7 @@ export function ProfilBoard({ dossier, initialIdentity, initialProfile, initialF
 
       <div id={`panel-${tab}`} role="tabpanel" aria-labelledby={`tab-${tab}`} className="mt-5 print:hidden">
         {tab === "identite" && (
-          <div className="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1fr)_300px]">
+          <div className="grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,1fr)_300px]">
             <Panel
               icon={<IconUser size={18} />}
               title="Identité de référence"
@@ -319,11 +319,11 @@ export function ProfilBoard({ dossier, initialIdentity, initialProfile, initialF
             actions={<EditBar edit={profileEd} />}
             bare
           >
-            <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+            <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
               {PROFILE_GROUPS.map((g, i) => {
                 const empty = g.fields.filter((f) => !String(profile[f.key] ?? "").trim()).length;
                 return (
-                  <section key={g.title} className={`card p-4 sm:p-5 ${i === 2 ? "lg:col-span-2" : ""} ${profileEd.editing ? "ring-2 ring-act-soft" : ""}`}>
+                  <section key={g.title} className={`card p-4 sm:p-5 ${i === 2 ? "xl:col-span-2" : ""} ${profileEd.editing ? "ring-2 ring-act-soft" : ""}`}>
                     <div className="mb-2 flex items-start justify-between gap-3">
                       <div className="flex items-start gap-2.5">
                         <span className="mt-0.5 grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-surface-2 text-muted">{g.icon}</span>
@@ -390,7 +390,7 @@ export function ProfilBoard({ dossier, initialIdentity, initialProfile, initialF
         )}
 
         {tab === "controle" && (
-          <div className="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1fr)_300px]">
+          <div className="grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,1fr)_300px]">
             <AuditPanel items={auditItems} limit={100} />
             <Tips
               title="Comment lire ce contrôle"
@@ -523,7 +523,7 @@ function ProfileHeader({
 
   return (
     <section className="overflow-hidden rounded-2xl bg-night text-night-ink print:rounded-none print:bg-transparent print:text-ink">
-      <div className="flex flex-col gap-5 p-5 sm:p-6 lg:flex-row lg:items-center">
+      <div className="flex flex-col gap-5 p-5 sm:p-6 xl:flex-row xl:items-center">
         <div className="flex min-w-0 flex-1 items-center gap-4">
           <span className="grid h-16 w-16 shrink-0 place-items-center rounded-2xl bg-white/10 font-display text-[24px] font-bold ring-1 ring-white/15 sm:h-[76px] sm:w-[76px] sm:text-[28px]">
             {initials}
@@ -543,7 +543,7 @@ function ProfileHeader({
           </div>
         </div>
 
-        <div className="no-print grid shrink-0 grid-cols-2 gap-px overflow-hidden rounded-xl bg-white/10 lg:w-[360px]">
+        <div className="no-print grid shrink-0 grid-cols-2 gap-px overflow-hidden rounded-xl bg-white/10 xl:w-[360px]">
           <div className="bg-night-2 px-4 py-3.5">
             <p className="text-[11px] font-semibold tracking-wide text-night-muted uppercase">Grille de points</p>
             <p className="mt-1 flex items-baseline gap-1.5">

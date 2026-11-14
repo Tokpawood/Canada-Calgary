@@ -92,7 +92,7 @@ export function FswGrid({ fsw, naissance, profileDate, history, onChange, editin
       <section className={`card p-5 sm:p-6 ${editing ? "ring-2 ring-act-soft" : ""}`}>
         <h3 className="text-[16px] font-bold">Résultats aux tests de langue</h3>
         <p className="text-[12.5px] text-muted">Niveau NCLC obtenu dans chaque épreuve. Il faut au moins NCLC 7 partout dans la langue première.</p>
-        <div className="mt-4 grid gap-4 lg:grid-cols-2">
+        <div className="mt-4 grid gap-4 xl:grid-cols-2">
           <LangPanel
             title="Langue première"
             lang={fsw.first}

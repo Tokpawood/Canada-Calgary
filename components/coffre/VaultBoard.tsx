@@ -266,7 +266,7 @@ export function VaultBoard({ dossierId, initialFiles, documentNames }: Props) {
         ))}
 
       {tab === "fichiers" && (
-      <div className={files.length === 0 ? "grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1fr)_340px]" : ""}>
+      <div className={files.length === 0 ? "grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,1fr)_340px]" : ""}>
         <div className="min-w-0">
           {files.length > 0 && (
             <div className="mb-4">

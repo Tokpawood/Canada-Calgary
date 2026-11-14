@@ -22,7 +22,7 @@ const VALUE_TONE = { bad: "text-bad", opt: "text-opt", ok: "text-ok" } as const;
 export function StatsRow({ stats, className = "my-5" }: { stats: Stat[]; className?: string }) {
   return (
     <div className={`overflow-hidden rounded-2xl border border-line bg-line shadow-[var(--shadow)] ${className}`}>
-      <div className={`grid gap-px ${stats.length >= 4 ? "grid-cols-2 lg:grid-cols-4" : stats.length === 3 ? "grid-cols-1 sm:grid-cols-3" : "grid-cols-2"}`}>
+      <div className={`grid gap-px ${stats.length >= 4 ? "grid-cols-2 xl:grid-cols-4" : stats.length === 3 ? "grid-cols-1 sm:grid-cols-3" : "grid-cols-2"}`}>
         {stats.map((s) => (
           <div key={s.label} className="flex min-w-0 flex-col bg-surface px-4 py-3.5 sm:px-5">
             <p className="eyebrow">{s.label}</p>

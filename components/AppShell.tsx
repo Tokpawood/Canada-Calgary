@@ -140,14 +140,19 @@ export function AppShell({
 
         <div className="mt-auto shrink-0 pt-5">
           <div className="rounded-xl border border-white/10 bg-night-2 p-2.5">
-            <div className="flex items-center gap-2.5">
-              <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-white/10 text-[13px] font-bold uppercase">{(email.trim()[0] ?? "?").toUpperCase()}</span>
-              <span className="min-w-0 flex-1">
-                <span className="block truncate text-[12.5px] font-semibold" title={email}>
-                  {email}
+            <div className="flex items-center gap-1">
+              <Link
+                href="/compte"
+                aria-current={pathname.startsWith("/compte") ? "page" : undefined}
+                title="Compte et sécurité"
+                className={`flex min-w-0 flex-1 items-center gap-2.5 rounded-lg p-1 transition-colors hover:bg-white/5 ${pathname.startsWith("/compte") ? "bg-white/10" : ""}`}
+              >
+                <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-white/10 text-[13px] font-bold uppercase">{(email.trim()[0] ?? "?").toUpperCase()}</span>
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-[12.5px] font-semibold">{email}</span>
+                  <span className="block text-[11px] text-night-muted">Compte et sécurité</span>
                 </span>
-                <span className="block text-[11px] text-night-muted">{isOwner ? "Titulaire du dossier" : "Lecteur invité"}</span>
-              </span>
+              </Link>
               <SignOut compact />
             </div>
             <ThemeSegment />

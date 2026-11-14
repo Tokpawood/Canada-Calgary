@@ -27,8 +27,8 @@ export function DocumentsSidePanel({
   const open = gaps.filter((g) => !g.done).length;
 
   return (
-    <div className="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
-      <section className="card overflow-hidden lg:row-span-2">
+    <div className="grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+      <section className="card overflow-hidden xl:row-span-2">
         <div className="flex items-start gap-3 px-4 pt-4 sm:px-5">
           <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-act-soft text-act">
             <IconShield size={17} />

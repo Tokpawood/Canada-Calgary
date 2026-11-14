@@ -224,7 +224,7 @@ export function BudgetBoard({ dossier, rows, upcoming }: Props) {
         )}
 
         {tab === "conversion" && (
-          <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+          <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
             <section className={`card p-4 sm:p-6 ${rateEd.editing ? "ring-2 ring-act-soft" : ""}`}>
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>

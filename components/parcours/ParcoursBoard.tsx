@@ -323,7 +323,7 @@ export function ParcoursBoard({ initialSteps, fundsStat, profileDate }: Props) {
           <div className="flex flex-col gap-5">
             <StatsRow stats={stats} className="" />
 
-            <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+            <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
               <ListCard
                 icon={<IconAlert size={16} />}
                 tone="bad"

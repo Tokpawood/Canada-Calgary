@@ -12,9 +12,9 @@ export function DarkHeader({ children, aside, tabs }: { children: ReactNode; asi
         style={{ backgroundImage: "radial-gradient(circle at 1px 1px, #fff 1px, transparent 0)", backgroundSize: "22px 22px" }}
       />
       <div aria-hidden className="pointer-events-none absolute -top-24 -right-24 h-72 w-72 rounded-full bg-signal opacity-[0.06] blur-3xl" />
-      <div className="relative flex flex-col gap-5 p-5 sm:p-7 lg:flex-row lg:items-center">
+      <div className="relative flex flex-col gap-5 p-5 sm:p-7 xl:flex-row xl:items-center">
         <div className="min-w-0 flex-1">{children}</div>
-        {aside && <div className="shrink-0 lg:w-[360px]">{aside}</div>}
+        {aside && <div className="shrink-0 xl:w-[360px]">{aside}</div>}
       </div>
       {tabs && <div className="relative border-t border-white/10 pt-2">{tabs}</div>}
     </section>
