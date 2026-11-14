@@ -242,21 +242,6 @@ function JourneyCard({ summary }: { summary: ShellSummary }) {
           <text x="192" y="43" fill="var(--night-muted)" fontSize="7" fontFamily="var(--font-mono)" textAnchor="middle">YYC</text>
         </svg>
 
-        {summary.nextStep && (
-          <div className="mt-2 border-t border-white/10 pt-2.5">
-            <p className="text-[10.5px] font-semibold tracking-[0.14em] text-signal uppercase">Prochaine étape</p>
-            <p className="mt-0.5 line-clamp-2 text-[13px] leading-snug font-semibold">{summary.nextStep.title}</p>
-            {summary.nextStep.dueLabel && (
-              <span
-                className={`mono mt-1.5 inline-block rounded-md px-1.5 py-0.5 text-[11px] font-semibold ${
-                  summary.nextStep.late ? "bg-[#f29a90] text-[#2a0b08]" : "bg-white/10 text-night-ink"
-                }`}
-              >
-                {summary.nextStep.dueLabel}
-              </span>
-            )}
-          </div>
-        )}
         {summary.countdown && (
           <div className="mt-2.5 flex items-center justify-between border-t border-white/10 pt-2.5">
             <span className="text-[12px] text-night-muted">Profil Entrée express</span>
