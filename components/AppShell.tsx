@@ -86,7 +86,7 @@ export function AppShell({
 
   return (
     <div className="min-h-screen lg:grid lg:grid-cols-[272px_minmax(0,1fr)]">
-      <aside className="no-print sticky top-0 hidden h-screen flex-col overflow-y-auto border-r border-white/10 bg-night px-4 pt-5 pb-4 text-night-ink lg:flex">
+      <aside className="shell-aside no-print sticky top-0 hidden h-dvh flex-col overflow-y-auto border-r border-white/10 bg-night px-4 pt-5 pb-4 text-night-ink lg:flex">
         <Link href="/parcours" className="logo-link flex items-center gap-3 rounded-xl px-1.5 py-1">
           <Logo size={42} />
           <span className="min-w-0">
@@ -189,7 +189,7 @@ export function AppShell({
           </nav>
         </header>
 
-        <main className="mx-auto w-full max-w-[1180px] px-4 pt-6 pb-20 sm:px-6 lg:px-10 lg:pt-9">{children}</main>
+        <main className="shell-main mx-auto w-full max-w-[1180px] px-4 pt-6 pb-20 sm:px-6 lg:px-10 lg:pt-9">{children}</main>
       </div>
     </div>
   );

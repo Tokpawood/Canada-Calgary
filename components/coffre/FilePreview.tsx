@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import type { VaultFile } from "@/lib/types";
 import { ConfirmButton } from "@/components/ui";
 import { formatSize } from "@/components/FileDropzone";
@@ -74,7 +75,7 @@ export function FilePreview({ files, index, documentLabel, signUrl, onIndex, onD
     if (u) window.open(u, "_blank", "noopener,noreferrer");
   }
 
-  return (
+  return createPortal(
     <div role="dialog" aria-modal="true" aria-label={`Aperçu : ${file.name}`} className="anim-fade fixed inset-0 z-50 flex flex-col bg-black/90 text-white">
       <header className="flex flex-wrap items-center gap-3 border-b border-white/10 px-4 py-3 sm:px-6" style={{ paddingTop: "max(0.75rem, env(safe-area-inset-top, 0px))" }}>
         <div className="min-w-0 flex-1">
@@ -150,6 +151,7 @@ export function FilePreview({ files, index, documentLabel, signUrl, onIndex, onD
       <p className="flex items-center justify-center gap-1.5 pb-3 text-[11.5px] text-white/50" style={{ paddingBottom: "max(0.75rem, env(safe-area-inset-bottom, 0px))" }}>
         <IconFile size={12} /> Google Drive · ← → pour naviguer · Échap pour fermer
       </p>
-    </div>
+    </div>,
+    document.body,
   );
 }

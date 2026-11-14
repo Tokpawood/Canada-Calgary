@@ -504,7 +504,7 @@ input[type="number"] {
   animation: fade-in 0.22s ease-out both;
 }
 .anim-rise {
-  animation: rise 0.6s var(--ease-out) both;
+  animation: rise 0.6s var(--ease-out) backwards;
 }
 .anim-pop {
   animation: pop 0.55s var(--ease-out) both;
@@ -512,7 +512,7 @@ input[type="number"] {
 
 /* Entrée de page (gabarit des pages connectées). */
 .page-enter > * {
-  animation: rise 0.6s var(--ease-out) both;
+  animation: rise 0.6s var(--ease-out) backwards;
 }
 .page-enter > *:nth-child(2) {
   animation-delay: 60ms;
@@ -528,7 +528,7 @@ input[type="number"] {
 .stagger > *,
 [role="tabpanel"] > *,
 [role="tabpanel"] :is(ul, ol):not(.no-stagger) > li {
-  animation: rise 0.5s var(--ease-out) both;
+  animation: rise 0.5s var(--ease-out) backwards;
 }
 .stagger > *:nth-child(2),
 [role="tabpanel"] :is(ul, ol) > li:nth-child(2) {
@@ -694,7 +694,7 @@ input[type="number"] {
   animation: menu-up 0.32s var(--ease-out) both;
 }
 .user-menu > * {
-  animation: rise 0.4s var(--ease-out) both;
+  animation: rise 0.4s var(--ease-out) backwards;
 }
 .user-menu > *:nth-child(2) {
   animation-delay: 50ms;
@@ -773,7 +773,7 @@ input[type="checkbox"]:checked {
 /* Messages de confirmation et alertes : glissent en place. */
 [role="status"],
 [role="alert"] {
-  animation: rise 0.4s var(--ease-out) both;
+  animation: rise 0.4s var(--ease-out) backwards;
 }
 
 /* Champs : halo de focus en douceur. */
@@ -851,5 +851,16 @@ html.theme-switching * {
   }
   #fiche-profil label {
     break-inside: avoid;
+  }
+}
+
+/* Zones sûres (barre d'état et barre d'accueil de l'iPad en mode application). */
+@media (min-width: 1024px) {
+  .shell-aside {
+    padding-top: calc(1.25rem + env(safe-area-inset-top, 0px));
+    padding-bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
+  }
+  .shell-main {
+    padding-top: calc(2.25rem + env(safe-area-inset-top, 0px));
   }
 }

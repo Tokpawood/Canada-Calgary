@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useState, useSyncExternalStore, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import type { DocumentStatus, StepStatus } from "@/lib/types";
 import { daysUntil, parseD } from "@/lib/rules";
 import { IconX } from "./icons";
@@ -195,6 +196,8 @@ export function ConfirmButton({
   );
 }
 
+const noopSubscribe = () => () => {};
+
 export function Drawer({
   onClose,
   children,
@@ -227,25 +230,29 @@ export function Drawer({
     };
   }, [onClose]);
 
-  return (
+  // Rendu directement dans <body> : un ancêtre animé (transform) ne doit pas enfermer le tiroir dans la zone de contenu.
+  const mounted = useSyncExternalStore(noopSubscribe, () => true, () => false);
+  if (!mounted) return null;
+
+  return createPortal(
     <div className="anim-fade fixed inset-0 z-50 flex justify-end bg-black/55 backdrop-blur-[3px]" onClick={onClose}>
       <aside
         role="dialog"
         aria-modal="true"
         aria-label={label}
-        className={`anim-drawer flex h-full w-full flex-col bg-surface shadow-2xl ${header ? "max-w-[560px] bg-bg" : "max-w-[480px]"}`}
+        className={`anim-drawer flex h-full w-full flex-col bg-surface shadow-2xl ${header ? "max-w-[560px] bg-bg lg:max-w-[600px]" : "max-w-[480px]"}`}
         onClick={(e) => e.stopPropagation()}
       >
         {header ? (
           <>
-            <div className="relative shrink-0 overflow-hidden bg-night text-night-ink">
+            <div className="relative shrink-0 overflow-hidden bg-night text-night-ink" style={{ paddingTop: "env(safe-area-inset-top, 0px)" }}>
               <div
                 aria-hidden
                 className="pointer-events-none absolute inset-0 opacity-[0.06]"
                 style={{ backgroundImage: "radial-gradient(circle at 1px 1px, #fff 1px, transparent 0)", backgroundSize: "20px 20px" }}
               />
               <div aria-hidden className="pointer-events-none absolute -top-20 -right-20 h-56 w-56 rounded-full bg-signal opacity-[0.07] blur-3xl" />
-              <div className="absolute top-3.5 right-3.5 z-10 flex items-center gap-1">
+              <div className="absolute right-3.5 z-10 flex items-center gap-1" style={{ top: "calc(0.875rem + env(safe-area-inset-top, 0px))" }}>
                 {topActions}
                 <button
                   type="button"
@@ -259,24 +266,32 @@ export function Drawer({
               <div className="anim-rise relative px-5 pt-5 pb-4 [animation-delay:120ms] sm:px-6">{header}</div>
               {tabs && <div className="relative border-t border-white/10 pt-1.5 [&>div]:px-3 sm:[&>div]:px-4">{tabs}</div>}
             </div>
-            <div className="stagger flex-1 overflow-y-auto px-5 pt-5 pb-8 sm:px-6">{children}</div>
+            <div className="stagger min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 pt-5 sm:px-6" style={{ paddingBottom: footer ? "2rem" : "calc(2rem + env(safe-area-inset-bottom, 0px))" }}>
+              {children}
+            </div>
           </>
         ) : (
-        <div className="relative flex-1 overflow-y-auto px-5 pt-5 pb-8 sm:px-6">
+        <div className="relative min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 pb-8 sm:px-6" style={{ paddingTop: "calc(1.25rem + env(safe-area-inset-top, 0px))" }}>
           <button
             type="button"
             onClick={onClose}
             aria-label="Fermer"
-            className="absolute top-4 right-4 grid h-8 w-8 place-items-center rounded-lg text-muted hover:bg-surface-2 hover:text-ink"
+            style={{ top: "calc(1rem + env(safe-area-inset-top, 0px))" }}
+            className="absolute right-4 grid h-8 w-8 place-items-center rounded-lg text-muted hover:bg-surface-2 hover:text-ink"
           >
             <IconX size={18} />
           </button>
           {children}
         </div>
         )}
-        {footer && <div className="border-t border-line bg-surface px-5 py-3 sm:px-6">{footer}</div>}
+        {footer && (
+          <div className="shrink-0 border-t border-line bg-surface px-5 pt-3 sm:px-6" style={{ paddingBottom: "max(0.75rem, env(safe-area-inset-bottom, 0px))" }}>
+            {footer}
+          </div>
+        )}
       </aside>
-    </div>
+    </div>,
+    document.body,
   );
 }
 
