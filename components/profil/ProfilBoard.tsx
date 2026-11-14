@@ -264,13 +264,13 @@ export function ProfilBoard({ dossier, initialIdentity, initialProfile, initialF
                 aria-controls={`panel-${t.id}`}
                 onClick={() => selectTab(t.id)}
                 className={`relative flex shrink-0 items-center gap-2 rounded-t-lg px-3 py-2.5 text-[13px] font-semibold whitespace-nowrap transition-colors ${
-                  on ? "bg-bg text-ink" : "text-night-muted hover:bg-white/5 hover:text-night-ink"
+                  on ? "bg-white/10 text-night-ink shadow-[inset_0_-2px_0_var(--signal)]" : "text-night-muted hover:bg-white/5 hover:text-night-ink"
                 }`}
               >
                 {t.icon}
                 {t.label}
                 {badge && (
-                  <span className={`mono rounded-full px-1.5 text-[10.5px] leading-[18px] font-semibold ${on ? "bg-act-soft text-ink" : BADGE_CLASS[badge.tone]}`}>
+                  <span className={`mono rounded-full px-1.5 text-[10.5px] leading-[18px] font-semibold ${on ? "bg-white/20 text-night-ink" : BADGE_CLASS[badge.tone]}`}>
                     {badge.text}
                   </span>
                 )}
