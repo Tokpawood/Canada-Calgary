@@ -9,7 +9,7 @@ import { DarkHeader, DarkTiles } from "@/components/DarkHeader";
 import { PasswordInput, authErrorFr } from "@/components/PasswordInput";
 import { IconCheck, IconInfo, IconLock, IconLogout, IconShield } from "@/components/icons";
 
-const MIN = 10;
+const MIN = 7;
 
 function strength(p: string): { score: number; label: string } {
   let s = 0;

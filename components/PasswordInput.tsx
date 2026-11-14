@@ -48,7 +48,7 @@ export function authErrorFr(message: string): string {
   if (m.includes("email not confirmed")) return "Adresse non confirmée.";
   if (m.includes("rate limit") || m.includes("too many")) return "Trop de tentatives : patientez quelques minutes avant de réessayer.";
   if (m.includes("should be different")) return "Le nouveau mot de passe doit être différent de l'ancien.";
-  if (m.includes("password should be at least") || m.includes("weak")) return "Mot de passe trop court ou trop faible (10 caractères minimum).";
+  if (m.includes("password should be at least") || m.includes("weak")) return "Mot de passe trop court ou trop faible (7 caractères minimum).";
   if (m.includes("signups not allowed")) return "La création de compte est désactivée.";
   if (m.includes("fetch")) return "Serveur injoignable : vérifiez votre connexion.";
   return message;
