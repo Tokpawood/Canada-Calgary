@@ -25,6 +25,8 @@ export const metadata: Metadata = {
   description: "Suivi de l'immigration au Canada par Entrée express — étapes, documents, budget et épargne.",
   manifest: "/manifest.json",
   appleWebApp: { capable: true, statusBarStyle: "black-translucent", title: "Canada Calgary" },
+  // Validation de propriété du site pour Google Search Console (balise meta), si la variable est fournie.
+  ...(process.env.GOOGLE_SITE_VERIFICATION ? { verification: { google: process.env.GOOGLE_SITE_VERIFICATION } } : {}),
 };
 
 export const viewport: Viewport = {

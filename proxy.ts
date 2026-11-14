@@ -1,7 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
-const PUBLIC_PREFIXES = ["/login", "/api/cron", "/manifest.json", "/sw.js"];
+const PUBLIC_PREFIXES = ["/login", "/api/cron", "/manifest.json", "/sw.js", "/confidentialite", "/conditions", "/robots.txt", "/google"];
 
 export async function proxy(request: NextRequest) {
   let response = NextResponse.next({ request });
@@ -21,7 +21,7 @@ export async function proxy(request: NextRequest) {
 
   const { data: userData } = await supabase.auth.getUser();
   const path = request.nextUrl.pathname;
-  const isPublic = PUBLIC_PREFIXES.some((p) => path.startsWith(p));
+  const isPublic = path === "/" || PUBLIC_PREFIXES.some((p) => path.startsWith(p));
 
   if (!userData.user) {
     if (isPublic) return response;
