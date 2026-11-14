@@ -11,7 +11,7 @@ import { IconAlert, IconChevronLeft, IconChevronRight, IconTrash } from "@/compo
 
 const STATUSES: StepStatus[] = ["À faire", "En cours", "Bloqué", "Fait", "Si nécessaire"];
 
-const SCALARS = ["title", "due", "phase", "org", "planned", "actual", "req", "risk", "notes"] as const;
+const SCALARS = ["title", "status", "due", "phase", "org", "planned", "actual", "req", "risk", "notes"] as const;
 type StepDraft = Pick<Step, (typeof SCALARS)[number] | "tasks" | "links">;
 
 interface Props {
@@ -32,6 +32,7 @@ export function StepDrawer({ step, position, total, phases, onChange, onDelete, 
   const saved: StepDraft = useMemo(
     () => ({
       title: step.title,
+      status: step.status,
       due: step.due,
       phase: step.phase,
       org: step.org,
@@ -79,17 +80,16 @@ export function StepDrawer({ step, position, total, phases, onChange, onDelete, 
       links.push({ ...l, id: data.id as string });
     }
 
-    const patch: Record<string, unknown> = changedFields(saved, d, [...SCALARS]);
-    let status = step.status;
-    if (tasks.length !== step.tasks.length) {
-      status = nextStatusAfterTaskToggle(step.status, tasks.filter((t) => t.done).length, tasks.length);
-      if (status !== step.status) patch.status = status;
-    }
+    // Statut choisi, ajusté si des mini-étapes ont été ajoutées ou retirées ; « Fait » reporte le coût prévu s'il n'y a pas de montant payé.
+    const status = tasks.length !== step.tasks.length ? nextStatusAfterTaskToggle(d.status, tasks.filter((t) => t.done).length, tasks.length) : d.status;
+    const actual = status !== step.status ? autoFillActual({ planned: d.planned, actual: d.actual }, status) : d.actual;
+    const final = { ...d, status, actual };
+    const patch: Record<string, unknown> = changedFields(saved, final, [...SCALARS]);
     if (Object.keys(patch).length) {
       const { error } = await supabase.from("step").update(patch).eq("id", step.id);
       if (error) throw error;
     }
-    onChange({ ...step, ...d, tasks, links, status });
+    onChange({ ...step, ...final, tasks, links });
     setWarn(false);
   });
 
@@ -104,12 +104,6 @@ export function StepDrawer({ step, position, total, phases, onChange, onDelete, 
       return;
     }
     onClose();
-  }
-
-  async function setStatus(status: StepStatus) {
-    const actual = autoFillActual(step, status);
-    onChange({ ...step, status, actual });
-    await supabase.from("step").update({ status, actual }).eq("id", step.id);
   }
 
   async function toggleTask(taskId: string, done: boolean) {
@@ -182,17 +176,17 @@ export function StepDrawer({ step, position, total, phases, onChange, onDelete, 
 
       <div role="radiogroup" aria-label="Statut" className="mt-4 flex flex-wrap gap-1.5">
         {STATUSES.map((s) => {
-          const active = step.status === s;
+          const active = v.status === s;
           return (
             <button
               key={s}
               type="button"
               role="radio"
               aria-checked={active}
-              disabled={ed.editing}
-              onClick={() => setStatus(s)}
-              className={`flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[12.5px] font-semibold whitespace-nowrap transition-colors disabled:cursor-default disabled:opacity-60 ${
-                active ? "border-act bg-act-soft text-act" : "border-line text-muted enabled:hover:text-ink"
+              disabled={off}
+              onClick={() => ed.set({ status: s })}
+              className={`flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[12.5px] font-semibold whitespace-nowrap transition-colors disabled:cursor-default ${
+                active ? "border-act bg-act-soft text-act" : "border-line text-muted enabled:hover:text-ink disabled:opacity-50"
               }`}
             >
               <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${TONE_DOT[STEP_TONE[s]]}`} />

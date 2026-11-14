@@ -2,8 +2,8 @@
 
 import { useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { autoFillActual, isLate, isOpenStep, phaseProgress } from "@/lib/rules";
-import type { Step, StepStatus } from "@/lib/types";
+import { isLate, isOpenStep, phaseProgress } from "@/lib/rules";
+import type { Step } from "@/lib/types";
 import { newId } from "@/lib/ids";
 import { Chip, EmptyState, Segmented, STEP_TONE, dueInfo, fcfa } from "@/components/ui";
 import { IconCheck, IconChevronDown, IconLink, IconPlus, IconRoute, IconSearch } from "@/components/icons";
@@ -59,13 +59,6 @@ export function ParcoursBoard({ initialSteps }: { initialSteps: Step[] }) {
 
   function updateStep(updated: Step) {
     setSteps((prev) => prev.map((s) => (s.id === updated.id ? updated : s)));
-  }
-
-  async function toggleDone(s: Step) {
-    const status: StepStatus = s.status === "Fait" ? (s.tasks.some((t) => t.done) ? "En cours" : "À faire") : "Fait";
-    const actual = autoFillActual(s, status);
-    updateStep({ ...s, status, actual });
-    await supabase.from("step").update({ status, actual }).eq("id", s.id);
   }
 
   function navigate(direction: "prev" | "next") {
@@ -206,7 +199,7 @@ export function ParcoursBoard({ initialSteps }: { initialSteps: Step[] }) {
               {!isCollapsed && (
                 <ul>
                   {rows.map((s) => (
-                    <StepRow key={s.id} step={s} onSelect={() => setSelectedId(s.id)} onToggle={() => toggleDone(s)} />
+                    <StepRow key={s.id} step={s} onSelect={() => setSelectedId(s.id)} />
                   ))}
                 </ul>
               )}
@@ -235,7 +228,7 @@ export function ParcoursBoard({ initialSteps }: { initialSteps: Step[] }) {
   );
 }
 
-function StepRow({ step, onSelect, onToggle }: { step: Step; onSelect: () => void; onToggle: () => void }) {
+function StepRow({ step, onSelect }: { step: Step; onSelect: () => void }) {
   const done = step.status === "Fait";
   const open = isOpenStep(step.status);
   const due = dueInfo(step.due, open);
@@ -243,18 +236,15 @@ function StepRow({ step, onSelect, onToggle }: { step: Step; onSelect: () => voi
 
   return (
     <li className="group flex items-center gap-3 border-t border-line px-4 py-2.5 transition-colors hover:bg-surface-2/70 sm:px-5">
-      <button
-        type="button"
-        onClick={onToggle}
-        role="checkbox"
-        aria-checked={done}
-        aria-label={done ? `Marquer « ${step.title} » comme à faire` : `Marquer « ${step.title} » comme faite`}
-        className={`grid h-[22px] w-[22px] shrink-0 place-items-center rounded-full border-2 transition-colors ${
-          done ? "border-ok bg-ok text-surface" : "border-line text-transparent hover:border-ok hover:text-ok"
-        }`}
+      {/* indicateur seulement : le statut se change dans le panneau de l'étape, via « Modifier » */}
+      <span
+        role="img"
+        aria-label={done ? "Faite" : step.status}
+        title={step.status}
+        className={`grid h-[22px] w-[22px] shrink-0 place-items-center rounded-full border-2 ${done ? "border-ok bg-ok text-surface" : "border-line text-transparent"}`}
       >
         <IconCheck size={13} strokeWidth={3} />
-      </button>
+      </span>
 
       <button type="button" onClick={onSelect} className="flex min-w-0 flex-1 items-center gap-3 text-left">
         <span className="min-w-0 flex-1">

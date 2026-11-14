@@ -1,18 +1,22 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { mapVaultFile } from "@/lib/queries";
 import { validateVaultFile } from "@/lib/fileSniff";
 import type { VaultFile } from "@/lib/types";
 import { timestamp } from "@/lib/ids";
-import { EmptyState, PageHeader } from "@/components/ui";
-import { FileDropzone, VaultFileRow, formatSize } from "@/components/FileDropzone";
-import { IconLock, IconShield } from "@/components/icons";
+import { EmptyState, PageHeader, Segmented } from "@/components/ui";
+import { FileDropzone, formatSize } from "@/components/FileDropzone";
+import { IconFile, IconImage, IconLock, IconSearch, IconShield } from "@/components/icons";
+import { FilePreview, fileKind, isPdf } from "./FilePreview";
 
 function sanitizeName(name: string): string {
   return name.replace(/[^a-zA-Z0-9.\-_]/g, "_");
 }
+
+type Kind = "all" | "pdf" | "image";
+const UNLINKED = "__divers__";
 
 interface Props {
   dossierId: string;
@@ -24,20 +28,71 @@ export function VaultBoard({ dossierId, initialFiles, documentNames }: Props) {
   const [files, setFiles] = useState(initialFiles);
   const [error, setError] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
-  const supabase = createClient();
+  const [kind, setKind] = useState<Kind>("all");
+  const [docFilter, setDocFilter] = useState<string>("all");
+  const [query, setQuery] = useState("");
+  const [thumbs, setThumbs] = useState<Record<string, string>>({});
+  const [previewId, setPreviewId] = useState<string | null>(null);
+  const supabase = useMemo(() => createClient(), []);
 
-  const groups = useMemo(() => {
-    const map = new Map<string, VaultFile[]>();
-    for (const f of files) {
-      const key = f.documentId ? (documentNames[f.documentId] ?? "Document") : "Non rattachés";
-      const list = map.get(key);
-      if (list) list.push(f);
-      else map.set(key, [f]);
-    }
-    return Array.from(map.entries()).sort(([a], [b]) => (a === "Non rattachés" ? 1 : b === "Non rattachés" ? -1 : a.localeCompare(b, "fr")));
+  const documentLabel = useCallback((f: VaultFile) => (f.documentId ? (documentNames[f.documentId] ?? "Document") : "Non rattaché"), [documentNames]);
+
+  const signUrl = useCallback(
+    async (f: VaultFile, download = false) => {
+      const { data } = await supabase.storage.from("coffre").createSignedUrl(f.storagePath, 300, download ? { download: f.name } : undefined);
+      return data?.signedUrl ?? null;
+    },
+    [supabase],
+  );
+
+  // Vignettes des images : liens signés de 5 minutes, demandés en une fois pour les fichiers qui n'en ont pas encore.
+  useEffect(() => {
+    const missing = files.filter((f) => !isPdf(f) && !thumbs[f.id]);
+    if (missing.length === 0) return;
+    let alive = true;
+    void supabase.storage
+      .from("coffre")
+      .createSignedUrls(
+        missing.map((f) => f.storagePath),
+        300,
+      )
+      .then(({ data }) => {
+        if (!alive || !data) return;
+        const next: Record<string, string> = {};
+        data.forEach((d, i) => {
+          if (d.signedUrl) next[missing[i].id] = d.signedUrl;
+        });
+        setThumbs((t) => ({ ...t, ...next }));
+      });
+    return () => {
+      alive = false;
+    };
+  }, [files, thumbs, supabase]);
+
+  const sorted = useMemo(() => [...files].sort((a, b) => (b.uploadedAt ?? "").localeCompare(a.uploadedAt ?? "")), [files]);
+
+  const docOptions = useMemo(() => {
+    const ids = new Set(files.map((f) => f.documentId ?? UNLINKED));
+    return Array.from(ids)
+      .map((id) => ({ id, label: id === UNLINKED ? "Non rattachés" : (documentNames[id] ?? "Document") }))
+      .sort((a, b) => (a.id === UNLINKED ? 1 : b.id === UNLINKED ? -1 : a.label.localeCompare(b.label, "fr")));
   }, [files, documentNames]);
 
+  const visible = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return sorted.filter((f) => {
+      if (kind === "pdf" && !isPdf(f)) return false;
+      if (kind === "image" && isPdf(f)) return false;
+      if (docFilter !== "all" && (f.documentId ?? UNLINKED) !== docFilter) return false;
+      if (q && !`${f.name} ${documentLabel(f)}`.toLowerCase().includes(q)) return false;
+      return true;
+    });
+  }, [sorted, kind, docFilter, query, documentLabel]);
+
   const totalSize = files.reduce((s, f) => s + f.size, 0);
+  const pdfCount = files.filter(isPdf).length;
+  const linked = files.filter((f) => f.documentId).length;
+  const previewIndex = previewId ? visible.findIndex((f) => f.id === previewId) : -1;
 
   async function handleUpload(fileList: FileList) {
     setUploading(true);
@@ -64,64 +119,153 @@ export function VaultBoard({ dossierId, initialFiles, documentNames }: Props) {
     setUploading(false);
   }
 
-  async function openFile(path: string) {
-    const { data } = await supabase.storage.from("coffre").createSignedUrl(path, 300);
-    if (data?.signedUrl) window.open(data.signedUrl, "_blank", "noopener,noreferrer");
-  }
-
-  async function deleteFile(id: string, path: string) {
-    setFiles((prev) => prev.filter((f) => f.id !== id));
-    await Promise.all([supabase.storage.from("coffre").remove([path]), supabase.from("file").delete().eq("id", id)]);
+  async function deleteFile(f: VaultFile) {
+    // Dans l'aperçu, on passe au fichier voisin avant de retirer celui-ci.
+    if (previewId === f.id) {
+      const next = visible[previewIndex + 1] ?? visible[previewIndex - 1];
+      setPreviewId(next ? next.id : null);
+    }
+    setFiles((prev) => prev.filter((x) => x.id !== f.id));
+    await Promise.all([supabase.storage.from("coffre").remove([f.storagePath]), supabase.from("file").delete().eq("id", f.id)]);
   }
 
   return (
     <>
       <PageHeader
         title="Coffre"
-        description={
-          <>
-            {files.length} fichier{files.length > 1 ? "s" : ""} · {formatSize(totalSize)}. Stockage privé : chaque ouverture passe par un lien sécurisé valable 5 minutes.
-          </>
-        }
+        description="Vos scans dans un stockage privé. Chaque aperçu ou téléchargement passe par un lien sécurisé valable 5 minutes."
       />
 
-      <div className="grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,1fr)_320px]">
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <Stat label="Fichiers" value={String(files.length)} />
+        <Stat label="Espace utilisé" value={formatSize(totalSize)} />
+        <Stat label="PDF · images" value={`${pdfCount} · ${files.length - pdfCount}`} />
+        <Stat label="Rattachés à une pièce" value={`${linked} / ${files.length}`} />
+      </div>
+
+      <div className="mt-5 grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,1fr)_300px]">
         <div className="min-w-0">
-          {groups.length === 0 ? (
+          {files.length > 0 && (
+            <div className="mb-4 flex flex-wrap items-center gap-2">
+              <Segmented<Kind>
+                label="Type de fichier"
+                value={kind}
+                onChange={setKind}
+                options={[
+                  { value: "all", label: "Tous", count: files.length },
+                  { value: "pdf", label: "PDF", count: pdfCount },
+                  { value: "image", label: "Images", count: files.length - pdfCount },
+                ]}
+              />
+              <select value={docFilter} onChange={(e) => setDocFilter(e.target.value)} aria-label="Filtrer par pièce" className="input w-auto max-w-[220px] py-1.5 text-[13px]">
+                <option value="all">Toutes les pièces</option>
+                {docOptions.map((o) => (
+                  <option key={o.id} value={o.id}>
+                    {o.label}
+                  </option>
+                ))}
+              </select>
+              <div className="relative min-w-[180px] flex-1">
+                <IconSearch size={16} className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-faint" />
+                <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Rechercher un fichier…" aria-label="Rechercher un fichier" className="input pl-9" />
+              </div>
+            </div>
+          )}
+
+          {files.length === 0 ? (
             <EmptyState icon={<IconLock size={20} />} title="Le coffre est vide">
               Déposez un scan ci-contre, ou depuis la fiche d&apos;un document pour le lui rattacher.
             </EmptyState>
+          ) : visible.length === 0 ? (
+            <EmptyState icon={<IconSearch size={20} />} title="Aucun fichier ne correspond">
+              Changez de filtre ou de recherche.
+            </EmptyState>
           ) : (
-            <div className="flex flex-col gap-4">
-              {groups.map(([group, groupFiles]) => (
-                <section key={group} className="card p-4">
-                  <div className="mb-2.5 flex items-baseline justify-between gap-2">
-                    <h2 className="truncate text-[15px] font-bold">{group}</h2>
-                    <span className="mono shrink-0 text-[12px] text-muted">{groupFiles.length}</span>
-                  </div>
-                  <ul className="grid grid-cols-1 gap-2 lg:grid-cols-2">
-                    {groupFiles.map((f) => (
-                      <VaultFileRow key={f.id} file={f} onOpen={() => openFile(f.storagePath)} onDelete={() => deleteFile(f.id, f.storagePath)} />
-                    ))}
-                  </ul>
-                </section>
+            <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 2xl:grid-cols-4">
+              {visible.map((f) => (
+                <FileCard key={f.id} file={f} thumb={thumbs[f.id]} doc={documentLabel(f)} onOpen={() => setPreviewId(f.id)} />
               ))}
-            </div>
+            </ul>
           )}
         </div>
 
-        <div className="flex flex-col gap-4 xl:sticky xl:top-6 xl:self-start">
-          <FileDropzone busy={uploading} onFiles={handleUpload} title="Déposer un fichier non rattaché" />
+        <aside className="flex flex-col gap-4 xl:sticky xl:top-6 xl:self-start">
+          <FileDropzone busy={uploading} onFiles={handleUpload} title="Déposer un fichier" />
           {error && <p className="rounded-lg bg-bad-bg px-3 py-2 text-[12.5px] text-bad">{error}</p>}
-          <div className="rounded-2xl border border-dashed border-line p-4 text-[12.5px] text-muted">
+          <div className="card p-4 text-[12.5px] text-muted shadow-none">
             <p className="flex items-center gap-2 font-semibold text-ink">
               <IconShield size={15} className="text-act" /> Bon à savoir
             </p>
-            <p className="mt-1.5">Pour rattacher un scan à une pièce précise (passeport, diplôme…), déposez-le depuis sa fiche dans l&apos;onglet Documents.</p>
-            <p className="mt-1.5">Le type réel du fichier est vérifié avant l&apos;envoi : un fichier renommé en .pdf est refusé.</p>
+            <p className="mt-1.5">Un fichier déposé ici n&apos;est rattaché à aucune pièce. Pour le lier au passeport, au diplôme, etc., déposez-le depuis sa fiche dans Documents.</p>
+            <p className="mt-1.5">Le type réel est vérifié avant l&apos;envoi : un fichier renommé en .pdf est refusé.</p>
           </div>
-        </div>
+        </aside>
       </div>
+
+      {previewIndex >= 0 && (
+        <FilePreview
+          files={visible}
+          index={previewIndex}
+          documentLabel={documentLabel}
+          signUrl={signUrl}
+          onIndex={(i) => setPreviewId(visible[i]?.id ?? null)}
+          onDelete={(f) => void deleteFile(f)}
+          onClose={() => setPreviewId(null)}
+        />
+      )}
     </>
+  );
+}
+
+function Stat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="card px-4 py-3">
+      <p className="text-[12px] text-muted">{label}</p>
+      <p className="mono mt-0.5 text-[20px] font-semibold">{value}</p>
+    </div>
+  );
+}
+
+function FileCard({ file, thumb, doc, onOpen }: { file: VaultFile; thumb?: string; doc: string; onOpen: () => void }) {
+  const pdf = isPdf(file);
+  return (
+    <li>
+      <button type="button" onClick={onOpen} className="card group flex w-full flex-col overflow-hidden text-left transition-shadow hover:ring-2 hover:ring-act/30" title={`Aperçu de ${file.name}`}>
+        <span className="relative block aspect-[4/3] w-full overflow-hidden border-b border-line bg-surface-2">
+          {pdf ? (
+            <span className="absolute inset-0 grid place-items-center">
+              <span className="relative grid h-[68%] aspect-[3/4] place-items-center rounded-md border border-line bg-surface shadow-sm transition-transform group-hover:-translate-y-0.5">
+                <span className="absolute inset-x-[18%] top-[18%] flex flex-col gap-1.5" aria-hidden>
+                  <span className="h-1 rounded-full bg-line" />
+                  <span className="h-1 w-4/5 rounded-full bg-line" />
+                  <span className="h-1 rounded-full bg-line" />
+                  <span className="h-1 w-3/5 rounded-full bg-line" />
+                </span>
+                <span className="mono absolute bottom-[14%] rounded bg-bad px-1.5 py-0.5 text-[10px] font-bold text-white">PDF</span>
+              </span>
+            </span>
+          ) : thumb ? (
+            // eslint-disable-next-line @next/next/no-img-element -- vignette servie par lien signé temporaire
+            <img src={thumb} alt="" className="absolute inset-0 h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]" />
+          ) : (
+            <span className="absolute inset-0 grid place-items-center text-faint">
+              <IconImage size={26} />
+            </span>
+          )}
+          <span className="mono absolute top-2 left-2 rounded-md bg-black/60 px-1.5 py-0.5 text-[10px] font-semibold text-white">{fileKind(file)}</span>
+        </span>
+        <span className="block min-w-0 px-3 py-2.5">
+          <span className="block truncate text-[13px] font-semibold group-hover:text-act">{file.name}</span>
+          <span className="mt-0.5 flex items-center gap-1.5 text-[11.5px] text-muted">
+            {pdf ? <IconFile size={12} className="shrink-0" /> : <IconImage size={12} className="shrink-0" />}
+            <span className="truncate">{doc}</span>
+          </span>
+          <span className="mono mt-0.5 block text-[11px] text-faint">
+            {formatSize(file.size)}
+            {file.uploadedAt && ` · ${new Date(file.uploadedAt).toLocaleDateString("fr-FR", { day: "numeric", month: "short" })}`}
+          </span>
+        </span>
+      </button>
+    </li>
   );
 }

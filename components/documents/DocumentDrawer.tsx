@@ -1,10 +1,12 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
+import { FilePreview } from "@/components/coffre/FilePreview";
 import { createClient } from "@/lib/supabase/client";
 import { mapVaultFile } from "@/lib/queries";
 import { validateVaultFile } from "@/lib/fileSniff";
-import type { DocumentRecord, DocumentRequirement, DocumentStatus } from "@/lib/types";
+import type { DocumentRecord, DocumentRequirement, DocumentStatus, VaultFile } from "@/lib/types";
 import { timestamp } from "@/lib/ids";
 import { Chip, ConfirmButton, DOC_TONE, Drawer, DrawerSection, Field, Meter, TONE_DOT } from "@/components/ui";
 import { Checklist, LinkList } from "@/components/EditableLists";
@@ -12,7 +14,7 @@ import { FileDropzone, VaultFileRow } from "@/components/FileDropzone";
 import { IconAlert, IconTrash } from "@/components/icons";
 import { EditBar, changedFields, isTmp, tmpId, useEditable } from "@/components/editable";
 
-type DocDraft = Pick<DocumentRecord, "name" | "req" | "date" | "format" | "validity" | "use" | "from" | "notes" | "checks" | "links">;
+type DocDraft = Pick<DocumentRecord, "name" | "status" | "req" | "date" | "format" | "validity" | "use" | "from" | "notes" | "checks" | "links">;
 
 const STATUSES: DocumentStatus[] = ["À obtenir", "Demandé", "Obtenu"];
 const REQS: DocumentRequirement[] = ["Obligatoire", "Conseillé", "Si applicable"];
@@ -36,7 +38,7 @@ export function DocumentDrawer({ doc, onChange, onDelete, onClose }: Props) {
   const [warn, setWarn] = useState(false);
 
   const saved: DocDraft = useMemo(
-    () => ({ name: doc.name, req: doc.req, date: doc.date, format: doc.format, validity: doc.validity, use: doc.use, from: doc.from, notes: doc.notes, checks: doc.checks, links: doc.links }),
+    () => ({ name: doc.name, status: doc.status, req: doc.req, date: doc.date, format: doc.format, validity: doc.validity, use: doc.use, from: doc.from, notes: doc.notes, checks: doc.checks, links: doc.links }),
     [doc],
   );
 
@@ -73,9 +75,10 @@ export function DocumentDrawer({ doc, onChange, onDelete, onClose }: Props) {
       links.push({ ...l, id: data.id as string });
     }
 
-    const changed = changedFields(saved, d, ["name", "req", "date", "format", "validity", "use", "from", "notes"]);
+    const changed = changedFields(saved, d, ["name", "status", "req", "date", "format", "validity", "use", "from", "notes"]);
     const dbPatch: Record<string, unknown> = {};
     if ("name" in changed) dbPatch.name = changed.name;
+    if ("status" in changed) dbPatch.status = changed.status;
     if ("req" in changed) dbPatch.req = changed.req;
     if ("date" in changed) dbPatch.date = changed.date || null;
     if ("format" in changed) dbPatch.format = changed.format;
@@ -97,16 +100,12 @@ export function DocumentDrawer({ doc, onChange, onDelete, onClose }: Props) {
   const incompleteChecks = checksDone < v.checks.length;
 
   function guardedClose() {
+    if (previewId) return; // Échap ferme d'abord l'aperçu
     if (ed.dirty) {
       setWarn(true);
       return;
     }
     onClose();
-  }
-
-  async function setStatus(status: DocumentStatus) {
-    onChange({ ...doc, status });
-    await supabase.from("document").update({ status }).eq("id", doc.id);
   }
 
   async function toggleCheck(checkId: string, done: boolean) {
@@ -143,10 +142,17 @@ export function DocumentDrawer({ doc, onChange, onDelete, onClose }: Props) {
     setUploading(false);
   }
 
-  async function openFile(storagePath: string) {
-    const { data } = await supabase.storage.from("coffre").createSignedUrl(storagePath, 300);
-    if (data?.signedUrl) window.open(data.signedUrl, "_blank", "noopener,noreferrer");
-  }
+  const [previewId, setPreviewId] = useState<string | null>(null);
+  const previewIndex = previewId ? doc.files.findIndex((f) => f.id === previewId) : -1;
+  const signUrl = useCallback(
+    async (f: VaultFile, download = false) => {
+      const { data } = await createClient()
+        .storage.from("coffre")
+        .createSignedUrl(f.storagePath, 300, download ? { download: f.name } : undefined);
+      return data?.signedUrl ?? null;
+    },
+    [],
+  );
 
   async function deleteFile(fileId: string, storagePath: string) {
     onChange({ ...doc, files: doc.files.filter((f) => f.id !== fileId) });
@@ -196,17 +202,17 @@ export function DocumentDrawer({ doc, onChange, onDelete, onClose }: Props) {
 
       <div role="radiogroup" aria-label="Statut du document" className="mt-3 grid grid-cols-3 gap-1.5">
         {STATUSES.map((s) => {
-          const active = doc.status === s;
+          const active = v.status === s;
           return (
             <button
               key={s}
               type="button"
               role="radio"
               aria-checked={active}
-              disabled={ed.editing}
-              onClick={() => setStatus(s)}
-              className={`flex items-center justify-center gap-1.5 rounded-lg border px-2 py-1.5 text-[13px] font-semibold transition-colors disabled:cursor-default disabled:opacity-60 ${
-                active ? "border-act bg-act-soft text-act" : "border-line text-muted enabled:hover:text-ink"
+              disabled={off}
+              onClick={() => ed.set({ status: s })}
+              className={`flex items-center justify-center gap-1.5 rounded-lg border px-2 py-1.5 text-[13px] font-semibold transition-colors disabled:cursor-default ${
+                active ? "border-act bg-act-soft text-act" : "border-line text-muted enabled:hover:text-ink disabled:opacity-50"
               }`}
             >
               <span className={`h-1.5 w-1.5 rounded-full ${TONE_DOT[DOC_TONE[s]]}`} />
@@ -216,7 +222,7 @@ export function DocumentDrawer({ doc, onChange, onDelete, onClose }: Props) {
         })}
       </div>
 
-      {doc.status === "Obtenu" && incompleteChecks && (
+      {v.status === "Obtenu" && incompleteChecks && (
         <div className="mt-4 flex gap-2.5 rounded-xl border border-opt/25 bg-opt-bg p-3 text-[13.5px] text-opt">
           <IconAlert size={17} className="mt-px shrink-0" />
           <p>Document obtenu mais {v.checks.length - checksDone} contrôle(s) restent à faire avant le dépôt.</p>
@@ -240,12 +246,29 @@ export function DocumentDrawer({ doc, onChange, onDelete, onClose }: Props) {
         {doc.files.length > 0 && (
           <ul className="mb-2 flex flex-col gap-1.5">
             {doc.files.map((f) => (
-              <VaultFileRow key={f.id} file={f} onOpen={() => openFile(f.storagePath)} onDelete={() => deleteFile(f.id, f.storagePath)} />
+              <VaultFileRow key={f.id} file={f} onOpen={() => setPreviewId(f.id)} onDelete={() => deleteFile(f.id, f.storagePath)} />
             ))}
           </ul>
         )}
         <FileDropzone compact busy={uploading} onFiles={handleUpload} title="Ajouter un scan" />
         {uploadError && <p className="mt-1.5 text-[12px] text-bad">{uploadError}</p>}
+        {previewIndex >= 0 &&
+          createPortal(
+            <FilePreview
+              files={doc.files}
+              index={previewIndex}
+              documentLabel={() => doc.name}
+              signUrl={signUrl}
+              onIndex={(i) => setPreviewId(doc.files[i]?.id ?? null)}
+              onDelete={(f) => {
+                const next = doc.files[previewIndex + 1] ?? doc.files[previewIndex - 1];
+                setPreviewId(next && next.id !== f.id ? next.id : null);
+                void deleteFile(f.id, f.storagePath);
+              }}
+              onClose={() => setPreviewId(null)}
+            />,
+            document.body,
+          )}
       </DrawerSection>
 
       <DrawerSection title="Liens officiels">
