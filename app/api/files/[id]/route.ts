@@ -1,0 +1,62 @@
+import { NextResponse, type NextRequest } from "next/server";
+import { downloadFile, requireDrive, trashFile } from "@/lib/drive";
+import { errorResponse, requireOwner, safeFileName } from "@/lib/driveRoute";
+
+type Ctx = { params: Promise<{ id: string }> };
+
+async function loadFile(id: string) {
+  const owner = await requireOwner();
+  // RLS : seul le titulaire du dossier voit la ligne.
+  const { data } = await owner.supabase.from("file").select("*").eq("id", id).maybeSingle();
+  return { ...owner, row: data };
+}
+
+/** Lecture d'un fichier (aperçu ou téléchargement), servie par l'application après contrôle d'accès. */
+export async function GET(request: NextRequest, { params }: Ctx) {
+  try {
+    const { id } = await params;
+    const { supabase, dossierId, row } = await loadFile(id);
+    if (!row) return NextResponse.json({ error: "Fichier introuvable." }, { status: 404 });
+    const download = request.nextUrl.searchParams.has("download");
+    const name = safeFileName(row.name as string);
+
+    if (row.provider === "supabase") {
+      const { data } = await supabase.storage.from("coffre").createSignedUrl(row.storage_path as string, 300, download ? { download: name } : undefined);
+      if (!data?.signedUrl) return NextResponse.json({ error: "Lien indisponible." }, { status: 404 });
+      return NextResponse.redirect(data.signedUrl);
+    }
+
+    const { token } = await requireDrive(dossierId);
+    const upstream = await downloadFile(token, row.drive_file_id as string);
+    return new NextResponse(upstream.body, {
+      headers: {
+        "Content-Type": row.mime as string,
+        "Content-Disposition": `${download ? "attachment" : "inline"}; filename*=UTF-8''${encodeURIComponent(name)}`,
+        "Cache-Control": "private, no-store",
+        "X-Content-Type-Options": "nosniff",
+      },
+    });
+  } catch (e) {
+    return errorResponse(e);
+  }
+}
+
+/** Suppression : corbeille Google Drive (récupérable 30 jours) puis retrait de la fiche. */
+export async function DELETE(_request: NextRequest, { params }: Ctx) {
+  try {
+    const { id } = await params;
+    const { supabase, dossierId, row } = await loadFile(id);
+    if (!row) return NextResponse.json({ ok: true });
+    if (row.provider === "gdrive") {
+      const { token } = await requireDrive(dossierId);
+      await trashFile(token, row.drive_file_id as string);
+    } else {
+      await supabase.storage.from("coffre").remove([row.storage_path as string]);
+    }
+    const { error } = await supabase.from("file").delete().eq("id", id);
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ ok: true });
+  } catch (e) {
+    return errorResponse(e);
+  }
+}

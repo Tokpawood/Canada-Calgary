@@ -1,11 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { createClient } from "@/lib/supabase/client";
-import { mapVaultFile } from "@/lib/queries";
-import { validateVaultFile } from "@/lib/fileSniff";
+import { useCallback, useMemo, useState } from "react";
+import { deleteVaultFile, fileUrl, signFileUrl, uploadVaultFile } from "@/lib/vaultClient";
 import type { VaultFile } from "@/lib/types";
-import { timestamp } from "@/lib/ids";
 import { EmptyState, PageHeader } from "@/components/ui";
 import { FileDropzone, formatSize } from "@/components/FileDropzone";
 import { IconCheck, IconFile, IconImage, IconLock, IconPaperclip, IconSearch, IconShield, IconUpload } from "@/components/icons";
@@ -15,10 +12,6 @@ import { DarkHeader, DarkTiles, HeaderTabs, useHashTab } from "@/components/Dark
 const TABS = ["fichiers", "par-piece", "deposer"] as const;
 type Tab = (typeof TABS)[number];
 import { FilePreview, fileKind, isPdf } from "./FilePreview";
-
-function sanitizeName(name: string): string {
-  return name.replace(/[^a-zA-Z0-9.\-_]/g, "_");
-}
 
 type Kind = "all" | "pdf" | "image";
 const UNLINKED = "__divers__";
@@ -36,44 +29,15 @@ export function VaultBoard({ dossierId, initialFiles, documentNames }: Props) {
   const [kind, setKind] = useState<Kind>("all");
   const [docFilter, setDocFilter] = useState<string>("all");
   const [query, setQuery] = useState("");
-  const [thumbs, setThumbs] = useState<Record<string, string>>({});
   const [previewId, setPreviewId] = useState<string | null>(null);
   const [tab, setTab] = useHashTab<Tab>(TABS, "fichiers");
-  const supabase = useMemo(() => createClient(), []);
 
   const documentLabel = useCallback((f: VaultFile) => (f.documentId ? (documentNames[f.documentId] ?? "Document") : "Non rattaché"), [documentNames]);
 
-  const signUrl = useCallback(
-    async (f: VaultFile, download = false) => {
-      const { data } = await supabase.storage.from("coffre").createSignedUrl(f.storagePath, 300, download ? { download: f.name } : undefined);
-      return data?.signedUrl ?? null;
-    },
-    [supabase],
-  );
+  const signUrl = signFileUrl;
 
-  // Vignettes des images : liens signés de 5 minutes, demandés en une fois pour les fichiers qui n'en ont pas encore.
-  useEffect(() => {
-    const missing = files.filter((f) => !isPdf(f) && !thumbs[f.id]);
-    if (missing.length === 0) return;
-    let alive = true;
-    void supabase.storage
-      .from("coffre")
-      .createSignedUrls(
-        missing.map((f) => f.storagePath),
-        300,
-      )
-      .then(({ data }) => {
-        if (!alive || !data) return;
-        const next: Record<string, string> = {};
-        data.forEach((d, i) => {
-          if (d.signedUrl) next[missing[i].id] = d.signedUrl;
-        });
-        setThumbs((t) => ({ ...t, ...next }));
-      });
-    return () => {
-      alive = false;
-    };
-  }, [files, thumbs, supabase]);
+  // Vignettes des images : lues via l'application (Google Drive), après contrôle d'accès.
+  const thumbs = useMemo(() => Object.fromEntries(files.filter((f) => !isPdf(f)).map((f) => [f.id, fileUrl(f)])), [files]);
 
   const sorted = useMemo(() => [...files].sort((a, b) => (b.uploadedAt ?? "").localeCompare(a.uploadedAt ?? "")), [files]);
 
@@ -104,26 +68,14 @@ export function VaultBoard({ dossierId, initialFiles, documentNames }: Props) {
     setError(null);
     let added = 0;
     for (const file of Array.from(fileList)) {
-      const validation = await validateVaultFile(file);
-      if (!validation.ok) {
-        setError(`${file.name} : ${validation.reason ?? "fichier refusé."}`);
+      const res = await uploadVaultFile(file, null);
+      if (res.error || !res.file) {
+        setError(`${file.name} : ${res.error ?? "fichier refusé."}`);
         continue;
       }
-      const path = `${dossierId}/divers/${timestamp()}-${sanitizeName(file.name)}`;
-      const { error: uploadErr } = await supabase.storage.from("coffre").upload(path, file, { contentType: validation.mime });
-      if (uploadErr) {
-        setError(uploadErr.message);
-        continue;
-      }
-      const { data } = await supabase
-        .from("file")
-        .insert({ dossier_id: dossierId, document_id: null, storage_path: path, name: file.name, size: file.size, mime: validation.mime })
-        .select("*")
-        .single();
-      if (data) {
-        setFiles((prev) => [...prev, mapVaultFile(data)]);
-        added += 1;
-      }
+      const saved = res.file;
+      setFiles((prev) => [...prev, saved]);
+      added += 1;
     }
     setUploading(false);
     // Après un dépôt réussi, on montre le fichier dans la grille.
@@ -137,7 +89,11 @@ export function VaultBoard({ dossierId, initialFiles, documentNames }: Props) {
       setPreviewId(next ? next.id : null);
     }
     setFiles((prev) => prev.filter((x) => x.id !== f.id));
-    await Promise.all([supabase.storage.from("coffre").remove([f.storagePath]), supabase.from("file").delete().eq("id", f.id)]);
+    const err = await deleteVaultFile(f.id);
+    if (err) {
+      setError(`${f.name} : ${err}`);
+      setFiles((prev) => [...prev, f]);
+    }
   }
 
   const linked = files.filter((f) => f.documentId).length;

@@ -46,7 +46,8 @@ export interface DocumentCheck {
 export interface VaultFile {
   id: string;
   documentId: string | null; // null = "Divers", non rattaché
-  storagePath: string;
+  storagePath: string | null;
+  provider: "supabase" | "gdrive";
   name: string;
   size: number;
   mime: string;

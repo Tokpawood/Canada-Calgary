@@ -4,10 +4,8 @@ import { useCallback, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { FilePreview } from "@/components/coffre/FilePreview";
 import { createClient } from "@/lib/supabase/client";
-import { mapVaultFile } from "@/lib/queries";
-import { validateVaultFile } from "@/lib/fileSniff";
-import type { DocumentRecord, DocumentRequirement, DocumentStatus, VaultFile } from "@/lib/types";
-import { timestamp } from "@/lib/ids";
+import { deleteVaultFile, signFileUrl, uploadVaultFile } from "@/lib/vaultClient";
+import type { DocumentRecord, DocumentRequirement, DocumentStatus } from "@/lib/types";
 import { ConfirmButton, DOC_TONE, Drawer, Field, Meter, TONE_DOT, fmtShortDate } from "@/components/ui";
 import { HeaderTabs } from "@/components/DarkHeader";
 import { DarkStatusPicker, DrawerCard, DrawerFacts, DrawerTitle, ReadRow } from "@/components/DrawerParts";
@@ -20,10 +18,6 @@ type DocDraft = Pick<DocumentRecord, "name" | "status" | "req" | "date" | "forma
 
 const STATUSES: DocumentStatus[] = ["À obtenir", "Demandé", "Obtenu"];
 const REQS: DocumentRequirement[] = ["Obligatoire", "Conseillé", "Si applicable"];
-
-function sanitizeName(name: string): string {
-  return name.replace(/[^a-zA-Z0-9.\-_]/g, "_");
-}
 
 interface Props {
   doc: DocumentRecord;
@@ -121,49 +115,39 @@ export function DocumentDrawer({ doc, onChange, onDelete, onClose }: Props) {
     setUploadError(null);
     let files = doc.files;
     for (const file of Array.from(fileList)) {
-      const validation = await validateVaultFile(file);
-      if (!validation.ok) {
-        setUploadError(`${file.name} : ${validation.reason ?? "fichier refusé."}`);
+      const res = await uploadVaultFile(file, doc.id);
+      if (res.error || !res.file) {
+        setUploadError(`${file.name} : ${res.error ?? "fichier refusé."}`);
         continue;
       }
-      const path = `${doc.dossierId}/${doc.id}/${timestamp()}-${sanitizeName(file.name)}`;
-      const { error: uploadErr } = await supabase.storage.from("coffre").upload(path, file, { contentType: validation.mime });
-      if (uploadErr) {
-        setUploadError(uploadErr.message);
-        continue;
-      }
-      const { data } = await supabase
-        .from("file")
-        .insert({ dossier_id: doc.dossierId, document_id: doc.id, storage_path: path, name: file.name, size: file.size, mime: validation.mime })
-        .select("*")
-        .single();
-      if (data) {
-        files = [...files, mapVaultFile(data)];
-        onChange({ ...doc, files });
-      }
+      files = [...files, res.file];
+      onChange({ ...doc, files });
     }
     setUploading(false);
   }
 
   const [previewId, setPreviewId] = useState<string | null>(null);
   const previewIndex = previewId ? doc.files.findIndex((f) => f.id === previewId) : -1;
-  const signUrl = useCallback(
-    async (f: VaultFile, download = false) => {
-      const { data } = await createClient()
-        .storage.from("coffre")
-        .createSignedUrl(f.storagePath, 300, download ? { download: f.name } : undefined);
-      return data?.signedUrl ?? null;
-    },
-    [],
-  );
+  const signUrl = signFileUrl;
 
-  async function deleteFile(fileId: string, storagePath: string) {
-    onChange({ ...doc, files: doc.files.filter((f) => f.id !== fileId) });
-    await Promise.all([supabase.storage.from("coffre").remove([storagePath]), supabase.from("file").delete().eq("id", fileId)]);
+  async function deleteFile(fileId: string) {
+    const before = doc.files;
+    onChange({ ...doc, files: before.filter((f) => f.id !== fileId) });
+    const err = await deleteVaultFile(fileId);
+    if (err) {
+      setUploadError(err);
+      onChange({ ...doc, files: before });
+    }
   }
 
   async function handleDeleteDoc() {
-    for (const f of doc.files) await supabase.storage.from("coffre").remove([f.storagePath]);
+    for (const f of doc.files) {
+      const err = await deleteVaultFile(f.id);
+      if (err) {
+        setUploadError(`Suppression interrompue (${f.name}) : ${err}`);
+        return;
+      }
+    }
     await supabase.from("document").delete().eq("id", doc.id);
     onDelete();
   }
@@ -321,7 +305,7 @@ export function DocumentDrawer({ doc, onChange, onDelete, onClose }: Props) {
         {doc.files.length > 0 && (
           <ul className="mb-3 flex flex-col gap-1.5">
             {doc.files.map((f) => (
-              <VaultFileRow key={f.id} file={f} onOpen={() => setPreviewId(f.id)} onDelete={() => deleteFile(f.id, f.storagePath)} />
+              <VaultFileRow key={f.id} file={f} onOpen={() => setPreviewId(f.id)} onDelete={() => deleteFile(f.id)} />
             ))}
           </ul>
         )}
@@ -340,7 +324,7 @@ export function DocumentDrawer({ doc, onChange, onDelete, onClose }: Props) {
               onDelete={(f) => {
                 const next = doc.files[previewIndex + 1] ?? doc.files[previewIndex - 1];
                 setPreviewId(next && next.id !== f.id ? next.id : null);
-                void deleteFile(f.id, f.storagePath);
+                void deleteFile(f.id);
               }}
               onClose={() => setPreviewId(null)}
             />,

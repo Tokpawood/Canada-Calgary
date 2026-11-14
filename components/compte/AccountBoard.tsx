@@ -22,7 +22,17 @@ function strength(p: string): { score: number; label: string } {
   return { score: p.length < MIN ? Math.min(1, s) : s, label };
 }
 
-export function AccountBoard({ email, lastSignIn, createdAt }: { email: string; lastSignIn: string | null; createdAt: string | null }) {
+export function AccountBoard({
+  email,
+  lastSignIn,
+  createdAt,
+  children,
+}: {
+  email: string;
+  lastSignIn: string | null;
+  createdAt: string | null;
+  children?: React.ReactNode;
+}) {
   const router = useRouter();
   const [current, setCurrent] = useState("");
   const [next, setNext] = useState("");
@@ -190,6 +200,7 @@ export function AccountBoard({ email, lastSignIn, createdAt }: { email: string; 
           </aside>
         </div>
       </div>
+      {children && <div className="mt-5">{children}</div>}
     </>
   );
 }
