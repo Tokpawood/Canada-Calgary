@@ -4,6 +4,7 @@ import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import type { Dossier } from "@/lib/types";
 import { Chip, Meter, PageHeader, dueInfo, fcfa } from "@/components/ui";
+import { EditBar, useEditable } from "@/components/editable";
 
 interface Props {
   dossier: Dossier;
@@ -12,18 +13,19 @@ interface Props {
 }
 
 export function BudgetBoard({ dossier, rows, upcoming }: Props) {
-  const [cadRate, setCadRate] = useState(dossier.cadRate);
+  const [savedRate, setSavedRate] = useState(dossier.cadRate);
   const supabase = createClient();
+  const rateEd = useEditable({ rate: savedRate }, async (d) => {
+    const { error } = await supabase.from("dossier").update({ cad_rate: d.rate }).eq("id", dossier.id);
+    if (error) throw error;
+    setSavedRate(d.rate);
+  });
+  const cadRate = rateEd.current.rate;
 
   const totalPlanned = rows.reduce((sum, r) => sum + r.planned, 0);
   const totalActual = rows.reduce((sum, r) => sum + r.actual, 0);
   const remaining = Math.max(0, totalPlanned - totalActual);
   const upcomingTotal = upcoming.reduce((s, u) => s + u.planned, 0);
-
-  async function saveRate(value: number) {
-    setCadRate(value);
-    await supabase.from("dossier").update({ cad_rate: value }).eq("id", dossier.id);
-  }
 
   const cad = (n: number) => (cadRate > 0 ? `≈ ${new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 0 }).format(n / cadRate)} $ CA` : "—");
 
@@ -33,18 +35,22 @@ export function BudgetBoard({ dossier, rows, upcoming }: Props) {
         title="Budget"
         description="Frais prévus et payés pour chaque phase du parcours, d'après les coûts saisis dans les étapes."
         actions={
-          <label className="card flex items-center gap-2 px-3 py-1.5 text-[13px] text-muted shadow-none">
-            1 $ CA =
-            <input
-              type="number"
-              inputMode="numeric"
-              value={cadRate}
-              onChange={(e) => saveRate(Number(e.target.value) || 0)}
-              aria-label="Taux de conversion, en francs CFA pour un dollar canadien"
-              className="input mono w-20 py-1 text-right"
-            />
-            FCFA
-          </label>
+          <div className="card flex flex-wrap items-center gap-2 px-3 py-1.5 text-[13px] text-muted shadow-none">
+            <label className="flex items-center gap-2">
+              1 $ CA =
+              <input
+                type="number"
+                inputMode="numeric"
+                disabled={!rateEd.editing}
+                value={cadRate}
+                onChange={(e) => rateEd.set({ rate: Number(e.target.value) || 0 })}
+                aria-label="Taux de conversion, en francs CFA pour un dollar canadien"
+                className="input mono w-20 py-1 text-right"
+              />
+              FCFA
+            </label>
+            <EditBar edit={rateEd} />
+          </div>
         }
       />
 

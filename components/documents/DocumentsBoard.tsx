@@ -177,6 +177,7 @@ export function DocumentsBoard({ initialDocuments, dossierId }: { initialDocumen
 
       {selected && (
         <DocumentDrawer
+          key={selected.id}
           doc={selected}
           onChange={updateDoc}
           onDelete={() => {

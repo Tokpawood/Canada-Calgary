@@ -5,14 +5,30 @@ import { createClient } from "@/lib/supabase/client";
 import { fundsProgress } from "@/lib/rules";
 import type { Dossier, Saving } from "@/lib/types";
 import { newId } from "@/lib/ids";
-import { ConfirmButton, EmptyState, Meter, PageHeader, fcfa } from "@/components/ui";
+import { EmptyState, Meter, PageHeader, fcfa } from "@/components/ui";
+import { EditBar, useEditable } from "@/components/editable";
+import { syncRows } from "@/lib/syncRows";
 import { IconCheck, IconPiggy, IconPlus, IconTrash } from "@/components/icons";
 
 export function EpargneBoard({ dossier, initialSavings }: { dossier: Dossier; initialSavings: Saving[] }) {
-  const [savings, setSavings] = useState(initialSavings);
-  const [fundsMin, setFundsMin] = useState(dossier.fundsMin);
-  const [fundsTarget, setFundsTarget] = useState(dossier.fundsTarget);
+  const [savedRows, setSavedRows] = useState(initialSavings);
+  const [funds, setFunds] = useState({ fundsMin: dossier.fundsMin, fundsTarget: dossier.fundsTarget });
   const supabase = createClient();
+
+  const fundsEd = useEditable(funds, async (d) => {
+    const { error } = await supabase.from("dossier").update({ funds_min: d.fundsMin, funds_target: d.fundsTarget }).eq("id", dossier.id);
+    if (error) throw error;
+    setFunds(d);
+  });
+
+  const rowsEd = useEditable(savedRows, async (d) => {
+    await syncRows(supabase, "saving", savedRows, d, (s) => ({ label: s.label, planned: s.planned, actual: s.actual, notes: s.notes }), { dossier_id: dossier.id });
+    setSavedRows(d);
+  });
+
+  const savings = rowsEd.current;
+  const { fundsMin, fundsTarget } = fundsEd.current;
+  const off = !rowsEd.editing;
 
   const progress = useMemo(() => fundsProgress(savings, { fundsMin, fundsTarget }), [savings, fundsMin, fundsTarget]);
   const toMin = Math.max(0, fundsMin - progress.saved);
@@ -24,27 +40,21 @@ export function EpargneBoard({ dossier, initialSavings }: { dossier: Dossier; in
     [savings],
   );
 
-  async function saveDossierField(field: "funds_min" | "funds_target", value: number) {
-    await supabase.from("dossier").update({ [field]: value }).eq("id", dossier.id);
+  function addRow() {
+    if (!rowsEd.editing) rowsEd.start();
+    rowsEd.update((d) => [...d, { id: newId("e"), dossierId: dossier.id, label: "", planned: null, actual: null, notes: "" }]);
   }
 
-  async function addRow() {
-    const id = newId("e");
-    setSavings((prev) => [...prev, { id, dossierId: dossier.id, label: "", planned: null, actual: null, notes: "" }]);
-    await supabase.from("saving").insert({ id, dossier_id: dossier.id, label: "", position: savings.length });
+  function updateRow(id: string, patch: Partial<Saving>) {
+    rowsEd.update((d) => d.map((s) => (s.id === id ? { ...s, ...patch } : s)));
   }
 
-  async function updateRow(id: string, patch: Partial<Saving>) {
-    setSavings((prev) => prev.map((s) => (s.id === id ? { ...s, ...patch } : s)));
-    await supabase.from("saving").update(patch).eq("id", id);
-  }
-
-  async function deleteRow(id: string) {
-    setSavings((prev) => prev.filter((s) => s.id !== id));
-    await supabase.from("saving").delete().eq("id", id);
+  function deleteRow(id: string) {
+    rowsEd.update((d) => d.filter((s) => s.id !== id));
   }
 
   const num = (v: string) => (v === "" ? null : Number(v));
+  const cellEdit = off ? "" : "border-line bg-surface";
   const maxBar = Math.max(1, ...savings.map((s) => Math.max(s.actual ?? 0, s.planned ?? 0)));
 
   return (
@@ -93,18 +103,19 @@ export function EpargneBoard({ dossier, initialSavings }: { dossier: Dossier; in
             </div>
           </div>
 
-          <div className="flex flex-col gap-3 rounded-xl bg-surface-2/70 p-4">
+          <div className={`flex flex-col gap-3 rounded-xl border p-4 ${fundsEd.editing ? "border-act/30 bg-surface" : "border-transparent bg-surface-2/70"}`}>
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-[13px] font-semibold">Objectifs</span>
+              {!fundsEd.editing && <EditBar edit={fundsEd} />}
+            </div>
             <label>
               <span className="field-label">Minimum exigé (FCFA)</span>
               <input
                 type="number"
                 inputMode="numeric"
+                disabled={!fundsEd.editing}
                 value={fundsMin}
-                onChange={(e) => {
-                  const v = Number(e.target.value) || 0;
-                  setFundsMin(v);
-                  void saveDossierField("funds_min", v);
-                }}
+                onChange={(e) => fundsEd.set({ fundsMin: Number(e.target.value) || 0 })}
                 className="input mono text-right"
               />
             </label>
@@ -113,33 +124,34 @@ export function EpargneBoard({ dossier, initialSavings }: { dossier: Dossier; in
               <input
                 type="number"
                 inputMode="numeric"
+                disabled={!fundsEd.editing}
                 value={fundsTarget}
-                onChange={(e) => {
-                  const v = Number(e.target.value) || 0;
-                  setFundsTarget(v);
-                  void saveDossierField("funds_target", v);
-                }}
+                onChange={(e) => fundsEd.set({ fundsTarget: Number(e.target.value) || 0 })}
                 className="input mono text-right"
               />
             </label>
+            {fundsEd.editing && <EditBar edit={fundsEd} />}
             <p className="text-[11.5px] text-faint">Le minimum suit le barème IRCC des fonds d&apos;établissement ; mettez-le à jour chaque année.</p>
           </div>
         </div>
       </section>
 
-      {savings.length === 0 ? (
+      {savings.length === 0 && !rowsEd.editing ? (
         <div className="mt-5">
           <EmptyState icon={<IconPiggy size={20} />} title="Aucun versement">
             Ajoutez un premier versement mensuel pour suivre votre épargne.
           </EmptyState>
         </div>
       ) : (
-        <section className="card mt-5 overflow-hidden">
-          <div className="flex flex-wrap items-baseline justify-between gap-2 px-4 pt-4 sm:px-5">
-            <h2 className="text-[17px] font-bold">Versements</h2>
-            <p className="text-[12.5px] text-muted">
-              Prévu <span className="mono text-ink">{fcfa(totalPlanned)} F</span> · versé <span className="mono text-ink">{fcfa(progress.saved)} F</span>
-            </p>
+        <section className={`card mt-5 overflow-hidden ${rowsEd.editing ? "ring-2 ring-act-soft" : ""}`}>
+          <div className="flex flex-wrap items-center justify-between gap-2 px-4 pt-4 sm:px-5">
+            <div>
+              <h2 className="text-[17px] font-bold">Versements</h2>
+              <p className="text-[12.5px] text-muted">
+                Prévu <span className="mono text-ink">{fcfa(totalPlanned)} F</span> · versé <span className="mono text-ink">{fcfa(progress.saved)} F</span>
+              </p>
+            </div>
+            <EditBar edit={rowsEd} />
           </div>
 
           <div className="px-4 pt-4 sm:px-5">
@@ -179,7 +191,7 @@ export function EpargneBoard({ dossier, initialSavings }: { dossier: Dossier; in
                   <th className="px-2 py-2 text-right font-medium">Écart</th>
                   <th className="px-2 py-2 text-right font-medium">Cumul</th>
                   <th className="px-2 py-2 font-medium">Notes</th>
-                  <th className="w-12" />
+                  {!off && <th className="w-12" />}
                 </tr>
               </thead>
               <tbody>
@@ -188,26 +200,28 @@ export function EpargneBoard({ dossier, initialSavings }: { dossier: Dossier; in
                   return (
                     <tr key={s.id} className="group border-b border-line last:border-0">
                       <td className="py-1 pr-1 pl-3 sm:pl-4">
-                        <input value={s.label} placeholder="Ex. Décembre 2026" aria-label="Mois" onChange={(e) => updateRow(s.id, { label: e.target.value })} className="input-ghost font-semibold" />
+                        <input disabled={off} value={s.label} placeholder="Ex. Décembre 2026" aria-label="Mois" onChange={(e) => updateRow(s.id, { label: e.target.value })} className={`input-ghost font-semibold ${cellEdit}`} />
                       </td>
                       <td className="px-1 py-1">
-                        <input type="number" inputMode="numeric" value={s.planned ?? ""} aria-label="Montant prévu" onChange={(e) => updateRow(s.id, { planned: num(e.target.value) })} className="input-ghost mono w-28 text-right" />
+                        <input disabled={off} type="number" inputMode="numeric" value={s.planned ?? ""} aria-label="Montant prévu" onChange={(e) => updateRow(s.id, { planned: num(e.target.value) })} className={`input-ghost mono w-28 text-right ${cellEdit}`} />
                       </td>
                       <td className="px-1 py-1">
-                        <input type="number" inputMode="numeric" value={s.actual ?? ""} aria-label="Montant versé" onChange={(e) => updateRow(s.id, { actual: num(e.target.value) })} className="input-ghost mono w-28 text-right" />
+                        <input disabled={off} type="number" inputMode="numeric" value={s.actual ?? ""} aria-label="Montant versé" onChange={(e) => updateRow(s.id, { actual: num(e.target.value) })} className={`input-ghost mono w-28 text-right ${cellEdit}`} />
                       </td>
                       <td className={`mono px-2 py-1 text-right text-[12.5px] ${diff == null ? "text-faint" : diff < 0 ? "text-bad" : "text-ok"}`}>
                         {diff == null ? "—" : `${diff > 0 ? "+" : diff < 0 ? "−" : ""}${fcfa(Math.abs(diff))}`}
                       </td>
                       <td className="mono px-2 py-1 text-right text-[12.5px] text-muted">{s.actual == null ? <span className="text-faint">—</span> : fcfa(cumul[i])}</td>
                       <td className="px-1 py-1">
-                        <input value={s.notes} aria-label="Notes" onChange={(e) => updateRow(s.id, { notes: e.target.value })} className="input-ghost" />
+                        <input disabled={off} value={s.notes} aria-label="Notes" onChange={(e) => updateRow(s.id, { notes: e.target.value })} className={`input-ghost ${cellEdit}`} />
                       </td>
-                      <td className="py-1 pr-3 text-right">
-                        <ConfirmButton label="Supprimer le versement" confirmLabel="Oui ?" onConfirm={() => deleteRow(s.id)} className="btn btn-sm btn-danger pointer-fine:opacity-0 pointer-fine:group-hover:opacity-100 focus-visible:opacity-100 data-[armed=true]:opacity-100">
-                          <IconTrash size={13} />
-                        </ConfirmButton>
-                      </td>
+                      {!off && (
+                        <td className="py-1 pr-3 text-right">
+                          <button type="button" onClick={() => deleteRow(s.id)} aria-label="Retirer le versement" title="Retirer le versement" className="btn btn-sm btn-danger">
+                            <IconTrash size={13} />
+                          </button>
+                        </td>
+                      )}
                     </tr>
                   );
                 })}

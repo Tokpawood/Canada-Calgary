@@ -2,7 +2,7 @@
 
 import { eighteenthBirthdayIso, pd, today0 } from "@/lib/rules";
 import type { AddressEntry, HistoryEntry, HistoryType } from "@/lib/types";
-import { ConfirmButton } from "@/components/ui";
+import type { ReactNode } from "react";
 import { IconAlert, IconCheck, IconPlus, IconTrash } from "@/components/icons";
 
 const HISTORY_TYPES: HistoryType[] = ["Travail", "Études", "Sans emploi", "Autre"];
@@ -110,16 +110,21 @@ function GapList({ gaps }: { gaps: string[] }) {
   );
 }
 
-function SectionHead({ title, sub, onAdd, addLabel }: { title: string; sub: string; onAdd: () => void; addLabel: string }) {
+function SectionHead({ title, sub, onAdd, addLabel, editing, actions }: { title: string; sub: string; onAdd: () => void; addLabel: string; editing: boolean; actions?: ReactNode }) {
   return (
     <div className="flex flex-wrap items-start justify-between gap-2">
       <div>
         <h2 className="text-[17px] font-bold">{title}</h2>
         <p className="text-[12.5px] text-muted">{sub}</p>
       </div>
-      <button type="button" onClick={onAdd} className="btn btn-sm btn-soft">
-        <IconPlus size={14} /> {addLabel}
-      </button>
+      <div className="flex flex-wrap items-center gap-2">
+        {editing && (
+          <button type="button" onClick={onAdd} className="btn btn-sm btn-soft">
+            <IconPlus size={14} /> {addLabel}
+          </button>
+        )}
+        {actions}
+      </div>
     </div>
   );
 }
@@ -133,12 +138,15 @@ interface HistoryProps {
   onAdd: () => void;
   onUpdate: (id: string, patch: Partial<HistoryEntry>) => void;
   onDelete: (id: string) => void;
+  editing: boolean;
+  actions?: ReactNode;
 }
 
-export function HistoryTable({ rows, gaps, naissance, onAdd, onUpdate, onDelete }: HistoryProps) {
+export function HistoryTable({ rows, gaps, naissance, onAdd, onUpdate, onDelete, editing, actions }: HistoryProps) {
+  const off = !editing;
   return (
-    <section className="card p-4 sm:p-5">
-      <SectionHead title="Historique personnel" sub="Toutes les activités depuis vos 18 ans, sans trou de plus de 4 jours." onAdd={onAdd} addLabel="Période" />
+    <section className={`card p-4 sm:p-5 ${editing ? "ring-2 ring-act-soft" : ""}`}>
+      <SectionHead title="Historique personnel" sub="Toutes les activités depuis vos 18 ans, sans trou de plus de 4 jours." onAdd={onAdd} addLabel="Période" editing={editing} actions={actions} />
       <CoverageTimeline naissance={naissance} rows={rows.map((r) => ({ id: r.id, from: r.from, to: r.to, parallel: r.parallel, label: r.activity || r.type }))} />
       <GapList gaps={gaps} />
       <div className="-mx-1.5 mt-3 overflow-x-auto">
@@ -154,16 +162,16 @@ export function HistoryTable({ rows, gaps, naissance, onAdd, onUpdate, onDelete 
               <th className={`${TH} w-[64px] text-center`} title="Période en parallèle d'une autre (exclue du calcul des trous)">
                 Parallèle
               </th>
-              <th className="w-10" />
+              {editing && <th className="w-10" />}
             </tr>
           </thead>
           <tbody>
             {rows.map((r) => (
               <tr key={r.id} className="group border-b border-line last:border-0">
-                <Cell value={r.from} mono onChange={(v) => onUpdate(r.id, { from: v })} placeholder="AAAA-MM-JJ" label="Début" />
-                <Cell value={r.to} mono onChange={(v) => onUpdate(r.id, { to: v })} placeholder="en cours" label="Fin" />
+                <Cell off={off} value={r.from} mono onChange={(v) => onUpdate(r.id, { from: v })} placeholder="AAAA-MM-JJ" label="Début" />
+                <Cell off={off} value={r.to} mono onChange={(v) => onUpdate(r.id, { to: v })} placeholder="en cours" label="Fin" />
                 <td className="px-0.5 py-1">
-                  <select value={r.type} onChange={(e) => onUpdate(r.id, { type: e.target.value as HistoryType })} className="input-ghost" aria-label="Type">
+                  <select disabled={off} value={r.type} onChange={(e) => onUpdate(r.id, { type: e.target.value as HistoryType })} className="input-ghost" aria-label="Type">
                     {HISTORY_TYPES.map((t) => (
                       <option key={t} value={t}>
                         {t}
@@ -171,15 +179,17 @@ export function HistoryTable({ rows, gaps, naissance, onAdd, onUpdate, onDelete 
                     ))}
                   </select>
                 </td>
-                <Cell value={r.activity} onChange={(v) => onUpdate(r.id, { activity: v })} label="Activité" />
-                <Cell value={r.org} onChange={(v) => onUpdate(r.id, { org: v })} label="Organisme" />
-                <Cell value={r.place} onChange={(v) => onUpdate(r.id, { place: v })} label="Lieu" />
+                <Cell off={off} value={r.activity} onChange={(v) => onUpdate(r.id, { activity: v })} label="Activité" />
+                <Cell off={off} value={r.org} onChange={(v) => onUpdate(r.id, { org: v })} label="Organisme" />
+                <Cell off={off} value={r.place} onChange={(v) => onUpdate(r.id, { place: v })} label="Lieu" />
                 <td className="py-1 text-center">
-                  <input type="checkbox" checked={r.parallel} onChange={(e) => onUpdate(r.id, { parallel: e.target.checked })} aria-label="En parallèle" className="h-4 w-4 accent-[var(--act)]" />
+                  <input type="checkbox" disabled={off} checked={r.parallel} onChange={(e) => onUpdate(r.id, { parallel: e.target.checked })} aria-label="En parallèle" className="h-4 w-4 accent-[var(--act)]" />
                 </td>
-                <td className="py-1 text-right">
-                  <RowDelete onConfirm={() => onDelete(r.id)} />
-                </td>
+                {editing && (
+                  <td className="py-1 text-right">
+                    <RowDelete onDelete={() => onDelete(r.id)} />
+                  </td>
+                )}
               </tr>
             ))}
           </tbody>
@@ -196,12 +206,15 @@ interface AddressProps {
   onAdd: () => void;
   onUpdate: (id: string, patch: Partial<AddressEntry>) => void;
   onDelete: (id: string) => void;
+  editing: boolean;
+  actions?: ReactNode;
 }
 
-export function AddressesTable({ rows, gaps, naissance, onAdd, onUpdate, onDelete }: AddressProps) {
+export function AddressesTable({ rows, gaps, naissance, onAdd, onUpdate, onDelete, editing, actions }: AddressProps) {
+  const off = !editing;
   return (
-    <section className="card p-4 sm:p-5">
-      <SectionHead title="Adresses" sub="Toutes les adresses de résidence depuis vos 18 ans." onAdd={onAdd} addLabel="Adresse" />
+    <section className={`card p-4 sm:p-5 ${editing ? "ring-2 ring-act-soft" : ""}`}>
+      <SectionHead title="Adresses" sub="Toutes les adresses de résidence depuis vos 18 ans." onAdd={onAdd} addLabel="Adresse" editing={editing} actions={actions} />
       <CoverageTimeline naissance={naissance} rows={rows.map((r) => ({ id: r.id, from: r.from, to: r.to, parallel: r.parallel, label: [r.address, r.city].filter(Boolean).join(", ") || "Adresse" }))} />
       <GapList gaps={gaps} />
       <div className="-mx-1.5 mt-3 overflow-x-auto">
@@ -213,20 +226,22 @@ export function AddressesTable({ rows, gaps, naissance, onAdd, onUpdate, onDelet
               <th className={TH}>Adresse</th>
               <th className={TH}>Ville, pays</th>
               <th className={TH}>Note</th>
-              <th className="w-10" />
+              {editing && <th className="w-10" />}
             </tr>
           </thead>
           <tbody>
             {rows.map((r) => (
               <tr key={r.id} className="group border-b border-line last:border-0">
-                <Cell value={r.from} mono onChange={(v) => onUpdate(r.id, { from: v })} placeholder="AAAA-MM-JJ" label="Début" />
-                <Cell value={r.to} mono onChange={(v) => onUpdate(r.id, { to: v })} placeholder="actuelle" label="Fin" />
-                <Cell value={r.address} onChange={(v) => onUpdate(r.id, { address: v })} label="Adresse" />
-                <Cell value={r.city} onChange={(v) => onUpdate(r.id, { city: v })} label="Ville, pays" />
-                <Cell value={r.note} onChange={(v) => onUpdate(r.id, { note: v })} label="Note" />
-                <td className="py-1 text-right">
-                  <RowDelete onConfirm={() => onDelete(r.id)} />
-                </td>
+                <Cell off={off} value={r.from} mono onChange={(v) => onUpdate(r.id, { from: v })} placeholder="AAAA-MM-JJ" label="Début" />
+                <Cell off={off} value={r.to} mono onChange={(v) => onUpdate(r.id, { to: v })} placeholder="actuelle" label="Fin" />
+                <Cell off={off} value={r.address} onChange={(v) => onUpdate(r.id, { address: v })} label="Adresse" />
+                <Cell off={off} value={r.city} onChange={(v) => onUpdate(r.id, { city: v })} label="Ville, pays" />
+                <Cell off={off} value={r.note} onChange={(v) => onUpdate(r.id, { note: v })} label="Note" />
+                {editing && (
+                  <td className="py-1 text-right">
+                    <RowDelete onDelete={() => onDelete(r.id)} />
+                  </td>
+                )}
               </tr>
             ))}
           </tbody>
@@ -236,18 +251,19 @@ export function AddressesTable({ rows, gaps, naissance, onAdd, onUpdate, onDelet
   );
 }
 
-function RowDelete({ onConfirm }: { onConfirm: () => void }) {
+/** Retire la ligne du brouillon ; rien n'est supprimé en base avant « Enregistrer ». */
+function RowDelete({ onDelete }: { onDelete: () => void }) {
   return (
-    <ConfirmButton label="Supprimer la ligne" confirmLabel="Oui ?" onConfirm={onConfirm} className="btn btn-sm btn-danger pointer-fine:opacity-0 pointer-fine:group-hover:opacity-100 focus-visible:opacity-100 data-[armed=true]:opacity-100">
+    <button type="button" onClick={onDelete} aria-label="Retirer la ligne" title="Retirer la ligne" className="btn btn-sm btn-danger">
       <IconTrash size={13} />
-    </ConfirmButton>
+    </button>
   );
 }
 
-function Cell({ value, onChange, placeholder, mono, label }: { value: string; onChange: (v: string) => void; placeholder?: string; mono?: boolean; label: string }) {
+function Cell({ value, onChange, placeholder, mono, label, off }: { value: string; onChange: (v: string) => void; placeholder?: string; mono?: boolean; label: string; off: boolean }) {
   return (
     <td className="px-0.5 py-1">
-      <input value={value} placeholder={placeholder} aria-label={label} onChange={(e) => onChange(e.target.value)} className={`input-ghost min-w-[90px] ${mono ? "mono text-[12.5px]" : ""}`} />
+      <input value={value} disabled={off} placeholder={placeholder} aria-label={label} onChange={(e) => onChange(e.target.value)} className={`input-ghost min-w-[90px] ${off ? "" : "border-line bg-surface"} ${mono ? "mono text-[12.5px]" : ""}`} />
     </td>
   );
 }

@@ -304,6 +304,38 @@ input[type="number"] {
     box-shadow: 0 0 0 3px var(--act-soft);
   }
 
+  /* Lecture seule : le champ se lit comme du texte tant qu'on n'a pas cliqué sur « Modifier ». */
+  .input:disabled,
+  .input-ghost:disabled {
+    cursor: default;
+    opacity: 1;
+    color: var(--ink);
+    -webkit-text-fill-color: var(--ink);
+    border-color: transparent;
+    box-shadow: none;
+  }
+  .input:disabled {
+    background: var(--surface-2);
+  }
+  .input-ghost:disabled {
+    background: transparent;
+  }
+  .input:disabled::placeholder,
+  .input-ghost:disabled::placeholder {
+    color: transparent;
+    -webkit-text-fill-color: transparent;
+  }
+  select.input:disabled,
+  select.input-ghost:disabled {
+    appearance: none;
+  }
+  input:disabled::-webkit-calendar-picker-indicator {
+    display: none;
+  }
+  input[type="checkbox"]:disabled {
+    cursor: default;
+  }
+
   .field-label {
     display: block;
     margin-bottom: 0.3rem;

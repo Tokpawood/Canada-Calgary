@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/client";
 import { safeUrl } from "@/lib/rules";
 import type { Contact } from "@/lib/types";
 import { newId } from "@/lib/ids";
+import { changedFields } from "@/components/editable";
 import { ConfirmButton, EmptyState, Field, PageHeader } from "@/components/ui";
 import { IconArrowRight, IconCheck, IconGlobe, IconMail, IconPencil, IconPhone, IconPlus, IconTrash, IconUser, IconUsers } from "@/components/icons";
 
@@ -23,24 +24,48 @@ function contactLink(raw: string): { href: string; kind: "mail" | "phone" | "web
 export function ContactsBoard({ dossierId, initialContacts }: { dossierId: string; initialContacts: Contact[] }) {
   const [contacts, setContacts] = useState(initialContacts);
   const [editing, setEditing] = useState<string | null>(null);
+  /** Contact ajouté mais pas encore enregistré en base. */
+  const [pendingNew, setPendingNew] = useState<string | null>(null);
   const supabase = createClient();
 
-  async function addContact() {
+  function addContact() {
+    if (editing) return;
     const id = newId("c");
     setContacts((prev) => [...prev, { id, dossierId, org: "", role: "", contact: "", person: "", next: "", notes: "" }]);
+    setPendingNew(id);
     setEditing(id);
-    await supabase.from("contact").insert({ id, dossier_id: dossierId, position: contacts.length });
   }
 
-  async function updateContact(id: string, patch: Partial<Contact>) {
-    setContacts((prev) => prev.map((c) => (c.id === id ? { ...c, ...patch } : c)));
-    await supabase.from("contact").update(patch).eq("id", id);
+  async function saveContact(before: Contact, after: Contact) {
+    const fields = { org: after.org, role: after.role, contact: after.contact, person: after.person, next: after.next, notes: after.notes };
+    if (pendingNew === after.id) {
+      const { error } = await supabase.from("contact").insert({ id: after.id, dossier_id: dossierId, position: contacts.length - 1, ...fields });
+      if (error) throw error;
+      setPendingNew(null);
+    } else {
+      const patch = changedFields(before, after, ["org", "role", "contact", "person", "next", "notes"]);
+      if (Object.keys(patch).length) {
+        const { error } = await supabase.from("contact").update(patch).eq("id", after.id);
+        if (error) throw error;
+      }
+    }
+    setContacts((prev) => prev.map((c) => (c.id === after.id ? after : c)));
+    setEditing(null);
+  }
+
+  function cancelEdit(id: string) {
+    if (pendingNew === id) {
+      setContacts((prev) => prev.filter((c) => c.id !== id));
+      setPendingNew(null);
+    }
+    setEditing(null);
   }
 
   async function deleteContact(id: string) {
+    if (pendingNew !== id) await supabase.from("contact").delete().eq("id", id);
     setContacts((prev) => prev.filter((c) => c.id !== id));
-    if (editing === id) setEditing(null);
-    await supabase.from("contact").delete().eq("id", id);
+    setPendingNew(null);
+    setEditing(null);
   }
 
   const withNext = contacts.filter((c) => c.next.trim()).length;
@@ -51,7 +76,7 @@ export function ContactsBoard({ dossierId, initialContacts }: { dossierId: strin
         title="Contacts"
         description={`Organismes et interlocuteurs du dossier${withNext ? ` · ${withNext} action(s) en attente` : ""}.`}
         actions={
-          <button type="button" onClick={addContact} className="btn btn-primary">
+          <button type="button" onClick={addContact} disabled={editing !== null} className="btn btn-primary">
             <IconPlus size={16} /> Contact
           </button>
         }
@@ -65,9 +90,16 @@ export function ContactsBoard({ dossierId, initialContacts }: { dossierId: strin
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           {contacts.map((c) =>
             editing === c.id ? (
-              <ContactEditor key={c.id} contact={c} onChange={(p) => updateContact(c.id, p)} onDone={() => setEditing(null)} onDelete={() => deleteContact(c.id)} />
+              <ContactEditor
+                key={c.id}
+                contact={c}
+                isNew={pendingNew === c.id}
+                onSave={(after) => saveContact(c, after)}
+                onCancel={() => cancelEdit(c.id)}
+                onDelete={() => deleteContact(c.id)}
+              />
             ) : (
-              <ContactCard key={c.id} contact={c} onEdit={() => setEditing(c.id)} />
+              <ContactCard key={c.id} contact={c} canEdit={editing === null} onEdit={() => setEditing(c.id)} />
             ),
           )}
         </div>
@@ -76,7 +108,7 @@ export function ContactsBoard({ dossierId, initialContacts }: { dossierId: strin
   );
 }
 
-function ContactCard({ contact: c, onEdit }: { contact: Contact; onEdit: () => void }) {
+function ContactCard({ contact: c, onEdit, canEdit }: { contact: Contact; onEdit: () => void; canEdit: boolean }) {
   const link = c.contact ? contactLink(c.contact) : null;
   const LinkIcon = link?.kind === "mail" ? IconMail : link?.kind === "phone" ? IconPhone : IconGlobe;
 
@@ -90,8 +122,8 @@ function ContactCard({ contact: c, onEdit }: { contact: Contact; onEdit: () => v
           <h2 className="truncate text-[16px] font-bold">{c.org || "Organisme sans nom"}</h2>
           {c.role && <p className="text-[12.5px] text-muted">{c.role}</p>}
         </div>
-        <button type="button" onClick={onEdit} aria-label={`Modifier ${c.org || "le contact"}`} className="grid h-8 w-8 shrink-0 place-items-center rounded-lg text-muted hover:bg-surface-2 hover:text-ink">
-          <IconPencil size={15} />
+        <button type="button" onClick={onEdit} disabled={!canEdit} aria-label={`Modifier ${c.org || "le contact"}`} className="btn btn-sm btn-ghost shrink-0">
+          <IconPencil size={14} /> Modifier
         </button>
       </div>
 
@@ -134,7 +166,36 @@ function ContactCard({ contact: c, onEdit }: { contact: Contact; onEdit: () => v
   );
 }
 
-function ContactEditor({ contact: c, onChange, onDone, onDelete }: { contact: Contact; onChange: (p: Partial<Contact>) => void; onDone: () => void; onDelete: () => void }) {
+function ContactEditor({
+  contact,
+  isNew,
+  onSave,
+  onCancel,
+  onDelete,
+}: {
+  contact: Contact;
+  isNew: boolean;
+  onSave: (after: Contact) => Promise<void>;
+  onCancel: () => void;
+  onDelete: () => void;
+}) {
+  const [c, setC] = useState(contact);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const onChange = (p: Partial<Contact>) => setC((prev) => ({ ...prev, ...p }));
+  const dirty = isNew || JSON.stringify(c) !== JSON.stringify(contact);
+
+  async function save() {
+    setSaving(true);
+    setError(null);
+    try {
+      await onSave(c);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "L'enregistrement a échoué.");
+      setSaving(false);
+    }
+  }
+
   return (
     <article className="card anim-fade p-4 ring-2 ring-act-soft sm:p-5">
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -157,13 +218,23 @@ function ContactEditor({ contact: c, onChange, onDone, onDelete }: { contact: Co
           <textarea value={c.notes} onChange={(e) => onChange({ notes: e.target.value })} className="input" />
         </Field>
       </div>
-      <div className="mt-4 flex items-center justify-between">
-        <ConfirmButton label="Supprimer le contact" onConfirm={onDelete}>
-          <IconTrash size={13} /> Supprimer
-        </ConfirmButton>
-        <button type="button" onClick={onDone} className="btn btn-sm btn-primary">
-          <IconCheck size={14} /> Terminé
-        </button>
+      <div className="mt-4 flex flex-wrap items-center justify-between gap-2">
+        {isNew ? (
+          <span />
+        ) : (
+          <ConfirmButton label="Supprimer le contact" onConfirm={onDelete}>
+            <IconTrash size={13} /> Supprimer
+          </ConfirmButton>
+        )}
+        <div className="flex flex-wrap items-center gap-2">
+          {error && <span className="text-[12px] text-bad">{error}</span>}
+          <button type="button" onClick={onCancel} disabled={saving} className="btn btn-sm btn-ghost">
+            Annuler
+          </button>
+          <button type="button" onClick={() => void save()} disabled={saving || !dirty} className="btn btn-sm btn-primary">
+            <IconCheck size={14} /> {saving ? "Enregistrement…" : "Enregistrer"}
+          </button>
+        </div>
       </div>
     </article>
   );

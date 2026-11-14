@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, type ReactNode } from "react";
 import { EDU_LEVELS, FSW_PASS_THRESHOLD, fswCalc } from "@/lib/rules";
 import type { FirstLanguage, FswProfile, HistoryEntry } from "@/lib/types";
 import { Chip, Meter, type Tone } from "@/components/ui";
@@ -22,9 +22,12 @@ interface Props {
   profileDate: string | null;
   history: HistoryEntry[];
   onChange: (patch: Partial<FswProfile>) => void;
+  editing: boolean;
+  actions?: ReactNode;
 }
 
-export function FswGrid({ fsw, naissance, profileDate, history, onChange }: Props) {
+export function FswGrid({ fsw, naissance, profileDate, history, onChange, editing, actions }: Props) {
+  const off = !editing;
   const r = useMemo(() => fswCalc(fsw, naissance, profileDate, history), [fsw, naissance, profileDate, history]);
   const second = other(fsw.first);
   const statusTone: Tone = r.status === "Admissible" ? "ok" : r.status === "À compléter" ? "todo" : "bad";
@@ -40,16 +43,20 @@ export function FswGrid({ fsw, naissance, profileDate, history, onChange }: Prop
   ];
 
   return (
-    <section className="card p-4 sm:p-5">
+    <section className={`card p-4 sm:p-5 ${editing ? "ring-2 ring-act-soft" : ""}`}>
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div>
           <h2 className="text-[17px] font-bold">Grille des travailleurs qualifiés</h2>
           <p className="text-[12.5px] text-muted">Admissibilité au programme fédéral (Entrée express) · seuil {FSW_PASS_THRESHOLD} / 100</p>
         </div>
-        <Chip tone={statusTone} dot>
-          {r.status}
-        </Chip>
+        <div className="flex flex-wrap items-center gap-2">
+          <Chip tone={statusTone} dot>
+            {r.status}
+          </Chip>
+          {actions}
+        </div>
       </div>
+      {editing && <p className="mt-2 text-[12px] text-muted">Le score se met à jour pendant la saisie ; il n&apos;est enregistré qu&apos;au clic sur « Enregistrer ».</p>}
 
       <div className="mt-5 grid gap-6 lg:grid-cols-[minmax(0,240px)_minmax(0,1fr)]">
         <div>
@@ -90,23 +97,23 @@ export function FswGrid({ fsw, naissance, profileDate, history, onChange }: Prop
         <div>
           <div className="flex items-center justify-between gap-2">
             <span className="field-label mb-0">Langue première</span>
-            <select value={fsw.first} onChange={(e) => onChange({ first: e.target.value as FirstLanguage })} className="input w-auto py-1 text-[13px]" aria-label="Langue première">
+            <select disabled={off} value={fsw.first} onChange={(e) => onChange({ first: e.target.value as FirstLanguage })} className="input w-auto py-1 text-[13px]" aria-label="Langue première">
               <option value="fr">Français (TCF / TEF)</option>
               <option value="en">Anglais (IELTS / CELPIP)</option>
             </select>
           </div>
-          <ScoreInputs lang={fsw.first} fsw={fsw} onChange={onChange} />
+          <ScoreInputs lang={fsw.first} fsw={fsw} onChange={onChange} disabled={off} />
         </div>
         <div>
           <span className="field-label">Deuxième langue officielle ({second === "fr" ? "français" : "anglais"})</span>
-          <ScoreInputs lang={second} fsw={fsw} onChange={onChange} />
+          <ScoreInputs lang={second} fsw={fsw} onChange={onChange} disabled={off} />
         </div>
       </div>
 
       <div className="mt-4 grid gap-3 md:grid-cols-3">
         <label>
           <span className="field-label">Études (équivalence canadienne)</span>
-          <select value={fsw.edu} onChange={(e) => onChange({ edu: e.target.value })} className="input">
+          <select disabled={off} value={fsw.edu} onChange={(e) => onChange({ edu: e.target.value })} className="input">
             {EDU_LEVELS.map((e) => (
               <option key={e.code} value={e.code}>
                 {e.label} ({e.points})
@@ -116,14 +123,14 @@ export function FswGrid({ fsw, naissance, profileDate, history, onChange }: Prop
         </label>
         <label>
           <span className="field-label">Offre d&apos;emploi réservé</span>
-          <select value={fsw.arranged} onChange={(e) => onChange({ arranged: e.target.value as FswProfile["arranged"] })} className="input">
+          <select disabled={off} value={fsw.arranged} onChange={(e) => onChange({ arranged: e.target.value as FswProfile["arranged"] })} className="input">
             <option value="0">Non (0 pt)</option>
             <option value="10">Oui (10 pts)</option>
           </select>
         </label>
         <label>
           <span className="field-label">Capacité d&apos;adaptation</span>
-          <select value={fsw.adapt} onChange={(e) => onChange({ adapt: e.target.value as FswProfile["adapt"] })} className="input">
+          <select disabled={off} value={fsw.adapt} onChange={(e) => onChange({ adapt: e.target.value as FswProfile["adapt"] })} className="input">
             <option value="0">0 pt</option>
             <option value="5">5 pts</option>
             <option value="10">10 pts</option>
@@ -173,7 +180,7 @@ function SimCell({ total }: { total: number }) {
   );
 }
 
-function ScoreInputs({ lang, fsw, onChange }: { lang: FirstLanguage; fsw: FswProfile; onChange: (patch: Partial<FswProfile>) => void }) {
+function ScoreInputs({ lang, fsw, onChange, disabled }: { lang: FirstLanguage; fsw: FswProfile; onChange: (patch: Partial<FswProfile>) => void; disabled: boolean }) {
   return (
     <div className="mt-2 grid grid-cols-4 gap-2">
       {TESTS.map(([k, short, label]) => {
@@ -189,6 +196,7 @@ function ScoreInputs({ lang, fsw, onChange }: { lang: FirstLanguage; fsw: FswPro
               min={0}
               max={12}
               value={v}
+              disabled={disabled}
               placeholder="—"
               aria-label={`${label} (${lang === "fr" ? "français" : "anglais"}), niveau NCLC`}
               onChange={(e) => onChange({ [key]: e.target.value } as Partial<FswProfile>)}

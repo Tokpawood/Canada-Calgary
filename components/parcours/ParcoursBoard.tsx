@@ -217,6 +217,7 @@ export function ParcoursBoard({ initialSteps }: { initialSteps: Step[] }) {
 
       {selected && (
         <StepDrawer
+          key={selected.id}
           step={selected}
           position={selectedPosition}
           total={steps.length}
