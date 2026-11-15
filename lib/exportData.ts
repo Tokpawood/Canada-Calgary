@@ -25,6 +25,7 @@ import type {
   Saving,
   Step,
 } from "./types";
+import type { ContactPerson, ContactStepLink } from "./network";
 
 export interface FullBundle {
   dossier: Dossier;
@@ -35,6 +36,9 @@ export interface FullBundle {
   documents: DocumentRecord[];
   savings: Saving[];
   contacts: Contact[];
+  /** Personnes des organismes et indépendantes, et leurs liens vers les étapes. */
+  persons: ContactPerson[];
+  contactLinks: ContactStepLink[];
   gaps: Gap[];
   history: HistoryEntry[];
   addresses: AddressEntry[];
@@ -54,12 +58,7 @@ export async function getFullBundle(supabase: SupabaseClient, dossier: Dossier):
     getAddressEntries(supabase, dossier.id),
   ]);
 
-  // Les personnes de chaque organisme reprennent la place de l'ancien champ « interlocuteur » (texte) dans les exports.
-  const { persons } = await getNetwork(supabase, dossier.id);
-  for (const c of contacts) {
-    const team = persons.filter((p) => p.contactId === c.id).map((p) => [p.name, p.title, p.email, p.phone].filter(Boolean).join(", "));
-    if (team.length) c.person = team.join(" ; ");
-  }
+  const { persons, links: contactLinks } = await getNetwork(supabase, dossier.id);
 
   return {
     dossier,
@@ -70,6 +69,8 @@ export async function getFullBundle(supabase: SupabaseClient, dossier: Dossier):
     documents,
     savings,
     contacts,
+    persons,
+    contactLinks,
     gaps,
     history,
     addresses,
@@ -115,7 +116,28 @@ export function toRawDossierJson(bundle: FullBundle) {
       files: [] as unknown[],
     })),
     savings: bundle.savings.map((s) => ({ id: s.id, label: s.label, planned: s.planned, actual: s.actual, notes: s.notes })),
-    contacts: bundle.contacts.map((c) => ({ id: c.id, org: c.org, role: c.role, contact: c.contact, person: c.person, next: c.next, notes: c.notes })),
+    contacts: bundle.contacts.map((c) => ({ id: c.id, org: c.org, role: c.role, contact: c.contact, person: "", next: c.next, notes: c.notes, stage: c.stage })),
+    people: bundle.persons.map((p) => ({
+      id: p.id,
+      contact: p.contactId,
+      parent: p.parentId,
+      name: p.name,
+      title: p.title,
+      relation: p.relation,
+      email: p.email,
+      phone: p.phone,
+      whatsapp: p.whatsapp,
+      website: p.website,
+      address: p.address,
+      city: p.city,
+      country: p.country,
+      birth: p.birthDate,
+      nationality: p.nationality,
+      idType: p.idType,
+      idNumber: p.idNumber,
+      notes: p.notes,
+    })),
+    contactLinks: bundle.contactLinks.map((l) => ({ step: l.stepId, contact: l.contactId, person: l.personId })),
     identity: { nom: bundle.identity.nom, prenoms: bundle.identity.prenoms, naissance: bundle.identity.naissance ?? "", lieu: bundle.identity.lieu, pere: bundle.identity.pere, mere: bundle.identity.mere, statut: bundle.identity.statut },
     gaps: bundle.gaps.map((g) => ({ t: g.text, done: g.done })),
     history: bundle.history.map((h) => ({ id: h.id, from: h.from, to: h.to, type: h.type, activity: h.activity, org: h.org, place: h.place, parallel: h.parallel })),

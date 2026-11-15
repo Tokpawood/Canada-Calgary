@@ -65,7 +65,7 @@ export default function ImportPage() {
     if (dossierId) {
       const { error: updateError } = await supabase.from("dossier").update(dossierRow).eq("id", dossierId);
       if (updateError) return fail(updateError.message);
-      for (const table of ["step", "document", "saving", "contact", "gap", "history", "address"]) {
+      for (const table of ["step", "document", "saving", "contact_person", "contact", "gap", "history", "address"]) {
         const { error: deleteError } = await supabase.from(table).delete().eq("dossier_id", dossierId);
         if (deleteError) return fail(deleteError.message);
       }
@@ -89,6 +89,8 @@ export default function ImportPage() {
       () => insertIfAny(supabase, "document_link", plan.documentLinks),
       () => insertIfAny(supabase, "saving", plan.savings),
       () => insertIfAny(supabase, "contact", plan.contacts),
+      ...plan.peopleLevels.map((level) => () => insertIfAny(supabase, "contact_person", level)),
+      () => insertIfAny(supabase, "contact_step", plan.contactLinks),
       () => insertIfAny(supabase, "gap", plan.gaps),
       () => insertIfAny(supabase, "history", plan.history),
       () => insertIfAny(supabase, "address", plan.addresses),
@@ -135,7 +137,7 @@ export default function ImportPage() {
 
       <p className="mt-3 flex items-start gap-2 text-[12.5px] text-muted">
         <IconInfo size={15} className="mt-px shrink-0" />
-        Un nouvel import remplace les étapes, documents, épargne, contacts, écarts, historique et adresses déjà présents. Les scans du coffre ne sont pas touchés.
+        Un nouvel import remplace les étapes, documents, épargne, contacts (organismes, personnes et liens), écarts, historique et adresses déjà présents. Les scans du coffre ne sont pas touchés.
       </p>
 
       {phase === "error" && error && <p className="mt-4 rounded-lg bg-bad-bg px-3 py-2 text-[13px] text-bad">{error}</p>}

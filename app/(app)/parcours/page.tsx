@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { getContacts, getDossierForUser, getNetwork, getSavingsActual, getStepsWithDetails } from "@/lib/queries";
+import { getContacts, getDossierForUser, getNetwork, getSavingsActual, getStepsWithDetails, signPhotos } from "@/lib/queries";
 import { fundsProgress } from "@/lib/rules";
 import type { Stat } from "@/components/StatsRow";
 import { ParcoursBoard } from "@/components/parcours/ParcoursBoard";
@@ -13,6 +13,11 @@ export default async function ParcoursPage({ searchParams }: { searchParams: Pro
 
   const [steps, savings, contacts] = await Promise.all([getStepsWithDetails(supabase, dossier.id), getSavingsActual(supabase, dossier.id), getContacts(supabase, dossier.id)]);
   const { persons, links } = await getNetwork(supabase, dossier.id);
+  const logos = await signPhotos(
+    supabase,
+    contacts.map((c) => c.photoPath),
+  );
+  const withLogos = contacts.map((c) => ({ ...c, photoUrl: c.photoPath ? (logos.get(c.photoPath) ?? null) : null }));
   const funds = fundsProgress(savings, dossier);
 
   const fundsStat: Stat = {
@@ -30,7 +35,7 @@ export default async function ParcoursPage({ searchParams }: { searchParams: Pro
       initialSteps={steps}
       fundsStat={fundsStat}
       profileDate={dossier.profileDate}
-      network={{ contacts, persons, links }}
+      network={{ contacts: withLogos, persons, links }}
       initialOpen={typeof etape === "string" ? etape : null}
     />
   );

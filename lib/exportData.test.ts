@@ -46,6 +46,33 @@ const bundle: FullBundle = {
   ],
   savings: [{ id: "e1", dossierId: "dossier-1", label: "Nov", planned: 100, actual: 50, notes: "" }],
   contacts: [{ id: "ct1", dossierId: "dossier-1", org: "Org", role: "Rôle", contact: "", person: "", next: "", notes: "", stage: "en-contact" }],
+  persons: [
+    {
+      id: "p1",
+      dossierId: "dossier-1",
+      contactId: null,
+      parentId: null,
+      name: "Coursier",
+      title: "",
+      email: "",
+      phone: "0102",
+      notes: "",
+      position: 0,
+      relation: "Coursier",
+      whatsapp: "",
+      website: "",
+      address: "",
+      city: "",
+      country: "",
+      birthDate: null,
+      nationality: "",
+      idType: "CNI",
+      idNumber: "X1",
+      photoPath: null,
+      photoUrl: null,
+    },
+  ],
+  contactLinks: [{ id: "l1", stepId: "s1", contactId: null, personId: "p1" }],
   gaps: [{ id: "g1", dossierId: "dossier-1", text: "écart", done: false }],
   history: [{ id: "h1", dossierId: "dossier-1", from: "2018-01-01", to: "2020-01-01", type: "Travail", activity: "Emploi", org: "", place: "", parallel: false }],
   addresses: [{ id: "a1", dossierId: "dossier-1", from: "2018-01-01", to: "", address: "Adresse", city: "Ville", note: "", parallel: false }],
@@ -61,5 +88,29 @@ describe("toRawDossierJson", () => {
     expect(parsed.addresses).toHaveLength(1);
     expect(raw.steps[0].sub).toEqual([{ t: "a", done: true }]);
     expect(raw.docs[0].checks).toEqual([{ t: "vérifié", done: true }]);
+  });
+});
+
+describe("réseau des contacts à l'export et au ré-import", () => {
+  it("garde les personnes indépendantes, leur identité et leurs tâches liées", async () => {
+    const { buildImportPlan } = await import("./import");
+    const parsed = rawDossierSchema.parse(toRawDossierJson(bundle));
+    expect(parsed.contacts[0].stage).toBe("en-contact");
+    const plan = buildImportPlan("dossier-2", parsed);
+    const [person] = plan.peopleLevels.flat();
+    expect(person).toMatchObject({ dossier_id: "dossier-2", contact_id: null, name: "Coursier", relation: "Coursier", id_type: "CNI", id_number: "X1" });
+    expect(plan.contactLinks).toEqual([{ step_id: "s1", contact_id: null, person_id: person.id }]);
+  });
+
+  it("insère chaque responsable avant ses collaborateurs", async () => {
+    const { buildImportPlan } = await import("./import");
+    const raw = rawDossierSchema.parse(toRawDossierJson(bundle));
+    raw.people = [
+      { ...raw.people[0], id: "b", contact: "ct1", parent: "a", name: "Agent" },
+      { ...raw.people[0], id: "a", contact: "ct1", parent: null, name: "Chef" },
+    ];
+    const plan = buildImportPlan("d", raw);
+    expect(plan.peopleLevels.map((l) => l.map((p) => p.name))).toEqual([["Chef"], ["Agent"]]);
+    expect(plan.peopleLevels[1][0].parent_id).toBe(plan.peopleLevels[0][0].id);
   });
 });

@@ -50,7 +50,31 @@ const contactSchema = z.object({
   person: z.string().optional().default(""),
   next: z.string().optional().default(""),
   notes: z.string().optional().default(""),
+  stage: z.enum(["a-contacter", "en-contact", "en-attente", "etabli", "termine"]).optional(),
 });
+
+const str = z.string().optional().default("");
+const personSchema = z.object({
+  id: z.string(),
+  contact: z.string().nullable().optional(),
+  parent: z.string().nullable().optional(),
+  name: z.string().min(1).max(120),
+  title: str,
+  relation: str,
+  email: str,
+  phone: str,
+  whatsapp: str,
+  website: str,
+  address: str,
+  city: str,
+  country: str,
+  birth: z.string().nullable().optional(),
+  nationality: str,
+  idType: str,
+  idNumber: str,
+  notes: str,
+});
+const contactLinkSchema = z.object({ step: z.string(), contact: z.string().nullable().optional(), person: z.string().nullable().optional() });
 
 const gapSchema = z.object({ t: z.string(), done: z.boolean().default(false) });
 
@@ -153,6 +177,8 @@ export const rawDossierSchema = z.object({
   docs: z.array(docSchema),
   savings: z.array(savingSchema).optional().default([]),
   contacts: z.array(contactSchema).optional().default([]),
+  people: z.array(personSchema).optional().default([]),
+  contactLinks: z.array(contactLinkSchema).optional().default([]),
   identity: identitySchema.optional().default(EMPTY_IDENTITY),
   gaps: z.array(gapSchema).optional().default([]),
   history: z.array(historySchema).optional().default([]),
@@ -176,6 +202,9 @@ export interface ImportPlan {
   documentLinks: Array<Record<string, unknown>>;
   savings: Array<Record<string, unknown>>;
   contacts: Array<Record<string, unknown>>;
+  /** Personnes par niveau d'organigramme : chaque niveau s'insère après celui de ses responsables. */
+  peopleLevels: Array<Array<Record<string, unknown>>>;
+  contactLinks: Array<Record<string, unknown>>;
   gaps: Array<Record<string, unknown>>;
   history: Array<Record<string, unknown>>;
   addresses: Array<Record<string, unknown>>;
@@ -251,8 +280,69 @@ export function buildImportPlan(dossierId: string, raw: RawDossier): ImportPlan 
     person: c.person,
     next: c.next,
     notes: c.notes,
+    ...(c.stage ? { stage: c.stage } : {}),
     position: i,
   }));
+
+  // Nouveaux identifiants pour les personnes ; les références (organisme, responsable, liens) suivent.
+  const contactIds = new Set(raw.contacts.map((c) => c.id));
+  const stepIds = new Set(raw.steps.map((s) => s.id));
+  const newIdOf = new Map(raw.people.map((p) => [p.id, crypto.randomUUID()]));
+  const byOld = new Map(raw.people.map((p) => [p.id, p]));
+  const orgOf = (p: (typeof raw.people)[number]) => (p.contact && contactIds.has(p.contact) ? p.contact : null);
+  const parentOf = (p: (typeof raw.people)[number]) => {
+    const parent = p.parent ? byOld.get(p.parent) : undefined;
+    return parent && parent.id !== p.id && orgOf(parent) === orgOf(p) ? parent.id : null;
+  };
+  const depth = new Map<string, number>();
+  const depthOf = (id: string, seen = new Set<string>()): number => {
+    if (depth.has(id)) return depth.get(id)!;
+    const p = byOld.get(id)!;
+    const parent = parentOf(p);
+    const d = parent && !seen.has(parent) ? depthOf(parent, new Set([...seen, id])) + 1 : 0;
+    depth.set(id, d);
+    return d;
+  };
+  const peopleLevels: Array<Array<Record<string, unknown>>> = [];
+  raw.people.forEach((p, i) => {
+    const d = depthOf(p.id);
+    const parent = parentOf(p);
+    // En cas de boucle, la personne remonte en haut de l'organigramme.
+    const parentId = parent && depthOf(parent) < d ? newIdOf.get(parent) : null;
+    (peopleLevels[d] ??= []).push({
+      id: newIdOf.get(p.id),
+      dossier_id: dossierId,
+      contact_id: orgOf(p),
+      parent_id: parentId,
+      name: p.name,
+      title: p.title,
+      relation: p.relation,
+      email: p.email,
+      phone: p.phone,
+      whatsapp: p.whatsapp,
+      website: p.website,
+      address: p.address,
+      city: p.city,
+      country: p.country,
+      birth_date: p.birth && /^\d{4}-\d{2}-\d{2}$/.test(p.birth) ? p.birth : null,
+      nationality: p.nationality,
+      id_type: p.idType,
+      id_number: p.idNumber,
+      notes: p.notes,
+      position: i,
+    });
+  });
+  const seenLinks = new Set<string>();
+  const contactLinks = raw.contactLinks.flatMap((l) => {
+    const person = l.person ? byOld.get(l.person) : undefined;
+    const personId = person ? newIdOf.get(person.id)! : null;
+    const contactId = person ? orgOf(person) : l.contact && contactIds.has(l.contact) ? l.contact : null;
+    if (!stepIds.has(l.step) || (!personId && !contactId)) return [];
+    const key = `${l.step}|${contactId}|${personId}`;
+    if (seenLinks.has(key)) return [];
+    seenLinks.add(key);
+    return [{ step_id: l.step, contact_id: contactId, person_id: personId }];
+  });
 
   const gaps = raw.gaps.map((g, i) => ({ id: genId("gap"), dossier_id: dossierId, text: g.t, done: g.done, position: i }));
 
@@ -294,6 +384,8 @@ export function buildImportPlan(dossierId: string, raw: RawDossier): ImportPlan 
     documentLinks,
     savings,
     contacts,
+    peopleLevels: peopleLevels.filter(Boolean),
+    contactLinks,
     gaps,
     history,
     addresses,

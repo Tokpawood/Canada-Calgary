@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getDossierForUser } from "@/lib/queries";
 import { getFullBundle } from "@/lib/exportData";
 import { budgetByPhase } from "@/lib/rules";
+import { CONTACT_STAGES } from "@/lib/network";
 
 export async function GET() {
   const supabase = await createClient();
@@ -77,8 +78,52 @@ export async function GET() {
   bundle.savings.forEach((s) => saving.addRow([s.label, s.planned ?? "", s.actual ?? "", s.notes]));
 
   const contacts = wb.addWorksheet("Contacts");
-  contacts.addRow(["Organisme", "Rôle", "Contact", "Interlocuteur", "Prochaine action", "Notes"]);
-  bundle.contacts.forEach((c) => contacts.addRow([c.org, c.role, c.contact, c.person, c.next, c.notes]));
+  contacts.addRow(["Organisme", "Rôle", "Étape", "Contact", "Équipe", "Prochaine action", "Notes"]);
+  bundle.contacts.forEach((c) =>
+    contacts.addRow([
+      c.org,
+      c.role,
+      CONTACT_STAGES.find((s) => s.id === c.stage)?.label ?? c.stage,
+      c.contact,
+      bundle.persons
+        .filter((p) => p.contactId === c.id)
+        .map((p) => p.name)
+        .join(", "),
+      c.next,
+      c.notes,
+    ]),
+  );
+
+  const orgName = new Map(bundle.contacts.map((c) => [c.id, c.org]));
+  const stepTitle = new Map(bundle.steps.map((s) => [s.id, s.title]));
+  const nameOf = new Map(bundle.persons.map((p) => [p.id, p.name]));
+  const people = wb.addWorksheet("Réseau");
+  people.addRow(["Nom", "Organisme", "Rattachée à", "Fonction", "Ce qu'elle est pour vous", "Téléphone", "WhatsApp", "Courriel", "Site", "Adresse", "Ville", "Pays", "Naissance", "Nationalité", "Pièce", "Numéro", "Tâches liées", "Notes"]);
+  bundle.persons.forEach((p) =>
+    people.addRow([
+      p.name,
+      p.contactId ? (orgName.get(p.contactId) ?? "") : "Indépendant",
+      p.parentId ? (nameOf.get(p.parentId) ?? "") : "",
+      p.title,
+      p.relation,
+      p.phone,
+      p.whatsapp,
+      p.email,
+      p.website,
+      p.address,
+      p.city,
+      p.country,
+      p.birthDate ?? "",
+      p.nationality,
+      p.idType,
+      p.idNumber,
+      bundle.contactLinks
+        .filter((l) => l.personId === p.id)
+        .map((l) => stepTitle.get(l.stepId) ?? "")
+        .join(" ; "),
+      p.notes,
+    ]),
+  );
 
   const gaps = wb.addWorksheet("Écarts à surveiller");
   gaps.addRow(["Écart", "Résolu"]);
