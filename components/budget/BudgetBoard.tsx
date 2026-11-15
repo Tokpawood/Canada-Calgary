@@ -7,11 +7,15 @@ import { Chip, Meter, PageHeader, dueInfo, fcfa } from "@/components/ui";
 import { EditBar, useEditable } from "@/components/editable";
 import { DarkHeader, DarkTiles, HeaderTabs, useHashTab } from "@/components/DarkHeader";
 import { IconCalendar, IconGlobe, IconRoute, IconWallet } from "@/components/icons";
+import type { Rates } from "@/lib/currency";
+import { Converter } from "./Converter";
 
 interface Props {
   dossier: Dossier;
   rows: Array<{ phase: string; planned: number; actual: number }>;
   upcoming: Array<{ id: string; title: string; due: string | null; planned: number; phase: string }>;
+  /** Taux du jour (BCE), ou null si indisponible. */
+  rates: Rates | null;
 }
 
 const TABS = ["phases", "a-payer", "conversion"] as const;
@@ -19,10 +23,9 @@ type Tab = (typeof TABS)[number];
 
 const shortPhase = (p: string) => p.replace(/^\d+\.\s*/, "");
 
-export function BudgetBoard({ dossier, rows, upcoming }: Props) {
+export function BudgetBoard({ dossier, rows, upcoming, rates }: Props) {
   const [savedRate, setSavedRate] = useState(dossier.cadRate);
   const [tab, setTab] = useHashTab<Tab>(TABS, "phases");
-  const [convert, setConvert] = useState("");
   const supabase = createClient();
   const rateEd = useEditable({ rate: savedRate }, async (d) => {
     const { error } = await supabase.from("dossier").update({ cad_rate: d.rate }).eq("id", dossier.id);
@@ -42,10 +45,13 @@ export function BudgetBoard({ dossier, rows, upcoming }: Props) {
   });
   const overPhases = rows.filter((r) => r.planned > 0 && r.actual > r.planned).length;
 
-  const cadNum = (n: number) => (savedRate > 0 ? new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 0 }).format(n / savedRate) : "—");
-  const cad = (n: number) => (savedRate > 0 ? `≈ ${cadNum(n)} $ CA` : "—");
-
-  const convertValue = Number(convert.replace(/\s/g, "").replace(",", "."));
+  // Estimations en dollars canadiens : taux du jour s'il est disponible, sinon le taux enregistré.
+  const liveCad = rates?.perXof.CAD ?? null;
+  const estRate = liveCad ?? savedRate;
+  const cadNum = (n: number) => (estRate > 0 ? new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 0 }).format(n / estRate) : "—");
+  const cad = (n: number) => (estRate > 0 ? `≈ ${cadNum(n)} $ CA` : "—");
+  const rateDate = rates ? new Date(`${rates.date}T12:00:00`).toLocaleDateString("fr-FR", { day: "numeric", month: "long" }) : null;
+  const fmt2 = (n: number) => new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 2 }).format(n);
 
   return (
     <>
@@ -229,11 +235,28 @@ export function BudgetBoard({ dossier, rows, upcoming }: Props) {
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
                   <h2 className="text-[16px] font-bold">Taux de conversion</h2>
-                  <p className="text-[12.5px] text-muted">Utilisé pour toutes les estimations en dollars canadiens.</p>
+                  <p className="text-[12.5px] text-muted">
+                    {liveCad ? "Les estimations en dollars canadiens suivent le taux du jour." : "Taux du jour indisponible : les estimations utilisent votre taux enregistré."}
+                  </p>
                 </div>
-                <EditBar edit={rateEd} />
+                <EditBar edit={rateEd} label="Modifier mon taux" />
               </div>
-              <label className="mt-5 flex items-center gap-3 text-[15px]">
+              {rates && (
+                <div className="mt-4 rounded-xl bg-surface-2 px-4 py-3">
+                  <p className="text-[11.5px] font-semibold tracking-wide text-muted uppercase">Taux du jour · {rateDate}</p>
+                  <dl className="mono mt-1.5 grid grid-cols-1 gap-x-4 gap-y-0.5 text-[14px] sm:grid-cols-3">
+                    {(["CAD", "EUR", "USD"] as const).map((c) => (
+                      <div key={c} className="flex gap-1.5">
+                        <dt className="text-muted">1 {c === "CAD" ? "$ CA" : c === "EUR" ? "€" : "$ US"} =</dt>
+                        <dd className="m-0 font-semibold">{fmt2(rates.perXof[c])} F</dd>
+                      </div>
+                    ))}
+                  </dl>
+                  <p className="mt-1.5 text-[11.5px] text-faint">Source : {rates.source}, mise à jour chaque jour ouvré. 1 € = 655,957 FCFA (parité fixe).</p>
+                </div>
+              )}
+              <p className="mt-4 text-[12.5px] font-semibold text-muted">Mon taux (celui de ma banque)</p>
+              <label className="mt-1.5 flex flex-wrap items-center gap-3 text-[15px]">
                 <span className="font-semibold">1 $ CA =</span>
                 <input
                   type="number"
@@ -245,27 +268,21 @@ export function BudgetBoard({ dossier, rows, upcoming }: Props) {
                   className="input mono w-32 text-right text-[18px] font-semibold"
                 />
                 <span className="font-semibold">FCFA</span>
+                {rateEd.editing && liveCad && (
+                  <button type="button" onClick={() => rateEd.set({ rate: Math.round(liveCad * 100) / 100 })} className="btn btn-sm btn-ghost">
+                    Reprendre le taux du jour
+                  </button>
+                )}
               </label>
-              <p className="mt-4 text-[12px] text-faint">Vérifiez le taux avant chaque paiement important : il varie selon la banque et le jour.</p>
+              <p className="mt-4 text-[12px] text-faint">Votre banque ajoute une marge au taux de référence : saisissez son taux pour estimer un virement au plus juste (« Mon taux » dans le convertisseur).</p>
             </section>
 
-            <section className="card p-4 sm:p-6">
-              <h2 className="text-[16px] font-bold">Convertisseur</h2>
-              <p className="text-[12.5px] text-muted">Saisissez un montant en francs CFA.</p>
-              <div className="mt-5 grid grid-cols-1 items-center gap-3 sm:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)]">
-                <label>
-                  <span className="field-label">FCFA</span>
-                  <input value={convert} onChange={(e) => setConvert(e.target.value)} inputMode="numeric" placeholder="Ex. 250 000" className="input mono text-right" />
-                </label>
-                <span className="hidden pt-5 text-faint sm:block">→</span>
-                <div>
-                  <span className="field-label">Dollars canadiens</span>
-                  <p className="mono rounded-xl bg-surface-2 px-3 py-2 text-right text-[15px] font-semibold">
-                    {convert && Number.isFinite(convertValue) && savedRate > 0 ? `${new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 2 }).format(convertValue / savedRate)} $` : "—"}
-                  </p>
-                </div>
-              </div>
-              <dl className="mt-5 grid grid-cols-3 gap-3 border-t border-line pt-4">
+            <div className="flex flex-col gap-5">
+              <Converter rates={rates} savedCadRate={savedRate} />
+              <section className="card p-4 sm:p-6">
+                <h2 className="text-[15px] font-bold">Budget en dollars canadiens</h2>
+                <p className="text-[12.5px] text-muted">{liveCad ? `Au taux du jour (${rateDate}).` : "Au taux enregistré."}</p>
+              <dl className="mt-4 grid grid-cols-3 gap-3">
                 {[
                   { label: "Prévu", v: totalPlanned },
                   { label: "Payé", v: totalActual },
@@ -277,7 +294,8 @@ export function BudgetBoard({ dossier, rows, upcoming }: Props) {
                   </div>
                 ))}
               </dl>
-            </section>
+              </section>
+            </div>
           </div>
         )}
       </div>
