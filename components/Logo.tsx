@@ -1,7 +1,7 @@
 import { useId } from "react";
 
 /**
- * Logo de l'application : un trajet pointillé qui part d'Abidjan (point) et s'envole vers Calgary (avion).
+ * Logo de l'application : un trajet pointillé qui part du point de départ et s'envole vers Calgary (avion).
  * Animé à l'apparition (traînée qui se dessine, avion qui décolle), puis l'avion « flotte » doucement.
  */
 export function Logo({ size = 40, animated = true, className = "" }: { size?: number; animated?: boolean; className?: string }) {

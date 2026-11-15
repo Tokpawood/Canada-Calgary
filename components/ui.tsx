@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useSyncExternalStore, type ReactNode } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import type { DocumentStatus, StepStatus } from "@/lib/types";
 import { daysUntil, parseD } from "@/lib/rules";
@@ -165,13 +165,15 @@ export function ConfirmButton({
   className = "btn btn-sm btn-danger",
   children,
 }: {
-  onConfirm: () => void;
+  /** Peut renvoyer une promesse : le bouton reste désactivé jusqu'à la fin (pas de double suppression). */
+  onConfirm: () => void | Promise<unknown>;
   label: string;
   confirmLabel?: string;
   className?: string;
   children?: ReactNode;
 }) {
   const [armed, setArmed] = useState(false);
+  const [busy, setBusy] = useState(false);
   useEffect(() => {
     if (!armed) return;
     const t = setTimeout(() => setArmed(false), 6000);
@@ -181,17 +183,24 @@ export function ConfirmButton({
     <button
       type="button"
       data-armed={armed}
-      aria-label={armed ? confirmLabel : label}
+      disabled={busy}
+      aria-busy={busy || undefined}
+      aria-label={busy ? "En cours…" : armed ? confirmLabel : label}
       onClick={(e) => {
         e.stopPropagation();
+        if (busy) return;
         if (armed) {
           setArmed(false);
-          onConfirm();
+          const result = onConfirm();
+          if (result instanceof Promise) {
+            setBusy(true);
+            void result.finally(() => setBusy(false));
+          }
         } else setArmed(true);
       }}
-      className={className}
+      className={`${className} disabled:opacity-60`}
     >
-      {armed ? confirmLabel : (children ?? label)}
+      {busy ? "En cours…" : armed ? confirmLabel : (children ?? label)}
     </button>
   );
 }
@@ -218,6 +227,7 @@ export function Drawer({
   /** Boutons à côté de « Fermer » (ex. précédente / suivante). */
   topActions?: ReactNode;
 }) {
+  const panelRef = useRef<HTMLElement | null>(null);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
@@ -230,6 +240,38 @@ export function Drawer({
     };
   }, [onClose]);
 
+  // Accessibilité : le focus entre dans le panneau, y reste avec Tab, puis revient là où il était à la fermeture.
+  useEffect(() => {
+    const previous = document.activeElement as HTMLElement | null;
+    const t = setTimeout(() => {
+      const panel = panelRef.current;
+      if (panel && !panel.contains(document.activeElement)) panel.focus({ preventScroll: true });
+    }, 0);
+    const onTab = (e: KeyboardEvent) => {
+      const panel = panelRef.current;
+      if (e.key !== "Tab" || !panel) return;
+      const items = Array.from(panel.querySelectorAll<HTMLElement>('a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])')).filter(
+        (el) => el.offsetParent !== null,
+      );
+      if (!items.length) return;
+      const first = items[0];
+      const last = items[items.length - 1];
+      if (e.shiftKey && (document.activeElement === first || document.activeElement === panel)) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
+    };
+    document.addEventListener("keydown", onTab);
+    return () => {
+      clearTimeout(t);
+      document.removeEventListener("keydown", onTab);
+      if (previous && document.contains(previous)) previous.focus({ preventScroll: true });
+    };
+  }, []);
+
   // Rendu directement dans <body> : un ancêtre animé (transform) ne doit pas enfermer le tiroir dans la zone de contenu.
   const mounted = useSyncExternalStore(noopSubscribe, () => true, () => false);
   if (!mounted) return null;
@@ -237,10 +279,12 @@ export function Drawer({
   return createPortal(
     <div className="anim-fade fixed inset-0 z-50 flex justify-end bg-black/55 backdrop-blur-[3px]" onClick={onClose}>
       <aside
+        ref={panelRef}
+        tabIndex={-1}
         role="dialog"
         aria-modal="true"
         aria-label={label}
-        className={`anim-drawer flex h-full w-full flex-col bg-surface shadow-2xl ${header ? "max-w-[560px] bg-bg lg:max-w-[600px]" : "max-w-[480px]"}`}
+        className={`anim-drawer flex h-full w-full flex-col bg-surface shadow-2xl outline-none ${header ? "max-w-[560px] bg-bg lg:max-w-[600px]" : "max-w-[480px]"}`}
         onClick={(e) => e.stopPropagation()}
       >
         {header ? (

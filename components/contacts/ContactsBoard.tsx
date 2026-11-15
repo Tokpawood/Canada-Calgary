@@ -669,10 +669,10 @@ function Kanban({
                         setDragId(null);
                         setOver(null);
                       }}
-                      className={dragId === c.id ? "opacity-50" : ""}
+                      className={`relative ${dragId === c.id ? "opacity-50" : ""}`}
                     >
                       <button type="button" onClick={() => onOpen(c.id)} className="card block w-full cursor-grab p-3 text-left hover:border-act/40 active:cursor-grabbing">
-                        <span className="flex items-center gap-2">
+                        <span className="flex items-center gap-2 pr-8">
                           <PhotoBadge url={c.photoUrl} label={(c.org.trim()[0] ?? "?").toUpperCase()} shape="square" size={30} className="ring-1 ring-line" />
                           <span className="min-w-0">
                             <span className="block truncate text-[14px] font-bold">{c.org || "Organisme sans nom"}</span>
@@ -689,6 +689,26 @@ function Kanban({
                           )}
                         </span>
                       </button>
+                      <label title="Déplacer vers…" className="absolute top-2 right-2 grid h-8 w-8 place-items-center rounded-lg text-muted hover:bg-surface-2 hover:text-ink focus-within:ring-2 focus-within:ring-act">
+                        <svg aria-hidden width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M5 9l-3 3 3 3M19 9l3 3-3 3M2 12h20" />
+                        </svg>
+                        <select
+                          value={c.stage}
+                          onChange={(e) => {
+                            const next = e.target.value as ContactStage;
+                            if (next !== c.stage) onMove(c.id, next);
+                          }}
+                          aria-label={`Déplacer ${c.org || "l'organisme"} vers une autre étape`}
+                          className="absolute inset-0 cursor-pointer opacity-0"
+                        >
+                          {CONTACT_STAGES.map((x) => (
+                            <option key={x.id} value={x.id}>
+                              {x.label}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
                     </li>
                   );
                 })}
@@ -698,7 +718,7 @@ function Kanban({
           );
         })}
       </div>
-      <p className="mt-2 text-[11.5px] text-faint">Glissez une carte d&apos;une colonne à l&apos;autre, ou changez l&apos;étape dans la fiche de l&apos;organisme.</p>
+      <p className="mt-2 text-[11.5px] text-faint">Glissez une carte d&apos;une colonne à l&apos;autre, ou touchez ses flèches pour la déplacer (pratique sur iPad).</p>
     </div>
   );
 }
