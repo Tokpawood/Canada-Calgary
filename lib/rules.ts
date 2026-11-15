@@ -382,7 +382,7 @@ export interface AuditItem {
 
 export interface AuditInput {
   steps: Array<Pick<Step, "id" | "title" | "status" | "due">>;
-  documents: Array<Pick<DocumentRecord, "id" | "status" | "checks" | "files">>;
+  documents: Array<Pick<DocumentRecord, "id" | "status" | "checks" | "files"> & { name?: string; expires?: string | null }>;
   gaps: Array<{ id: string; text: string; done: boolean }>;
   identity: Partial<Record<"nom" | "prenoms" | "naissance" | "lieu" | "pere" | "mere", string | null>>;
   profile: Partial<Record<"passeport" | "telephone" | "courriel", string | null>>;
@@ -444,6 +444,14 @@ export function audit(input: AuditInput, now: Date = new Date()): AuditItem[] {
     if (d.status === "Obtenu" && d.checks.some((c) => !c.done)) {
       out.push({ level: "md", text: "Document obtenu avec des contrôles incomplets", goto: "documents", targetId: d.id });
     }
+  }
+  for (const d of input.documents) {
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(d.expires ?? "");
+    if (!m) continue;
+    const days = Math.round((Date.UTC(+m[1], +m[2] - 1, +m[3]) - Date.UTC(now.getFullYear(), now.getMonth(), now.getDate())) / 86_400_000);
+    const name = d.name ? ` : ${d.name}` : "";
+    if (days < 0) out.push({ level: "hi", text: `Pièce expirée${name}`, goto: "documents", targetId: d.id });
+    else if (days <= 30) out.push({ level: "md", text: `Pièce qui expire dans ${days} jour${days > 1 ? "s" : ""}${name}`, goto: "documents", targetId: d.id });
   }
   for (const d of input.documents) {
     if (d.status === "Obtenu" && d.files.length === 0) {

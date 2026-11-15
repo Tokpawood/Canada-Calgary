@@ -368,3 +368,27 @@ describe("divers utilitaires", () => {
     expect(daysUntil("2026-11-06", NOW)).toBe(-7);
   });
 });
+
+describe("contrôle du dossier : validité des pièces", () => {
+  it("bloque une pièce expirée et signale celle qui expire sous 30 jours", async () => {
+    const { audit, fswCalc } = await import("./rules");
+    const doc = (id: string, expires: string) => ({ id, name: id, expires, status: "Obtenu" as const, checks: [], files: [{} as never] });
+    const items = audit(
+      {
+        steps: [],
+        documents: [doc("Passeport", "2026-11-01"), doc("Police", "2026-12-01"), doc("Diplôme", "2030-01-01")],
+        gaps: [],
+        identity: { nom: "N", prenoms: "P", naissance: "2000-01-01", lieu: "L", pere: "P", mere: "M" },
+        profile: {},
+        history: [],
+        addresses: [],
+        savings: [{ actual: 1 }],
+        fsw: { ...fswCalc({} as never, "2000-01-01", null, []), below: false, known: false },
+      },
+      new Date(2026, 10, 15),
+    );
+    expect(items.find((i) => i.text === "Pièce expirée : Passeport")?.level).toBe("hi");
+    expect(items.find((i) => i.text === "Pièce qui expire dans 16 jours : Police")?.level).toBe("md");
+    expect(items.some((i) => i.text.includes("Diplôme"))).toBe(false);
+  });
+});

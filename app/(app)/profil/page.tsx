@@ -48,7 +48,7 @@ export default async function ProfilPage() {
       initialAddresses={addresses}
       auditSnapshot={{
         steps: steps.map((s) => ({ id: s.id, title: s.title, status: s.status, due: s.due })),
-        documents: documents.map((d) => ({ id: d.id, status: d.status, checks: d.checks, files: d.files })),
+        documents: documents.map((d) => ({ id: d.id, name: d.name, expires: d.expires, status: d.status, checks: d.checks, files: d.files })),
         gaps,
         savings,
       }}
