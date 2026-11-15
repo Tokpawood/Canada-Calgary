@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { fundsProgress } from "@/lib/rules";
 import type { Dossier, Saving } from "@/lib/types";
+import type { Rates } from "@/lib/currency";
 import { newId } from "@/lib/ids";
 import { EmptyState, PageHeader, fcfa } from "@/components/ui";
 import { EditBar, useEditable } from "@/components/editable";
@@ -15,7 +16,7 @@ import { StatsRow } from "@/components/StatsRow";
 const TABS = ["evolution", "versements", "objectifs"] as const;
 type Tab = (typeof TABS)[number];
 
-export function EpargneBoard({ dossier, initialSavings }: { dossier: Dossier; initialSavings: Saving[] }) {
+export function EpargneBoard({ dossier, initialSavings, rates }: { dossier: Dossier; initialSavings: Saving[]; rates: Rates | null }) {
   const [savedRows, setSavedRows] = useState(initialSavings);
   const [funds, setFunds] = useState({ fundsMin: dossier.fundsMin, fundsTarget: dossier.fundsTarget });
   const [tab, setTab] = useHashTab<Tab>(TABS, "evolution");
@@ -52,6 +53,11 @@ export function EpargneBoard({ dossier, initialSavings }: { dossier: Dossier; in
   const gap = paid.reduce((s, r) => s + (r.actual ?? 0) - (r.planned ?? 0), 0);
   const monthsToMin = !progress.minReached && avg > 0 ? Math.ceil(toMin / avg) : null;
   const monthsToTarget = !progress.targetReached && avg > 0 ? Math.ceil(toTarget / avg) : null;
+
+  // IRCC fixe les fonds en dollars canadiens : équivalent au taux du jour, sinon au taux enregistré.
+  const cadRate = rates?.perXof.CAD ?? (dossier.cadRate > 0 ? dossier.cadRate : null);
+  const inCad = (n: number) => (cadRate ? `≈ ${new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 0 }).format(n / cadRate)} $ CA` : null);
+  const rateNote = rates ? `au taux du jour (1 $ CA = ${new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 2 }).format(rates.perXof.CAD)} F)` : "au taux enregistré";
 
   function addRow() {
     setTab("versements");
@@ -292,6 +298,7 @@ export function EpargneBoard({ dossier, initialSavings }: { dossier: Dossier; in
                   onChange={(e) => fundsEd.set({ fundsMin: Number(e.target.value) || 0 })}
                   className="input mono text-right text-[16px] font-semibold"
                 />
+                {inCad(fundsMin) && <span className="mono mt-1 block text-right text-[12px] text-muted">{inCad(fundsMin)}</span>}
               </label>
               <label>
                 <span className="field-label">Cible personnelle (FCFA)</span>
@@ -303,6 +310,7 @@ export function EpargneBoard({ dossier, initialSavings }: { dossier: Dossier; in
                   onChange={(e) => fundsEd.set({ fundsTarget: Number(e.target.value) || 0 })}
                   className="input mono text-right text-[16px] font-semibold"
                 />
+                {inCad(fundsTarget) && <span className="mono mt-1 block text-right text-[12px] text-muted">{inCad(fundsTarget)}</span>}
               </label>
             </div>
             <div className="mt-5 grid gap-2 sm:grid-cols-2">
@@ -315,6 +323,11 @@ export function EpargneBoard({ dossier, initialSavings }: { dossier: Dossier; in
             <ul className="mt-3 flex flex-col gap-2.5 text-[12.5px] leading-relaxed text-muted">
               <li>Le minimum suit le barème IRCC des fonds d&apos;établissement : mettez-le à jour chaque année.</li>
               <li>Les fonds doivent être disponibles et justifiés par des relevés bancaires récents.</li>
+              {cadRate && (
+                <li>
+                  Épargné : <span className="mono font-semibold text-ink">{inCad(progress.saved)}</span> {rateNote}. IRCC exige le montant en dollars canadiens : gardez une marge pour le change.
+                </li>
+              )}
               <li>La projection en mois se base sur votre moyenne mensuelle ({fcfa(avg)} F).</li>
             </ul>
           </aside>
