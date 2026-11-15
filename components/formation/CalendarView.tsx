@@ -91,7 +91,7 @@ function Month({ month, today, done, onOpenDay }: { month: string; today: string
               type="button"
               onClick={() => onOpenDay(d)}
               title={`${fmtDay(d)} · ${c}/${tot}${milestone ? ` · ${milestone}` : ""}`}
-              aria-label={`${fmtDay(d)}, ${c} sur ${tot} tâches faites${milestone ? `, ${milestone}` : ""}`}
+              aria-label={`${fmtDay(d)}, ${c} sur ${tot} tâches faites${late && c === 0 ? ", en retard" : ""}${milestone ? `, ${milestone}` : ""}`}
               className={`relative flex aspect-square flex-col items-center justify-center rounded-lg text-[12.5px] font-semibold transition-transform hover:scale-[1.06] ${
                 full ? "bg-ok text-white" : started ? "bg-signal text-black" : "border border-line bg-surface"
               } ${d === today ? "ring-2 ring-ink ring-offset-2 ring-offset-surface" : ""} ${exam ? "ring-2 ring-bad" : ""}`}
@@ -108,7 +108,6 @@ function Month({ month, today, done, onOpenDay }: { month: string; today: string
               )}
               {exam && <span className="mt-0.5 text-[8.5px] font-bold text-bad">{plan.program.id === "tcf" ? "TCF" : "IELTS"}</span>}
               {milestone && !exam && <span className="absolute top-1 right-1 h-1.5 w-1.5 rounded-full bg-bad" aria-hidden />}
-              {late && c === 0 && <span className="sr-only">en retard</span>}
             </button>
           );
         })}

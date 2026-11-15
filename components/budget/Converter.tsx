@@ -113,7 +113,7 @@ export function Converter({ rates, savedCadRate, presets = [] }: Props) {
               aria-checked={source === v}
               disabled={v === "jour" && !rates}
               onClick={() => setSource(v)}
-              className={`rounded-lg px-2.5 py-1 text-[12.5px] font-semibold disabled:opacity-40 ${source === v ? "bg-surface text-ink shadow-sm" : "text-muted"}`}
+              className={`min-h-8 rounded-lg px-2.5 py-1 text-[12.5px] font-semibold disabled:opacity-40 ${source === v ? "bg-surface text-ink shadow-sm" : "text-muted"}`}
             >
               {l}
             </button>
@@ -133,7 +133,7 @@ export function Converter({ rates, savedCadRate, presets = [] }: Props) {
         <div className="mt-3 flex flex-wrap items-center gap-1.5">
           <span className="text-[11.5px] text-muted">Reprendre :</span>
           {presets.map((p) => (
-            <button key={p.label} type="button" onClick={() => applyPreset(p.xof)} className="rounded-full border border-line px-2.5 py-1 text-[12px] font-semibold text-muted hover:border-act hover:text-act">
+            <button key={p.label} type="button" onClick={() => applyPreset(p.xof)} className="min-h-8 rounded-full border border-line px-2.5 py-1 text-[12px] font-semibold text-muted hover:border-act hover:text-act">
               {p.label}
             </button>
           ))}

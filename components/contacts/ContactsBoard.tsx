@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type DragEvent } from "react";
+import { useEffect, useRef, useState, type DragEvent } from "react";
 import { createClient } from "@/lib/supabase/client";
 import type { Contact, ContactStage, Step } from "@/lib/types";
 import { CONTACT_STAGES, matchesQuery, type ContactPerson, type ContactStepLink } from "@/lib/network";
@@ -96,7 +96,8 @@ export function ContactsBoard({ dossierId, initialContacts, initialPersons, init
     setContacts((prev) => prev.map((c) => (c.id === id ? { ...c, stage } : c)));
     const { error } = await supabase.from("contact").update({ stage }).eq("id", id);
     if (error) {
-      setContacts((prev) => prev.map((c) => (c.id === id ? { ...c, stage: before } : c)));
+      // Retour arrière seulement si la carte n'a pas été déplacée à nouveau entre-temps.
+      setContacts((prev) => prev.map((c) => (c.id === id && c.stage === stage ? { ...c, stage: before } : c)));
       setMoveError("Déplacement non enregistré : vérifiez la connexion et réessayez.");
     }
   }
@@ -264,7 +265,7 @@ export function ContactsBoard({ dossierId, initialContacts, initialPersons, init
                   type="button"
                   onClick={() => setQuery("")}
                   aria-label="Effacer la recherche"
-                  className="grid h-7 w-7 shrink-0 place-items-center rounded-md text-faint hover:bg-surface-2 hover:text-ink"
+                  className="grid h-8 w-8 shrink-0 place-items-center rounded-md text-faint hover:bg-surface-2 hover:text-ink"
                 >
                   <IconX size={14} />
                 </button>
@@ -344,7 +345,7 @@ export function ContactsBoard({ dossierId, initialContacts, initialPersons, init
             {moveError && (
               <p role="alert" className="mb-3 flex items-center gap-2 rounded-xl bg-bad-bg px-3 py-2 text-[13px] font-semibold text-bad">
                 <span className="min-w-0 flex-1">{moveError}</span>
-                <button type="button" onClick={() => setMoveError(null)} aria-label="Masquer le message" className="grid h-7 w-7 shrink-0 place-items-center rounded-md hover:bg-surface-2">
+                <button type="button" onClick={() => setMoveError(null)} aria-label="Masquer le message" className="grid h-8 w-8 shrink-0 place-items-center rounded-md hover:bg-surface-2">
                   <IconX size={14} />
                 </button>
               </p>
@@ -619,6 +620,8 @@ function Kanban({
 }) {
   const [over, setOver] = useState<ContactStage | null>(null);
   const [dragId, setDragId] = useState<string | null>(null);
+  // Carte déplacée avec le menu : elle change de colonne (nouvel élément), on lui rend le focus.
+  const refocus = useRef<string | null>(null);
 
   function drop(e: DragEvent, stage: ContactStage) {
     e.preventDefault();
@@ -694,10 +697,18 @@ function Kanban({
                           <path d="M5 9l-3 3 3 3M19 9l3 3-3 3M2 12h20" />
                         </svg>
                         <select
+                          ref={(el) => {
+                            if (el && refocus.current === c.id) {
+                              refocus.current = null;
+                              el.focus();
+                            }
+                          }}
                           value={c.stage}
                           onChange={(e) => {
                             const next = e.target.value as ContactStage;
-                            if (next !== c.stage) onMove(c.id, next);
+                            if (next === c.stage) return;
+                            refocus.current = c.id;
+                            onMove(c.id, next);
                           }}
                           aria-label={`Déplacer ${c.org || "l'organisme"} vers une autre étape`}
                           className="absolute inset-0 cursor-pointer opacity-0"

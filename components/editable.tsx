@@ -19,6 +19,15 @@ export interface Editable<T> {
   commit: () => Promise<void>;
 }
 
+/** Sections en cours de modification, de la moins récemment touchée à la plus récente. */
+const editingOrder: object[] = [];
+function touch(token: object, onlyIfEditing = false) {
+  const i = editingOrder.indexOf(token);
+  if (i < 0 && onlyIfEditing) return;
+  if (i >= 0) editingOrder.splice(i, 1);
+  editingOrder.push(token);
+}
+
 function same(a: unknown, b: unknown): boolean {
   return JSON.stringify(a) === JSON.stringify(b);
 }
@@ -42,16 +51,26 @@ export function useEditable<T>(
   const invalid = editing && validate ? validate(draft) : null;
 
   const commitRef = useRef<() => void>(() => {});
+  const savingRef = useRef(false);
+  const tokenRef = useRef<object>({});
   useEffect(() => {
     if (!editing) return;
+    const token = tokenRef.current;
+    touch(token);
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== "Enter" || !(e.metaKey || e.ctrlKey) || e.defaultPrevented)
         return;
+      // Plusieurs sections ouvertes : seule la dernière modifiée enregistre (pas la première ouverte).
+      if (editingOrder[editingOrder.length - 1] !== token) return;
       e.preventDefault();
       commitRef.current();
     };
     window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      const i = editingOrder.indexOf(token);
+      if (i >= 0) editingOrder.splice(i, 1);
+    };
   }, [editing]);
 
   useEffect(() => {
@@ -68,8 +87,14 @@ export function useEditable<T>(
     saving,
     error,
     invalid,
-    set: (patch) => setDraft((d) => ({ ...d, ...patch })),
-    update: (fn) => setDraft((d) => fn(d)),
+    set: (patch) => {
+      touch(tokenRef.current, true);
+      setDraft((d) => ({ ...d, ...patch }));
+    },
+    update: (fn) => {
+      touch(tokenRef.current, true);
+      setDraft((d) => fn(d));
+    },
     start: () => {
       setDraft(value);
       setError(null);
@@ -88,6 +113,9 @@ export function useEditable<T>(
         setError(invalid);
         return;
       }
+      // ⌘/Ctrl + Entrée répété pendant l'écriture : pas de second envoi.
+      if (savingRef.current) return;
+      savingRef.current = true;
       setSaving(true);
       setError(null);
       try {
@@ -96,6 +124,7 @@ export function useEditable<T>(
       } catch (e) {
         setError(e instanceof Error ? e.message : "L'enregistrement a échoué.");
       } finally {
+        savingRef.current = false;
         setSaving(false);
       }
     },

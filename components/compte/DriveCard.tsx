@@ -46,9 +46,15 @@ export function DriveCard({ status }: { status: DriveStatus }) {
 
   async function disconnect() {
     setBusy("disconnect");
-    await fetch("/api/drive/disconnect", { method: "POST" }).catch(() => null);
+    setMessage(null);
+    const res = await fetch("/api/drive/disconnect", { method: "POST" }).catch(() => null);
     setBusy(null);
     setConfirmOff(false);
+    if (!res?.ok) {
+      const json = (await res?.json().catch(() => ({}))) as { error?: string } | undefined;
+      setMessage({ tone: "bad", text: json?.error ?? "Déconnexion impossible : vérifiez la connexion et réessayez." });
+      return;
+    }
     setMessage({ tone: "ok", text: "Google Drive est déconnecté. Vos fichiers restent sur Drive ; reconnectez-le pour les afficher." });
     router.refresh();
   }

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { fundsError, monthIndex, monthsFromNow, parseMonthLabel, savingsError, suggestNextLabel } from "./epargne";
-import { effectiveFundsMin } from "./epargne";
+import { effectiveFundsMin, lastPlanned, savingsGap } from "./epargne";
 
 describe("libellés de mois", () => {
   it("reconnaît les mois complets, abrégés ou sans accents", () => {
@@ -40,5 +40,24 @@ describe("minimum IRCC en dollars canadiens", () => {
     expect(effectiveFundsMin(d, 416.27)).toBe(Math.round(15_263 * 416.27));
     expect(effectiveFundsMin(d, null)).toBe(15_263 * 410);
     expect(effectiveFundsMin({ ...d, fundsMinCad: null }, 416.27)).toBe(6_000_000);
+  });
+});
+
+describe("versements", () => {
+  it("reprend le dernier montant prévu renseigné", () => {
+    expect(lastPlanned([{ planned: 50000 }, { planned: null }])).toBe(50000);
+    expect(lastPlanned([{ planned: null }])).toBeNull();
+    expect(lastPlanned([])).toBeNull();
+  });
+
+  it("compte un mois versé à 0 comme un manque, ignore les lignes incomplètes", () => {
+    const rows = [
+      { planned: 100, actual: 120 },
+      { planned: 100, actual: 0 },
+      { planned: null, actual: 80 },
+      { planned: 100, actual: null },
+    ];
+    expect(savingsGap(rows)).toBe(-80);
+    expect(savingsGap([])).toBe(0);
   });
 });

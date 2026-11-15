@@ -56,9 +56,14 @@ export function PersonDrawer(props: Props) {
   const ed = useEditable(saved, async (d) => {
     if (!d.name.trim()) throw new Error("Indiquez au moins un nom.");
     const patch: Partial<Pick<ContactPerson, PersonField>> = {};
-    for (const k of PERSON_FIELDS) if (d[k] !== saved[k]) Object.assign(patch, { [k]: d[k] });
+    for (const k of PERSON_FIELDS) {
+      // Comme en base (patchPerson) : textes sans espaces autour, sauf les notes ; date vide = null.
+      const raw = d[k];
+      const value = typeof raw === "string" && k !== "notes" ? raw.trim() || (k === "birthDate" ? null : "") : raw;
+      if (value !== saved[k]) Object.assign(patch, { [k]: value });
+    }
     await patchPerson(p.id, patch);
-    let next: ContactPerson = { ...p, ...patch, name: d.name.trim() };
+    let next: ContactPerson = { ...p, ...patch };
     if (d.contactId !== saved.contactId) {
       await movePerson(p, d.contactId);
       next = { ...next, contactId: d.contactId, parentId: null };
@@ -440,7 +445,7 @@ function PersonSteps({
                     type="button"
                     disabled={busy}
                     onClick={() => void run(async () => (await unlinkStep(l.id), onRemove(l.id)))}
-                    className="grid h-7 w-7 shrink-0 place-items-center rounded-md text-faint hover:bg-surface-2 hover:text-bad"
+                    className="grid h-8 w-8 shrink-0 place-items-center rounded-md text-faint hover:bg-surface-2 hover:text-bad"
                     aria-label={`Délier « ${s.title} »`}
                   >
                     <IconX size={14} />

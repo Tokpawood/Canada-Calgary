@@ -10,6 +10,8 @@ import { FieldGrid, type FieldDef } from "./FieldGrid";
 import { AuditPanel } from "@/components/AuditPanel";
 import { PageHeader, type Tone } from "@/components/ui";
 import { newId } from "@/lib/ids";
+import { countPeriodIssues } from "@/lib/profilPeriods";
+import { nclcIssue } from "@/lib/profilFsw";
 import { syncRows } from "@/lib/syncRows";
 import { EditBar, changedFields, useEditable } from "@/components/editable";
 import {
@@ -156,9 +158,15 @@ export function ProfilBoard({ dossier, avatarUrl, initialIdentity, initialProfil
   async function updateSingle<T extends object>(table: string, before: T, after: T) {
     const patch: Record<string, unknown> = changedFields(before, after);
     if (Object.keys(patch).length === 0) return;
-    const { error } = await supabase.from(table).update(patch).eq("dossier_id", dossier.id);
+    // Upsert : si la ligne n'existe pas encore, un simple update ne modifierait rien, sans erreur.
+    const { error } = await supabase.from(table).upsert({ dossier_id: dossier.id, ...patch }, { onConflict: "dossier_id" });
     if (error) throw error;
   }
+
+  const periodsInvalid = (rows: Array<{ from: string; to: string }>) => {
+    const n = countPeriodIssues(rows);
+    return n ? `${n} ligne${n > 1 ? "s" : ""} avec des dates à corriger.` : null;
+  };
 
   const idEd = useEditable(identity, async (d) => {
     await updateSingle("identity", identity, d);
@@ -168,34 +176,46 @@ export function ProfilBoard({ dossier, avatarUrl, initialIdentity, initialProfil
     await updateSingle("profile", profile, d);
     setProfile(d);
   });
-  const fswEd = useEditable(fsw, async (d) => {
-    await updateSingle("fsw", fsw, d);
-    setFsw(d);
-  });
+  const fswEd = useEditable(
+    fsw,
+    async (d) => {
+      await updateSingle("fsw", fsw, d);
+      setFsw(d);
+    },
+    nclcIssue,
+  );
 
-  const histEd = useEditable(history, async (d) => {
-    await syncRows(
-      supabase,
-      "history",
-      history,
-      d,
-      (h) => ({ from_date: h.from, to_date: h.to, type: h.type, activity: h.activity, org: h.org, place: h.place, parallel: h.parallel }),
-      { dossier_id: dossier.id },
-    );
-    setHistory(d);
-  });
+  const histEd = useEditable(
+    history,
+    async (d) => {
+      await syncRows(
+        supabase,
+        "history",
+        history,
+        d,
+        (h) => ({ from_date: h.from.trim(), to_date: h.to.trim(), type: h.type, activity: h.activity, org: h.org, place: h.place, parallel: h.parallel }),
+        { dossier_id: dossier.id },
+      );
+      setHistory(d.map((h) => ({ ...h, from: h.from.trim(), to: h.to.trim() })));
+    },
+    periodsInvalid,
+  );
 
-  const addrEd = useEditable(addresses, async (d) => {
-    await syncRows(
-      supabase,
-      "address",
-      addresses,
-      d,
-      (a) => ({ from_date: a.from, to_date: a.to, address: a.address, city: a.city, note: a.note, parallel: a.parallel }),
-      { dossier_id: dossier.id },
-    );
-    setAddresses(d);
-  });
+  const addrEd = useEditable(
+    addresses,
+    async (d) => {
+      await syncRows(
+        supabase,
+        "address",
+        addresses,
+        d,
+        (a) => ({ from_date: a.from.trim(), to_date: a.to.trim(), address: a.address, city: a.city, note: a.note, parallel: a.parallel }),
+        { dossier_id: dossier.id },
+      );
+      setAddresses(d.map((a) => ({ ...a, from: a.from.trim(), to: a.to.trim() })));
+    },
+    periodsInvalid,
+  );
 
   const histRows = histEd.current;
   const addrRows = addrEd.current;

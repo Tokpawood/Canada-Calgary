@@ -59,7 +59,7 @@ const personSchema = z.object({
   id: z.string(),
   contact: z.string().nullable().optional(),
   parent: z.string().nullable().optional(),
-  name: z.string().min(1).max(120),
+  name: z.string().trim().min(1).max(120),
   title: str,
   relation: str,
   email: str,
@@ -173,7 +173,7 @@ const EMPTY_FSW = {
 export const rawDossierSchema = z.object({
   profileDate: z.string().nullable().optional(),
   fundsMin: z.number().optional().default(0),
-  fundsMinCad: z.number().nullable().optional().default(null),
+  fundsMinCad: z.number().nullable().optional().default(null).transform((v) => (v != null && Number.isFinite(v) && v > 0 ? Math.round(v) : null)),
   fundsTarget: z.number().optional().default(0),
   steps: z.array(stepSchema),
   docs: z.array(docSchema),
@@ -215,6 +215,23 @@ export interface ImportPlan {
   counts: { steps: number; documents: number; history: number; addresses: number };
 }
 
+/**
+ * Date pour une colonne `date` : AAAA-MM-JJ réelle (un horodatage ISO est ramené à sa date), sinon null.
+ * Une valeur illisible ferait échouer tout l'import en base.
+ */
+export function isoDateOrNull(v: string | null | undefined): string | null {
+  const m = /^(\d{4})-(\d{2})-(\d{2})(?:[T ].*)?$/.exec(String(v ?? "").trim());
+  if (!m) return null;
+  const [y, mo, d] = [Number(m[1]), Number(m[2]), Number(m[3])];
+  const date = new Date(Date.UTC(y, mo - 1, d));
+  return date.getUTCFullYear() === y && date.getUTCMonth() === mo - 1 && date.getUTCDate() === d ? `${m[1]}-${m[2]}-${m[3]}` : null;
+}
+
+/** Montant pour une colonne `integer` : arrondi (une décimale ferait échouer l'import), null si absent. */
+function intOrNull(v: number | null | undefined): number | null {
+  return v == null || !Number.isFinite(v) ? null : Math.round(v);
+}
+
 let genCounter = 0;
 function genId(prefix: string): string {
   genCounter += 1;
@@ -232,10 +249,10 @@ export function buildImportPlan(dossierId: string, raw: RawDossier): ImportPlan 
       dossier_id: dossierId,
       phase: s.phase,
       title: s.title,
-      due: s.due || null,
+      due: isoDateOrNull(s.due),
       status: s.status,
-      planned: s.planned ?? null,
-      actual: s.actual ?? null,
+      planned: intOrNull(s.planned),
+      actual: intOrNull(s.actual),
       org: s.org,
       req: s.req,
       notes: s.notes,
@@ -256,12 +273,12 @@ export function buildImportPlan(dossierId: string, raw: RawDossier): ImportPlan 
       status: d.status,
       use_: d.use,
       from_org: d.from,
-      date: d.date || null,
+      date: isoDateOrNull(d.date),
       notes: d.notes,
       req: d.req,
       format: d.format,
       validity: d.validity,
-      expires: d.expires || null,
+      expires: isoDateOrNull(d.expires),
       position: i,
     };
   });
@@ -270,8 +287,8 @@ export function buildImportPlan(dossierId: string, raw: RawDossier): ImportPlan 
     id: s.id,
     dossier_id: dossierId,
     label: s.label,
-    planned: s.planned ?? null,
-    actual: s.actual ?? null,
+    planned: intOrNull(s.planned),
+    actual: intOrNull(s.actual),
     notes: s.notes,
     position: i,
   }));
@@ -285,7 +302,9 @@ export function buildImportPlan(dossierId: string, raw: RawDossier): ImportPlan 
     person: c.person,
     next: c.next,
     notes: c.notes,
-    ...(c.stage ? { stage: c.stage } : {}),
+    // Toujours présent : l'import en base prend les colonnes de toutes les lignes, et une ligne sans `stage`
+    // recevrait null (refusé) dès qu'une autre en a un.
+    stage: c.stage ?? "a-contacter",
     position: i,
   }));
 
@@ -335,7 +354,7 @@ export function buildImportPlan(dossierId: string, raw: RawDossier): ImportPlan 
     });
   });
   for (const p of raw.people) {
-    const birth = p.birth && /^\d{4}-\d{2}-\d{2}$/.test(p.birth) ? p.birth : null;
+    const birth = isoDateOrNull(p.birth);
     if (birth || p.nationality || p.idType || p.idNumber) {
       peoplePrivate.push({ person_id: newIdOf.get(p.id), dossier_id: dossierId, birth_date: birth, nationality: p.nationality, id_type: p.idType, id_number: p.idNumber });
     }
@@ -380,8 +399,8 @@ export function buildImportPlan(dossierId: string, raw: RawDossier): ImportPlan 
   }));
 
   return {
-    dossier: { profile_date: raw.profileDate || null, funds_min: raw.fundsMin, funds_target: raw.fundsTarget, funds_min_cad: raw.fundsMinCad ?? null },
-    identity: { ...raw.identity, naissance: raw.identity.naissance || null },
+    dossier: { profile_date: isoDateOrNull(raw.profileDate), funds_min: raw.fundsMin, funds_target: raw.fundsTarget, funds_min_cad: raw.fundsMinCad ?? null },
+    identity: { ...raw.identity, naissance: isoDateOrNull(raw.identity.naissance) },
     profile: raw.profile,
     fsw: raw.fsw,
     steps,

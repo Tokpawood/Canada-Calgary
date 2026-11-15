@@ -23,7 +23,9 @@ export function parseD(iso: string | null | undefined): Date | null {
   const [y, m, d] = parts.map(Number);
   if (!y || !m || !d) return null;
   const date = new Date(y, m - 1, d);
-  return Number.isNaN(date.getTime()) ? null : date;
+  if (Number.isNaN(date.getTime())) return null;
+  // 31 avril, 30 février… : refusés au lieu de glisser silencieusement au mois suivant.
+  return date.getFullYear() === y && date.getMonth() === m - 1 && date.getDate() === d ? date : null;
 }
 
 function localMidnight(now: Date): Date {
@@ -44,7 +46,12 @@ export function pd(v: string | null | undefined, end = false): Date | null {
   if (!m) return null;
   const y = Number(m[1]);
   const mo = Number(m[2]) - 1;
-  if (m[3]) return new Date(Date.UTC(y, mo, Number(m[3])));
+  if (mo < 0 || mo > 11) return null;
+  if (m[3]) {
+    const day = Number(m[3]);
+    const date = new Date(Date.UTC(y, mo, day));
+    return day >= 1 && date.getUTCMonth() === mo ? date : null;
+  }
   return end ? new Date(Date.UTC(y, mo + 1, 0)) : new Date(Date.UTC(y, mo, 1));
 }
 
@@ -451,7 +458,8 @@ export function audit(input: AuditInput, now: Date = new Date()): AuditItem[] {
     const days = Math.round((Date.UTC(+m[1], +m[2] - 1, +m[3]) - Date.UTC(now.getFullYear(), now.getMonth(), now.getDate())) / 86_400_000);
     const name = d.name ? ` : ${d.name}` : "";
     if (days < 0) out.push({ level: "hi", text: `Pièce expirée${name}`, goto: "documents", targetId: d.id });
-    else if (days <= 30) out.push({ level: "md", text: `Pièce qui expire dans ${days} jour${days > 1 ? "s" : ""}${name}`, goto: "documents", targetId: d.id });
+    else if (days <= 30)
+      out.push({ level: "md", text: days === 0 ? `Pièce qui expire aujourd'hui${name}` : `Pièce qui expire dans ${days} jour${days > 1 ? "s" : ""}${name}`, goto: "documents", targetId: d.id });
   }
   for (const d of input.documents) {
     if (d.status === "Obtenu" && d.files.length === 0) {

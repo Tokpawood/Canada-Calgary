@@ -49,13 +49,17 @@ export function ContactSteps({
   onAdd: (l: ContactStepLink) => void;
   onRemove: (id: string) => void;
 }) {
-  const [stepId, setStepId] = useState("");
-  const [who, setWho] = useState(contact.id);
+  const [pickedStep, setStepId] = useState("");
+  const [pickedWho, setWho] = useState(contact.id);
   const act = useAction();
   const byStep = new Map(steps.map((s) => [s.id, s]));
   const personOf = new Map(persons.map((p) => [p.id, p]));
+  // Personne choisie puis retirée de l'équipe : retour à « L'organisme ».
+  const who = persons.some((p) => targetValue(contact.id, p.id) === pickedWho) ? pickedWho : contact.id;
   const target = parseTarget(who);
   const taken = new Set(links.filter((l) => targetValue(l.contactId, l.personId) === who).map((l) => l.stepId));
+  // Tâche choisie puis « Avec qui » changé vers quelqu'un déjà lié à cette tâche : le choix n'est plus valable.
+  const stepId = taken.has(pickedStep) ? "" : pickedStep;
   const sorted = [...links].sort((a, b) => steps.findIndex((s) => s.id === a.stepId) - steps.findIndex((s) => s.id === b.stepId));
 
   return (
@@ -87,7 +91,7 @@ export function ContactSteps({
                     type="button"
                     disabled={act.busy}
                     onClick={() => void act.run(async () => (await unlinkStep(l.id), onRemove(l.id)))}
-                    className="grid h-7 w-7 shrink-0 place-items-center rounded-md text-faint hover:bg-surface-2 hover:text-bad"
+                    className="grid h-8 w-8 shrink-0 place-items-center rounded-md text-faint hover:bg-surface-2 hover:text-bad"
                     aria-label={`Délier « ${s.title} »`}
                     title="Délier"
                   >
@@ -211,7 +215,7 @@ export function StepContacts({
                     type="button"
                     disabled={act.busy}
                     onClick={() => void act.run(async () => (await unlinkStep(l.id), onRemove(l.id)))}
-                    className="grid h-7 w-7 shrink-0 place-items-center rounded-md text-faint hover:bg-surface hover:text-bad"
+                    className="grid h-8 w-8 shrink-0 place-items-center rounded-md text-faint hover:bg-surface hover:text-bad"
                     aria-label="Délier ce contact"
                     title="Délier"
                   >

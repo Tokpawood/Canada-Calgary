@@ -61,6 +61,8 @@ describe("rappels de la formation", () => {
 
   it("heure d'Abidjan = UTC", () => {
     expect(abidjanNow(new Date("2026-11-16T23:50:00Z"))).toEqual({ date: "2026-11-16", time: "23:50" });
+    // Minuit : « 00:05 » et non « 24:05 » (certains moteurs avec hour12: false).
+    expect(abidjanNow(new Date("2026-11-17T00:05:00Z"))).toEqual({ date: "2026-11-17", time: "00:05" });
   });
 });
 

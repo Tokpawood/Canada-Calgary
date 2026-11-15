@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { buildImportPlan, rawDossierSchema, type ImportPlan, type RawDossier } from "@/lib/import";
@@ -27,6 +27,14 @@ export default function ImportPage() {
   const [error, setError] = useState<string | null>(null);
   const [counts, setCounts] = useState<ImportPlan["counts"] | null>(null);
   const [pending, setPending] = useState<Pending | null>(null);
+  const confirmRef = useRef<HTMLDivElement>(null);
+  const doneRef = useRef<HTMLDivElement>(null);
+
+  // La zone de dépôt disparaît : le focus passe à la confirmation (ou au bilan), sinon il est perdu.
+  useEffect(() => {
+    if (phase === "confirm") confirmRef.current?.focus();
+    if (phase === "done") doneRef.current?.focus();
+  }, [phase]);
 
   async function handleFile(file: File) {
     setPhase("busy");
@@ -151,7 +159,7 @@ export default function ImportPage() {
       </p>
 
       {phase === "confirm" && pending && (
-        <div className="card anim-fade p-5" role="alertdialog" aria-labelledby="import-confirm-title" aria-describedby="import-confirm-desc">
+        <div ref={confirmRef} tabIndex={-1} className="card anim-fade mt-4 p-5 outline-none" role="alertdialog" aria-labelledby="import-confirm-title" aria-describedby="import-confirm-desc">
           <p id="import-confirm-title" className="flex items-center gap-2 font-display text-[17px] font-bold">
             <IconAlert size={18} className="shrink-0 text-opt" /> Remplacer les données actuelles ?
           </p>
@@ -187,7 +195,7 @@ export default function ImportPage() {
       )}
 
       {phase === "done" && counts && (
-        <div className="card anim-fade mt-5 p-5">
+        <div ref={doneRef} tabIndex={-1} role="status" className="card anim-fade mt-5 p-5 outline-none">
           <p className="flex items-center gap-2 font-display text-[18px] font-bold text-ok">
             <span className="grid h-7 w-7 place-items-center rounded-full bg-ok text-surface">
               <IconCheck size={15} strokeWidth={3} />

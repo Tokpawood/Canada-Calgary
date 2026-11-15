@@ -63,6 +63,32 @@ describe("import JSON -> plan normalisé", () => {
     expect(plan.dossier).toEqual({ profile_date: "2027-05-31", funds_min: 6258000, funds_target: 7000000, funds_min_cad: null });
   });
 
+  it("produit des lignes compatibles avec les colonnes (stage, dates, entiers)", () => {
+    const raw = rawDossierSchema.parse({
+      ...sample,
+      profileDate: "31/05/2027",
+      steps: [{ ...sample.steps[0], due: "2026-02-30", planned: 1000.6, actual: null }],
+      docs: [{ ...sample.docs[0], date: "2026-01-01T10:00:00.000Z", expires: "bientôt" }],
+      savings: [{ id: "e1", label: "Nov", planned: 99.5, actual: 50, notes: "" }],
+      contacts: [
+        { id: "c1", org: "A", stage: "etabli" },
+        { id: "c2", org: "B" },
+      ],
+      identity: { ...sample.identity, naissance: "" },
+    });
+    const plan = buildImportPlan("dossier-1", raw);
+    expect(plan.contacts.map((c) => c.stage)).toEqual(["etabli", "a-contacter"]);
+    expect(plan.steps[0]).toMatchObject({ due: null, planned: 1001, actual: null });
+    expect(plan.documents[0]).toMatchObject({ date: "2026-01-01", expires: null });
+    expect(plan.savings[0]).toMatchObject({ planned: 100, actual: 50 });
+    expect(plan.dossier.profile_date).toBeNull();
+    expect(plan.identity.naissance).toBeNull();
+  });
+
+  it("refuse une personne au nom vide", () => {
+    expect(rawDossierSchema.safeParse({ ...sample, people: [{ id: "p1", name: "   " }] }).success).toBe(false);
+  });
+
   it("rejette un fichier sans steps/docs", () => {
     expect(() => rawDossierSchema.parse({ identity: {} })).toThrow();
   });

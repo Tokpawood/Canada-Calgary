@@ -214,6 +214,6 @@ export function dueNow(reminders: Reminder[], nowHHMM: string, windowMin = 30): 
 /** Date et heure à Abidjan. */
 export function abidjanNow(d: Date = new Date()): { date: string; time: string } {
   const date = d.toLocaleDateString("en-CA", { timeZone: "Africa/Abidjan" });
-  const time = d.toLocaleTimeString("en-GB", { timeZone: "Africa/Abidjan", hour: "2-digit", minute: "2-digit", hour12: false });
+  const time = d.toLocaleTimeString("en-GB", { timeZone: "Africa/Abidjan", hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
   return { date, time };
 }

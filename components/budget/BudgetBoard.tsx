@@ -25,7 +25,7 @@ import {
   IconWallet,
 } from "@/components/icons";
 import type { Rates } from "@/lib/currency";
-import { bankMarginPct, overdueTotal, rateError } from "@/lib/budget";
+import { bankMarginPct, budgetTotals, overdueTotal, rateError } from "@/lib/budget";
 import { Converter } from "./Converter";
 
 interface Props {
@@ -67,9 +67,11 @@ export function BudgetBoard({ dossier, rows, upcoming, rates }: Props) {
   );
   const cadRate = rateEd.current.rate;
 
-  const totalPlanned = rows.reduce((sum, r) => sum + r.planned, 0);
-  const totalActual = rows.reduce((sum, r) => sum + r.actual, 0);
-  const remaining = Math.max(0, totalPlanned - totalActual);
+  const {
+    planned: totalPlanned,
+    actual: totalActual,
+    remaining,
+  } = budgetTotals(rows);
   const paidPct = totalPlanned ? (totalActual / totalPlanned) * 100 : 0;
   const upcomingTotal = upcoming.reduce((s, u) => s + u.planned, 0);
   const soon = upcoming.filter((u) => {

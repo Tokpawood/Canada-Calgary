@@ -173,6 +173,7 @@ export function AppShell({
                           title={badge.title}
                         >
                           {badge.text}
+                          <span className="sr-only"> : {badge.title}</span>
                         </span>
                       )}
                     </Link>
@@ -252,8 +253,9 @@ export function AppShell({
                 >
                   {n.label}
                   {badge?.alert && (
-                    <span className="mono rounded-full bg-bad px-1.5 text-[10px] leading-[16px] text-white">
+                    <span className="mono rounded-full bg-bad px-1.5 text-[10px] leading-[16px] text-white" title={badge.title}>
                       {badge.text}
+                      <span className="sr-only"> : {badge.title}</span>
                     </span>
                   )}
                 </Link>

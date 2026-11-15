@@ -192,9 +192,13 @@ export function ConfirmButton({
         if (armed) {
           setArmed(false);
           const result = onConfirm();
-          if (result instanceof Promise) {
+          // Toute « thenable » compte (requête Supabase non attendue, promesse d'un autre royaume) ;
+          // un rejet ne doit ni laisser le bouton bloqué ni remonter en rejet non géré.
+          if (result && typeof (result as PromiseLike<unknown>).then === "function") {
             setBusy(true);
-            void result.finally(() => setBusy(false));
+            Promise.resolve(result)
+              .catch((err: unknown) => console.error(err))
+              .finally(() => setBusy(false));
           }
         } else setArmed(true);
       }}
@@ -206,6 +210,13 @@ export function ConfirmButton({
 }
 
 const noopSubscribe = () => () => {};
+
+/** Vrai si `el` est la dernière fenêtre modale ouverte (les portails sont ajoutés en fin de <body>). */
+function isTopModal(el: HTMLElement | null): boolean {
+  if (!el) return false;
+  const modals = document.querySelectorAll('[aria-modal="true"]');
+  return modals[modals.length - 1] === el;
+}
 
 export function Drawer({
   onClose,
@@ -230,11 +241,18 @@ export function Drawer({
   const panelRef = useRef<HTMLElement | null>(null);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
+      // Panneaux superposés (tiroir dans un tiroir, aperçu de fichier) : Échap ne ferme que celui du dessus.
+      if (e.key === "Escape" && !e.defaultPrevented && isTopModal(panelRef.current)) onClose();
     };
     document.addEventListener("keydown", onKey);
     document.body.classList.add("locked");
+    // Un panneau superposé qui se ferme retire « locked » : on le remet tant que ce tiroir est ouvert.
+    const keepLocked = new MutationObserver(() => {
+      if (!document.body.classList.contains("locked")) document.body.classList.add("locked");
+    });
+    keepLocked.observe(document.body, { attributes: true, attributeFilter: ["class"] });
     return () => {
+      keepLocked.disconnect();
       document.removeEventListener("keydown", onKey);
       document.body.classList.remove("locked");
     };
@@ -249,14 +267,18 @@ export function Drawer({
     }, 0);
     const onTab = (e: KeyboardEvent) => {
       const panel = panelRef.current;
-      if (e.key !== "Tab" || !panel) return;
+      if (e.key !== "Tab" || !panel || !isTopModal(panel)) return;
       const items = Array.from(panel.querySelectorAll<HTMLElement>('a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])')).filter(
         (el) => el.offsetParent !== null,
       );
       if (!items.length) return;
       const first = items[0];
       const last = items[items.length - 1];
-      if (e.shiftKey && (document.activeElement === first || document.activeElement === panel)) {
+      // Focus sorti du panneau (clic sur une zone neutre, bouton désactivé) : on le ramène dedans.
+      if (!panel.contains(document.activeElement)) {
+        e.preventDefault();
+        (e.shiftKey ? last : first).focus();
+      } else if (e.shiftKey && (document.activeElement === first || document.activeElement === panel)) {
         e.preventDefault();
         last.focus();
       } else if (!e.shiftKey && document.activeElement === last) {

@@ -39,6 +39,24 @@ export function joinUploadErrors(errors: string[], max = 3): string | null {
     : shown;
 }
 
+/** Nom saisi dans la zone multiligne du panneau : espaces et retours à la ligne ramenés à un seul espace. */
+export function cleanDocName(name: string): string {
+  return name.replace(/\s+/g, " ").trim();
+}
+
+/** Problème bloquant dans la fiche en cours de modification (null si elle est enregistrable). */
+export function docDraftProblem(d: {
+  name: string;
+  date: string;
+  expires: string;
+}): string | null {
+  if (!cleanDocName(d.name)) return "Le nom du document ne peut pas être vide.";
+  // Dates AAAA-MM-JJ : la comparaison de chaînes suit l'ordre chronologique.
+  if (d.date && d.expires && d.expires < d.date)
+    return "La fin de validité ne peut pas précéder la date d'obtention.";
+  return null;
+}
+
 /** Délai d'alerte avant la fin de validité d'une pièce. */
 export const EXPIRY_WARN_DAYS = 90;
 

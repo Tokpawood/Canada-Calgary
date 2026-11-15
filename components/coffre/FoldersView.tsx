@@ -322,14 +322,16 @@ function AttachPicker({
   const [busy, setBusy] = useState<"move" | "copy" | null>(null);
   const [q, setQ] = useState("");
 
+  // Fichiers proposables, avant le filtre de recherche : une sélection faite puis masquée par le filtre reste prise en compte.
+  const eligible = useMemo(() => files.filter((f) => f.documentId && f.folderId !== folderId), [files, folderId]);
+  const chosen = eligible.filter((f) => picked.has(f.id));
   const groups = useMemo(() => {
     const needle = q.trim().toLowerCase();
-    const list = files.filter((f) => f.documentId && f.folderId !== folderId && (!needle || `${f.name} ${documentLabel(f)}`.toLowerCase().includes(needle)));
+    const list = eligible.filter((f) => !needle || `${f.name} ${documentLabel(f)}`.toLowerCase().includes(needle));
     const m = new Map<string, VaultFile[]>();
     for (const f of list) m.set(documentLabel(f), [...(m.get(documentLabel(f)) ?? []), f]);
     return [...m.entries()].sort((a, b) => a[0].localeCompare(b[0], "fr"));
-  }, [files, folderId, documentLabel, q]);
-  const all = groups.flatMap(([, l]) => l);
+  }, [eligible, documentLabel, q]);
 
   if (!open)
     return (
@@ -350,11 +352,7 @@ function AttachPicker({
 
   async function bring(mode: "move" | "copy") {
     setBusy(mode);
-    await onBring(
-      all.filter((f) => picked.has(f.id)),
-      folderId,
-      mode,
-    );
+    await onBring(chosen, folderId, mode);
     setBusy(null);
     setPicked(new Set());
     setOpen(false);
@@ -396,12 +394,12 @@ function AttachPicker({
       )}
       <div className="mt-3 flex flex-wrap items-center justify-end gap-2">
         <span className="mr-auto text-[12px] text-muted">
-          {picked.size} sélectionné{picked.size > 1 ? "s" : ""}
+          {chosen.length} sélectionné{chosen.length > 1 ? "s" : ""}
         </span>
-        <button type="button" disabled={!picked.size || !!busy} onClick={() => void bring("copy")} className="btn btn-sm btn-ghost">
+        <button type="button" disabled={!chosen.length || !!busy} onClick={() => void bring("copy")} className="btn btn-sm btn-ghost">
           <IconCopy size={14} /> {busy === "copy" ? "Copie…" : "Copier ici"}
         </button>
-        <button type="button" disabled={!picked.size || !!busy} onClick={() => void bring("move")} className="btn btn-sm btn-primary">
+        <button type="button" disabled={!chosen.length || !!busy} onClick={() => void bring("move")} className="btn btn-sm btn-primary">
           <IconFolder size={14} /> {busy === "move" ? "Rangement…" : "Ranger ici"}
         </button>
       </div>

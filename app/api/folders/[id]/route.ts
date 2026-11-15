@@ -77,13 +77,17 @@ async function move(supabase: SupabaseClient, dossierId: string, id: string, par
 
   // Sur Drive, le dossier (et donc son contenu) suit, en arrière-plan.
   after(async () => {
-    const conn = await getConnection(dossierId);
-    const driveId = conn?.folders[`folder:${id}`];
-    if (!conn?.refreshToken || !driveId) return;
-    const { token } = await requireDrive(dossierId);
-    const admin = createAdminClient();
-    const dest = parentId ? await driveFolderFor(conn, token, await resolveTarget(admin, dossierId, null, parentId)) : await ensureRootFolder(token, conn.rootFolderId);
-    await moveFile(token, driveId, dest, self.name);
+    try {
+      const conn = await getConnection(dossierId);
+      const driveId = conn?.folders[`folder:${id}`];
+      if (!conn?.refreshToken || !driveId) return;
+      const { token } = await requireDrive(dossierId);
+      const admin = createAdminClient();
+      const dest = parentId ? await driveFolderFor(conn, token, await resolveTarget(admin, dossierId, null, parentId)) : await ensureRootFolder(token, conn.rootFolderId);
+      await moveFile(token, driveId, dest, self.name);
+    } catch (e) {
+      console.error("[drive] déplacement du dossier", e);
+    }
   });
   return NextResponse.json({ folder: mapFolder(data) });
 }

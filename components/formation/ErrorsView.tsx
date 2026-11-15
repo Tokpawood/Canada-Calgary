@@ -114,16 +114,31 @@ export function ErrorsView({
     setEditing(null);
   }
 
-  async function patch(id: string, p: Partial<Pick<ErrorEntry, "count" | "mastered">>) {
+  // Écritures enchaînées par erreur : deux touches rapides sur « + » arrivent en base dans l'ordre.
+  const queues = useRef(new Map<string, Promise<void>>());
+  // Dernières valeurs confirmées par la base, pour revenir en arrière proprement en cas d'échec.
+  const saved = useRef(new Map<string, Pick<ErrorEntry, "count" | "mastered">>());
+
+  function patch(id: string, p: Partial<Pick<ErrorEntry, "count" | "mastered">>) {
     const before = errors.find((e) => e.id === id);
     if (!before) return;
     setListError(null);
+    if (!queues.current.has(id)) saved.current.set(id, { count: before.count, mastered: before.mastered });
     setErrors((list) => list.map((e) => (e.id === id ? { ...e, ...p } : e)));
-    const { error: err } = await supabase.from("training_error").update({ ...p, updated_at: new Date().toISOString() }).eq("id", id);
-    if (err) {
-      setErrors((list) => list.map((e) => (e.id === id ? before : e)));
-      setListError("La modification n'a pas pu être enregistrée. Vérifiez la connexion et réessayez.");
-    }
+    const write = async () => {
+      const { error: err } = await supabase.from("training_error").update({ ...p, updated_at: new Date().toISOString() }).eq("id", id);
+      const last = queues.current.get(id) === next;
+      if (err) setListError("La modification n'a pas pu être enregistrée. Vérifiez la connexion et réessayez.");
+      else saved.current.set(id, { ...saved.current.get(id)!, ...p });
+      if (!last) return;
+      // Dernière écriture en attente : en cas d'échec, l'affichage revient à ce que contient la base.
+      const db = saved.current.get(id)!;
+      if (err) setErrors((list) => list.map((e) => (e.id === id ? { ...e, ...db } : e)));
+      queues.current.delete(id);
+      saved.current.delete(id);
+    };
+    const next: Promise<void> = (queues.current.get(id) ?? Promise.resolve()).then(write, write);
+    queues.current.set(id, next);
   }
 
   async function remove(id: string) {

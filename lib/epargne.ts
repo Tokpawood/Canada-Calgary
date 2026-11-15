@@ -79,3 +79,14 @@ export function effectiveFundsMin(d: { fundsMin: number; fundsMinCad: number | n
   if (d.fundsMinCad != null && d.fundsMinCad > 0 && rate > 0) return Math.round(d.fundsMinCad * rate);
   return d.fundsMin;
 }
+
+/** Montant prévu à reprendre pour un nouveau versement : le dernier prévu renseigné, ou null. */
+export function lastPlanned(rows: Array<{ planned: number | null }>): number | null {
+  for (let i = rows.length - 1; i >= 0; i--) if (rows[i].planned != null) return rows[i].planned;
+  return null;
+}
+
+/** Écart total versé moins prévu, sur les lignes où les deux montants sont renseignés (comme la colonne Écart). */
+export function savingsGap(rows: Array<{ planned: number | null; actual: number | null }>): number {
+  return rows.reduce((s, r) => s + (r.actual != null && r.planned != null ? r.actual - r.planned : 0), 0);
+}

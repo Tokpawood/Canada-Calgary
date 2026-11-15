@@ -8,8 +8,10 @@ import type { Rates } from "@/lib/currency";
 import { newId } from "@/lib/ids";
 import {
   fundsError,
+  lastPlanned,
   monthsFromNow,
   savingsError,
+  savingsGap,
   suggestNextLabel,
 } from "@/lib/epargne";
 import { EmptyState, PageHeader, fcfa } from "@/components/ui";
@@ -122,7 +124,8 @@ export function EpargneBoard({
     (b, s) => (!b || (s.actual ?? 0) > (b.actual ?? 0) ? s : b),
     null,
   );
-  const gap = paid.reduce((s, r) => s + (r.actual ?? 0) - (r.planned ?? 0), 0);
+  // Même calcul que la colonne Écart et la ligne Total : un mois versé à 0 compte comme un manque.
+  const gap = savingsGap(savings);
   const monthsToMin =
     !progress.minReached && avg > 0 ? Math.ceil(toMin / avg) : null;
   const monthsToTarget =
@@ -141,11 +144,7 @@ export function EpargneBoard({
     : null;
   const rowsInvalid = rowsEd.editing ? savingsError(savings) : null;
   const totalActual = progress.saved;
-  const totalGap = savings.reduce(
-    (s, r) =>
-      s + (r.actual != null && r.planned != null ? r.actual - r.planned : 0),
-    0,
-  );
+  const totalGap = gap;
   const rateNote = rates
     ? `au taux du jour (1 $ CA = ${new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 2 }).format(rates.perXof.CAD)} F)`
     : "au taux enregistré";
@@ -155,14 +154,13 @@ export function EpargneBoard({
     if (!rowsEd.editing) rowsEd.start();
     // Mois suivant le dernier versement et même montant prévu : il ne reste qu'à saisir le versé.
     rowsEd.update((d) => {
-      const last = d[d.length - 1];
       return [
         ...d,
         {
           id: newId("e"),
           dossierId: dossier.id,
           label: suggestNextLabel(d.map((s) => s.label)),
-          planned: last?.planned ?? null,
+          planned: lastPlanned(d),
           actual: null,
           notes: "",
         },
@@ -335,7 +333,7 @@ export function EpargneBoard({
                   label: "Écart au prévu",
                   value: `${gap > 0 ? "+" : gap < 0 ? "−" : ""}${fcfa(Math.abs(gap))}`,
                   unit: "F",
-                  sub: "versé moins prévu, mois versés",
+                  sub: "versé moins prévu, mois renseignés",
                   valueTone: gap < 0 ? "bad" : "ok",
                 },
               ]}

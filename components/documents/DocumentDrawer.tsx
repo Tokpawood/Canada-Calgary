@@ -1,7 +1,12 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { joinUploadErrors } from "@/lib/documents";
+import {
+  cleanDocName,
+  docDraftProblem,
+  joinUploadErrors,
+} from "@/lib/documents";
+import { nextStepPosition } from "@/lib/parcours";
 import { StatusMessage } from "@/components/coffre/StatusMessage";
 import { createPortal } from "react-dom";
 import { FilePreview } from "@/components/coffre/FilePreview";
@@ -112,90 +117,108 @@ export function DocumentDrawer({ doc, onChange, onDelete, onClose }: Props) {
     [doc],
   );
 
-  const ed = useEditable(saved, async (d) => {
-    const removedChecks = doc.checks
-      .filter((c) => !d.checks.some((x) => x.id === c.id))
-      .map((c) => c.id);
-    if (removedChecks.length) {
-      const { error } = await supabase
-        .from("document_check")
-        .delete()
-        .in("id", removedChecks);
-      if (error) throw error;
-    }
-    const checks: DocumentRecord["checks"] = [];
-    for (const [i, c] of d.checks.entries()) {
-      if (!isTmp(c.id)) {
-        checks.push(c);
-        continue;
+  const ed = useEditable(
+    saved,
+    async (draft) => {
+      const problem = docDraftProblem(draft);
+      if (problem) throw new Error(problem);
+      const d = { ...draft, name: cleanDocName(draft.name) };
+      const removedChecks = doc.checks
+        .filter((c) => !d.checks.some((x) => x.id === c.id))
+        .map((c) => c.id);
+      if (removedChecks.length) {
+        const { error } = await supabase
+          .from("document_check")
+          .delete()
+          .in("id", removedChecks);
+        if (error) throw error;
       }
-      const { data, error } = await supabase
-        .from("document_check")
-        .insert({ document_id: doc.id, text: c.text, done: false, position: i })
-        .select("id")
-        .single();
-      if (error) throw error;
-      checks.push({ ...c, id: data.id as string, position: i });
-    }
-
-    const removedLinks = doc.links
-      .filter((l) => !d.links.some((x) => x.id === l.id))
-      .map((l) => l.id);
-    if (removedLinks.length) {
-      const { error } = await supabase
-        .from("document_link")
-        .delete()
-        .in("id", removedLinks);
-      if (error) throw error;
-    }
-    const links: DocumentRecord["links"] = [];
-    for (const l of d.links) {
-      if (!isTmp(l.id)) {
-        links.push(l);
-        continue;
+      // Rang après le plus grand existant : l'index retomberait sur celui d'un contrôle restant après une suppression.
+      let nextCheckPos = nextStepPosition(doc.checks);
+      const checks: DocumentRecord["checks"] = [];
+      for (const c of d.checks) {
+        if (!isTmp(c.id)) {
+          checks.push(c);
+          continue;
+        }
+        const position = nextCheckPos++;
+        const { data, error } = await supabase
+          .from("document_check")
+          .insert({ document_id: doc.id, text: c.text, done: false, position })
+          .select("id")
+          .single();
+        if (error) throw error;
+        checks.push({ ...c, id: data.id as string, position });
       }
-      const { data, error } = await supabase
-        .from("document_link")
-        .insert({ document_id: doc.id, label: l.label, url: l.url })
-        .select("id")
-        .single();
-      if (error) throw error;
-      links.push({ ...l, id: data.id as string });
-    }
 
-    const changed = changedFields(saved, d, [
-      "name",
-      "status",
-      "req",
-      "date",
-      "format",
-      "validity",
-      "expires",
-      "use",
-      "from",
-      "notes",
-    ]);
-    const dbPatch: Record<string, unknown> = {};
-    if ("name" in changed) dbPatch.name = changed.name;
-    if ("status" in changed) dbPatch.status = changed.status;
-    if ("req" in changed) dbPatch.req = changed.req;
-    if ("date" in changed) dbPatch.date = changed.date || null;
-    if ("format" in changed) dbPatch.format = changed.format;
-    if ("validity" in changed) dbPatch.validity = changed.validity;
-    if ("expires" in changed) dbPatch.expires = changed.expires || null;
-    if ("use" in changed) dbPatch.use_ = changed.use;
-    if ("from" in changed) dbPatch.from_org = changed.from;
-    if ("notes" in changed) dbPatch.notes = changed.notes;
-    if (Object.keys(dbPatch).length) {
-      const { error } = await supabase
-        .from("document")
-        .update(dbPatch)
-        .eq("id", doc.id);
-      if (error) throw error;
-    }
-    onChange({ ...doc, ...d, checks, links });
-    setWarn(false);
-  });
+      const removedLinks = doc.links
+        .filter((l) => !d.links.some((x) => x.id === l.id))
+        .map((l) => l.id);
+      if (removedLinks.length) {
+        const { error } = await supabase
+          .from("document_link")
+          .delete()
+          .in("id", removedLinks);
+        if (error) throw error;
+      }
+      // Sans rang explicite, un lien ajouté prenait la valeur par défaut 0 (ordre changeant au rechargement).
+      let nextLinkPos = doc.links.length;
+      const links: DocumentRecord["links"] = [];
+      for (const l of d.links) {
+        if (!isTmp(l.id)) {
+          links.push(l);
+          continue;
+        }
+        const { data, error } = await supabase
+          .from("document_link")
+          .insert({
+            document_id: doc.id,
+            label: l.label,
+            url: l.url,
+            position: nextLinkPos++,
+          })
+          .select("id")
+          .single();
+        if (error) throw error;
+        links.push({ ...l, id: data.id as string });
+      }
+
+      const changed = changedFields(saved, d, [
+        "name",
+        "status",
+        "req",
+        "date",
+        "format",
+        "validity",
+        "expires",
+        "use",
+        "from",
+        "notes",
+      ]);
+      const dbPatch: Record<string, unknown> = {};
+      if ("name" in changed) dbPatch.name = changed.name;
+      if ("status" in changed) dbPatch.status = changed.status;
+      if ("req" in changed) dbPatch.req = changed.req;
+      if ("date" in changed) dbPatch.date = changed.date || null;
+      if ("format" in changed) dbPatch.format = changed.format;
+      if ("validity" in changed) dbPatch.validity = changed.validity;
+      if ("expires" in changed) dbPatch.expires = changed.expires || null;
+      if ("use" in changed) dbPatch.use_ = changed.use;
+      if ("from" in changed) dbPatch.from_org = changed.from;
+      if ("notes" in changed) dbPatch.notes = changed.notes;
+      if (Object.keys(dbPatch).length) {
+        const { error } = await supabase
+          .from("document")
+          .update(dbPatch)
+          .eq("id", doc.id);
+        if (error) throw error;
+      }
+      // Dernière version : un scan envoyé pendant l'enregistrement ne doit pas disparaître de la fiche.
+      patchDoc((cur) => ({ ...cur, ...d, checks, links }));
+      setWarn(false);
+    },
+    docDraftProblem,
+  );
 
   const v = ed.current;
   const off = !ed.editing;

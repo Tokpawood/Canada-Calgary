@@ -86,6 +86,17 @@ describe("parseD / pd", () => {
     expect(pd("2026-11-05")?.toISOString()).toBe(new Date(Date.UTC(2026, 10, 5)).toISOString());
     expect(pd("")).toBeNull();
   });
+
+  it("refuse les dates impossibles au lieu de les faire glisser", () => {
+    expect(parseD("2026-02-30")).toBeNull();
+    expect(parseD("2026-04-31")).toBeNull();
+    expect(parseD("2026-13-01")).toBeNull();
+    expect(parseD("2028-02-29")).not.toBeNull();
+    expect(pd("2026-02-30")).toBeNull();
+    expect(pd("2026-13")).toBeNull();
+    expect(pd("2026-00-10")).toBeNull();
+    expect(pd("2028-02-29")?.toISOString()).toBe(new Date(Date.UTC(2028, 1, 29)).toISOString());
+  });
 });
 
 describe("retard et avancement des étapes", () => {
@@ -390,5 +401,24 @@ describe("contrôle du dossier : validité des pièces", () => {
     expect(items.find((i) => i.text === "Pièce expirée : Passeport")?.level).toBe("hi");
     expect(items.find((i) => i.text === "Pièce qui expire dans 16 jours : Police")?.level).toBe("md");
     expect(items.some((i) => i.text.includes("Diplôme"))).toBe(false);
+  });
+
+  it("une pièce qui expire le jour même : « aujourd'hui », pas « dans 0 jour »", async () => {
+    const { audit, fswCalc } = await import("./rules");
+    const items = audit(
+      {
+        steps: [],
+        documents: [{ id: "P", name: "Police", expires: "2026-11-15", status: "Obtenu", checks: [], files: [{} as never] }],
+        gaps: [],
+        identity: {},
+        profile: {},
+        history: [],
+        addresses: [],
+        savings: [{ actual: 1 }],
+        fsw: { ...fswCalc({} as never, "2000-01-01", null, []), below: false, known: false },
+      },
+      new Date(2026, 10, 15),
+    );
+    expect(items.some((i) => i.text === "Pièce qui expire aujourd'hui : Police")).toBe(true);
   });
 });

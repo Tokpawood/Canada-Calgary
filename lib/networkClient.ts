@@ -100,7 +100,12 @@ export async function removePhoto(kind: "org" | "person", id: string, path: stri
 
 /** Récupère une image sur internet (adresse d'image ou site de l'organisme) côté serveur. */
 export async function photoFromWeb(kind: "org" | "person", id: string, url: string): Promise<{ path: string; url: string | null }> {
-  const res = await fetch("/api/contacts/photo", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ kind, id, url }) });
+  let res: Response;
+  try {
+    res = await fetch("/api/contacts/photo", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ kind, id, url: url.trim() }) });
+  } catch {
+    throw new Error("Récupération impossible : vérifiez la connexion.");
+  }
   const body = (await res.json().catch(() => ({}))) as { path?: string; url?: string | null; error?: string };
   if (!res.ok || !body.path) throw new Error(body.error ?? "Récupération impossible.");
   return { path: body.path, url: body.url ?? null };

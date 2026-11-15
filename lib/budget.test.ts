@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { bankMarginPct, overdueTotal, rateError } from "./budget";
+import { bankMarginPct, budgetTotals, overdueTotal, rateError } from "./budget";
 
 describe("budget", () => {
   it("vérifie le taux enregistré et calcule la marge de la banque", () => {
@@ -17,5 +17,14 @@ describe("budget", () => {
       { due: null, planned: 7 },
     ];
     expect(overdueTotal(items, "2026-11-15")).toEqual({ count: 1, total: 10 });
+  });
+
+  it("n'efface pas le reste d'une phase avec le dépassement d'une autre", () => {
+    const t = budgetTotals([
+      { planned: 100, actual: 150 },
+      { planned: 100, actual: 0 },
+    ]);
+    expect(t).toEqual({ planned: 200, actual: 150, remaining: 100, over: 50 });
+    expect(budgetTotals([])).toEqual({ planned: 0, actual: 0, remaining: 0, over: 0 });
   });
 });

@@ -28,7 +28,8 @@ export function CheckBox({ checked, onChange, label, size = 22, disabled }: { ch
       disabled={disabled}
       onClick={() => onChange(!checked)}
       style={{ width: size, height: size }}
-      className={`grid shrink-0 place-items-center rounded-[7px] border-2 transition-colors disabled:opacity-50 ${
+      // Zone tactile élargie (≥ 36 px) autour de la case de 20-22 px : sur iPad, un toucher à côté ne doit pas ouvrir la tâche.
+      className={`relative grid shrink-0 place-items-center rounded-[7px] border-2 transition-colors before:absolute before:-inset-2 before:content-[''] disabled:opacity-50 ${
         checked ? "border-ok bg-ok text-surface" : "border-line text-transparent enabled:hover:border-ok"
       }`}
     >

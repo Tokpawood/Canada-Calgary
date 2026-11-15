@@ -49,7 +49,16 @@ async function run(request: NextRequest) {
       // Réserver la clé d'abord : deux appels simultanés ne peuvent pas envoyer deux fois.
       const { error } = await admin.from("notification_log").insert({ dossier_id: dossierId, key: r.key });
       if (error) continue;
-      const { sent, devices } = await sendToDossier(dossierId, { title: r.title, body: r.body, url: r.url, tag: r.tag }, admin);
+      let sent = 0;
+      let devices = 0;
+      try {
+        ({ sent, devices } = await sendToDossier(dossierId, { title: r.title, body: r.body, url: r.url, tag: r.tag }, admin));
+      } catch (e) {
+        // Clés VAPID absentes, base injoignable… : sans ce garde-fou la clé restait réservée (rappel perdu pour la journée)
+        // et les dossiers suivants n'étaient pas traités.
+        console.error("notify", e);
+        devices = 1;
+      }
       // Aucun appareil joint (panne passagère) : on libère la clé pour réessayer au prochain passage.
       if (!sent && devices) await admin.from("notification_log").delete().eq("dossier_id", dossierId).eq("key", r.key);
       results.push({ key: r.key, sent });

@@ -118,7 +118,7 @@ export function OrgDrawer({ dossierId, onOpenPerson, onPhoto, contact: c, person
                 onChange={(e) => void quickStage(e.target.value)}
                 disabled={stageBusy}
                 aria-label="Étape de la relation"
-                className="rounded-full disabled:opacity-60 border-0 bg-white/10 px-3 py-1 text-[12px] font-semibold text-night-ink outline-none focus:ring-2 focus:ring-signal"
+                className="min-h-8 rounded-full disabled:opacity-60 border-0 bg-white/10 px-3 py-1 text-[12px] font-semibold text-night-ink outline-none focus:ring-2 focus:ring-signal"
               >
                 {CONTACT_STAGES.map((s) => (
                   <option key={s.id} value={s.label} className="text-ink">

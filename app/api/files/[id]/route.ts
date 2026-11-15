@@ -57,8 +57,12 @@ export async function DELETE(_request: NextRequest, { params }: Ctx) {
       if (row.drive_file_id) {
         const driveId = row.drive_file_id as string;
         after(async () => {
-          const { token } = await requireDrive(dossierId);
-          await trashFile(token, driveId);
+          try {
+            const { token } = await requireDrive(dossierId);
+            await trashFile(token, driveId);
+          } catch (e) {
+            console.error("[drive] corbeille", e);
+          }
         });
       }
     }

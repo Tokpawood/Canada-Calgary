@@ -28,3 +28,21 @@ export function overdueTotal(items: Array<{ due: string | null; planned: number 
   }
   return { count, total };
 }
+
+/**
+ * Totaux du budget par phase. Le reste à payer additionne ce qui reste dans chaque phase :
+ * un dépassement dans une phase ne réduit pas ce qu'il reste à payer dans les autres.
+ */
+export function budgetTotals(rows: Array<{ planned: number; actual: number }>): { planned: number; actual: number; remaining: number; over: number } {
+  let planned = 0;
+  let actual = 0;
+  let remaining = 0;
+  let over = 0;
+  for (const r of rows) {
+    planned += r.planned;
+    actual += r.actual;
+    remaining += Math.max(0, r.planned - r.actual);
+    if (r.planned > 0 && r.actual > r.planned) over += r.actual - r.planned;
+  }
+  return { planned, actual, remaining, over };
+}

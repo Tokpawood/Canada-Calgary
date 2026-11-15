@@ -41,12 +41,34 @@ export function FilePreview({ files, index, documentLabel, signUrl, onIndex, onD
   // Image illisible (fichier absent de Drive, session expirée…) : on l'affiche au lieu d'une image cassée.
   const [broken, setBroken] = useState<string | null>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
+  const dialogRef = useRef<HTMLDivElement>(null);
 
-  // Focus sur « Fermer » à l'ouverture, rendu à l'élément d'origine à la fermeture.
+  // Focus sur « Fermer » à l'ouverture, gardé dans la visionneuse avec Tab, rendu à l'élément d'origine à la fermeture.
   useEffect(() => {
     const previous = document.activeElement as HTMLElement | null;
     closeRef.current?.focus();
-    return () => previous?.focus?.();
+    const onTab = (e: KeyboardEvent) => {
+      const box = dialogRef.current;
+      if (e.key !== "Tab" || !box) return;
+      const items = Array.from(box.querySelectorAll<HTMLElement>("button:not([disabled]), select:not([disabled]), iframe")).filter((el) => el.offsetParent !== null);
+      if (!items.length) return;
+      const first = items[0];
+      const last = items[items.length - 1];
+      const inside = box.contains(document.activeElement);
+      if (e.shiftKey && (!inside || document.activeElement === first)) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && (!inside || document.activeElement === last)) {
+        e.preventDefault();
+        first.focus();
+      }
+    };
+    document.addEventListener("keydown", onTab);
+    return () => {
+      document.removeEventListener("keydown", onTab);
+      // L'élément d'origine a pu disparaître (fichier supprimé depuis l'aperçu) : on ne vise que s'il est encore là.
+      if (previous && document.contains(previous)) previous.focus({ preventScroll: true });
+    };
   }, []);
 
   useEffect(() => {
@@ -62,8 +84,14 @@ export function FilePreview({ files, index, documentLabel, signUrl, onIndex, onD
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-      else if (e.key === "ArrowLeft" && index > 0) onIndex(index - 1);
+      if (e.key === "Escape") {
+        onClose();
+        return;
+      }
+      // Flèches dans une liste (Déplacer, Copier) : elles changent la valeur, pas le fichier affiché.
+      const t = e.target as HTMLElement | null;
+      if (e.altKey || e.metaKey || e.ctrlKey || e.shiftKey || (t && /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))) return;
+      if (e.key === "ArrowLeft" && index > 0) onIndex(index - 1);
       else if (e.key === "ArrowRight" && index < files.length - 1) onIndex(index + 1);
     };
     document.addEventListener("keydown", onKey);
@@ -91,7 +119,7 @@ export function FilePreview({ files, index, documentLabel, signUrl, onIndex, onD
   }
 
   return createPortal(
-    <div role="dialog" aria-modal="true" aria-label={`Aperçu : ${file.name}`} className="anim-fade fixed inset-0 z-50 flex flex-col bg-black/90 text-white">
+    <div ref={dialogRef} role="dialog" aria-modal="true" aria-label={`Aperçu : ${file.name}`} className="anim-fade fixed inset-0 z-50 flex flex-col bg-black/90 text-white">
       <header className="flex flex-wrap items-center gap-3 border-b border-white/10 px-4 py-3 sm:px-6" style={{ paddingTop: "max(0.75rem, env(safe-area-inset-top, 0px))" }}>
         <div className="min-w-0 flex-1">
           <p className="truncate text-[15px] font-semibold">{file.name}</p>

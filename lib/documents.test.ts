@@ -140,3 +140,19 @@ describe("validité des pièces", () => {
     ]);
   });
 });
+
+describe("fiche en cours de modification", () => {
+  it("nettoie le nom saisi sur plusieurs lignes", async () => {
+    const { cleanDocName } = await import("./documents");
+    expect(cleanDocName("  Relevé\nde notes  ")).toBe("Relevé de notes");
+  });
+
+  it("refuse un nom vide et une fin de validité avant l'obtention", async () => {
+    const { docDraftProblem } = await import("./documents");
+    expect(docDraftProblem({ name: " \n ", date: "", expires: "" })).toMatch(/nom/);
+    expect(docDraftProblem({ name: "Passeport", date: "2026-05-10", expires: "2026-05-01" })).toMatch(/validité/);
+    expect(docDraftProblem({ name: "Passeport", date: "2026-05-10", expires: "2036-05-09" })).toBeNull();
+    expect(docDraftProblem({ name: "Passeport", date: "", expires: "2026-01-01" })).toBeNull();
+    expect(docDraftProblem({ name: "Passeport", date: "2023-05", expires: "2023-05-20" })).toBeNull();
+  });
+});

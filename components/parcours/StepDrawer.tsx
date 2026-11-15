@@ -1,13 +1,13 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import {
   autoFillActual,
   isOpenStep,
   nextStatusAfterTaskToggle,
 } from "@/lib/rules";
-import { parseAmount } from "@/lib/parcours";
+import { nextStepPosition, parseAmount } from "@/lib/parcours";
 import type { Contact, Step, StepStatus } from "@/lib/types";
 import type { ContactPerson, ContactStepLink } from "@/lib/network";
 import { StepContacts } from "@/components/contacts/Links";
@@ -104,6 +104,11 @@ export function StepDrawer({
   /** Erreur d'une action immédiate (case cochée, suppression) : affichée en pied de panneau. */
   const [actionError, setActionError] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const stepRef = useRef(step);
+  useEffect(() => {
+    stepRef.current = step;
+  }, [step]);
+  const pendingTasks = useRef(new Set<string>());
 
   const saved: StepDraft = useMemo(
     () => ({
@@ -126,7 +131,8 @@ export function StepDrawer({
   const ed = useEditable(
     saved,
     async (draft) => {
-      const title = draft.title.trim();
+      // Le titre se saisit dans une zone multiligne : les retours à la ligne ne doivent pas finir en base.
+      const title = draft.title.replace(/\s+/g, " ").trim();
       if (!title)
         throw new Error("L'intitulé de l'étape ne peut pas être vide.");
       const d = { ...draft, title };
@@ -140,19 +146,23 @@ export function StepDrawer({
           .in("id", removedTasks);
         if (error) throw error;
       }
+      // Les ajouts se placent après le plus grand rang existant : après une suppression, l'index
+      // dans la liste retomberait sur le rang d'une mini-étape restante (ordre aléatoire au rechargement).
+      let nextTaskPos = nextStepPosition(step.tasks);
       const tasks: Step["tasks"] = [];
-      for (const [i, t] of d.tasks.entries()) {
+      for (const t of d.tasks) {
         if (!isTmp(t.id)) {
           tasks.push(t);
           continue;
         }
+        const position = nextTaskPos++;
         const { data, error } = await supabase
           .from("step_task")
-          .insert({ step_id: step.id, text: t.text, done: false, position: i })
+          .insert({ step_id: step.id, text: t.text, done: false, position })
           .select("id")
           .single();
         if (error) throw error;
-        tasks.push({ ...t, id: data.id as string, position: i });
+        tasks.push({ ...t, id: data.id as string, position });
       }
 
       const removedLinks = step.links
@@ -165,6 +175,8 @@ export function StepDrawer({
           .in("id", removedLinks);
         if (error) throw error;
       }
+      // Sans rang explicite, un lien ajouté prenait la valeur par défaut 0 et pouvait remonter en tête au rechargement.
+      let nextLinkPos = step.links.length;
       const links: Step["links"] = [];
       for (const l of d.links) {
         if (!isTmp(l.id)) {
@@ -173,7 +185,12 @@ export function StepDrawer({
         }
         const { data, error } = await supabase
           .from("step_link")
-          .insert({ step_id: step.id, label: l.label, url: l.url })
+          .insert({
+            step_id: step.id,
+            label: l.label,
+            url: l.url,
+            position: nextLinkPos++,
+          })
           .select("id")
           .single();
         if (error) throw error;
@@ -227,32 +244,72 @@ export function StepDrawer({
   }
 
   async function toggleTask(taskId: string, done: boolean) {
-    const tasks = step.tasks.map((t) => (t.id === taskId ? { ...t, done } : t));
+    // Une case déjà en cours d'enregistrement ignore les touchers suivants (pas d'écritures croisées).
+    if (pendingTasks.current.has(taskId)) return;
+    pendingTasks.current.add(taskId);
+    // Dernier état connu (et non la prop du rendu) : deux cases cochées coup sur coup ne s'écrasent pas.
+    const before = stepRef.current;
+    const tasks = before.tasks.map((t) =>
+      t.id === taskId ? { ...t, done } : t,
+    );
     const nextStatus = nextStatusAfterTaskToggle(
-      step.status,
+      before.status,
       tasks.filter((t) => t.done).length,
       tasks.length,
     );
-    const actual = autoFillActual(step, nextStatus);
-    const before = step;
+    const actual = autoFillActual(before, nextStatus);
+    const statusChanged =
+      nextStatus !== before.status || actual !== before.actual;
+    const apply = (fn: (s: Step) => Step) => {
+      const next = fn(stepRef.current);
+      stepRef.current = next;
+      onChange(next);
+    };
+    // Statut et montant reviennent à leur valeur d'avant, sauf si un autre geste les a changés entre-temps.
+    const restoreStatus = (s: Step): Step =>
+      s.status === nextStatus && s.actual === actual
+        ? { ...s, status: before.status, actual: before.actual }
+        : s;
     setActionError(null);
-    onChange({ ...step, tasks, status: nextStatus, actual });
-    const [taskRes, stepRes] = await Promise.all([
-      supabase.from("step_task").update({ done }).eq("id", taskId),
-      nextStatus !== step.status || actual !== step.actual
-        ? supabase
-            .from("step")
-            .update({ status: nextStatus, actual })
-            .eq("id", step.id)
-        : Promise.resolve({ error: null }),
-    ]);
-    const error = taskRes.error ?? stepRes.error;
-    if (error) {
-      // Retour à l'état enregistré : l'écran ne doit pas montrer une case cochée qui n'est pas en base.
-      if (taskRes.error) onChange(before);
-      setActionError(
-        `La mini-étape n'a pas pu être enregistrée (${error.message}).`,
-      );
+    apply((s) => ({
+      ...s,
+      tasks: s.tasks.map((t) => (t.id === taskId ? { ...t, done } : t)),
+      status: nextStatus,
+      actual,
+    }));
+    try {
+      // La case d'abord, le statut ensuite : jamais de statut « Fait » en base pour une case restée décochée.
+      const taskRes = await supabase
+        .from("step_task")
+        .update({ done })
+        .eq("id", taskId);
+      if (taskRes.error) {
+        apply((s) =>
+          restoreStatus({
+            ...s,
+            tasks: s.tasks.map((t) =>
+              t.id === taskId ? { ...t, done: !done } : t,
+            ),
+          }),
+        );
+        setActionError(
+          `La mini-étape n'a pas pu être enregistrée (${taskRes.error.message}).`,
+        );
+        return;
+      }
+      if (!statusChanged) return;
+      const stepRes = await supabase
+        .from("step")
+        .update({ status: nextStatus, actual })
+        .eq("id", before.id);
+      if (stepRes.error) {
+        apply(restoreStatus);
+        setActionError(
+          `La mini-étape est enregistrée, mais pas le statut de l'étape (${stepRes.error.message}).`,
+        );
+      }
+    } finally {
+      pendingTasks.current.delete(taskId);
     }
   }
 
@@ -453,10 +510,8 @@ export function StepDrawer({
               ) : (
                 <ConfirmButton
                   label="Supprimer l'étape"
-                  confirmLabel={
-                    deleting ? "Suppression…" : "Confirmer la suppression"
-                  }
-                  onConfirm={() => void handleDelete()}
+                  confirmLabel="Confirmer la suppression"
+                  onConfirm={handleDelete}
                 >
                   <IconTrash size={14} />
                   <span className="hidden sm:inline">Supprimer</span>
