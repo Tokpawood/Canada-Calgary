@@ -1,3 +1,4 @@
+import { timingSafeEqual } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { daysUntil, isOpenStep } from "@/lib/rules";
@@ -16,8 +17,10 @@ const THRESHOLDS: Array<["J-7" | "J-1", number]> = [
 
 export async function GET(request: NextRequest) {
   const expected = process.env.CRON_SECRET;
-  const header = request.headers.get("authorization");
-  if (!expected || header !== `Bearer ${expected}`) {
+  const header = Buffer.from(request.headers.get("authorization") ?? "");
+  const wanted = Buffer.from(`Bearer ${expected ?? ""}`);
+  // Comparaison à temps constant : la durée de la réponse ne renseigne pas sur le secret.
+  if (!expected || header.length !== wanted.length || !timingSafeEqual(header, wanted)) {
     return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
   }
 

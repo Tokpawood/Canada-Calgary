@@ -32,6 +32,18 @@ export function convert(amount: number, from: Currency, to: Currency, perXof: Re
   return (amount * perXof[from]) / perXof[to];
 }
 
+/**
+ * Paire de devises réellement affichable : une devise absente des devises disponibles retombe
+ * sur une devise disponible distincte de l'autre côté. `ok` est faux s'il n'y a pas deux devises distinctes.
+ */
+export function pickPair(from: Currency, to: Currency, available: readonly Currency[]): { from: Currency; to: Currency; ok: boolean } {
+  const pick = (c: Currency, avoid: Currency): Currency =>
+    available.includes(c) && c !== avoid ? c : (available.find((x) => x !== avoid) ?? available[0] ?? c);
+  const f = available.includes(from) ? from : pick(from, to);
+  const t = pick(to, f);
+  return { from: f, to: t, ok: available.includes(f) && available.includes(t) && f !== t };
+}
+
 export function formatAmount(n: number, code: Currency): string {
   const decimals = CURRENCIES.find((c) => c.code === code)?.decimals ?? 2;
   return new Intl.NumberFormat("fr-FR", { minimumFractionDigits: 0, maximumFractionDigits: decimals }).format(n);

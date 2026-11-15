@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { XOF_PER_EUR, convert, parseAmount, ratesFromEur } from "./currency";
+import { XOF_PER_EUR, convert, parseAmount, pickPair, ratesFromEur } from "./currency";
 
 describe("convertisseur de devises", () => {
   const rates = ratesFromEur({ CAD: 1.5758, USD: 1.1052 }, "2026-11-13", "BCE")!;
@@ -29,5 +29,13 @@ describe("convertisseur de devises", () => {
 
   it("refuse des taux incomplets", () => {
     expect(ratesFromEur({ CAD: 1.5 }, "d", "s")).toBeNull();
+  });
+
+  it("retombe sur une devise disponible quand la sélection n'existe plus", () => {
+    expect(pickPair("XOF", "CAD", ["XOF", "CAD", "EUR", "USD"])).toEqual({ from: "XOF", to: "CAD", ok: true });
+    expect(pickPair("XOF", "CAD", ["XOF", "EUR", "USD"])).toEqual({ from: "XOF", to: "EUR", ok: true });
+    expect(pickPair("CAD", "XOF", ["XOF", "EUR"])).toEqual({ from: "EUR", to: "XOF", ok: true });
+    expect(pickPair("XOF", "CAD", ["XOF"])).toEqual({ from: "XOF", to: "XOF", ok: false });
+    expect(pickPair("CAD", "XOF", ["XOF"])).toEqual({ from: "XOF", to: "XOF", ok: false });
   });
 });

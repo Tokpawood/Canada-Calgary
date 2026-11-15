@@ -9,6 +9,7 @@ import type {
   Identity,
 } from "@/lib/types";
 import { newId } from "@/lib/ids";
+import { nextStepPosition } from "@/lib/parcours";
 import {
   Chip,
   DOC_TONE,
@@ -114,9 +115,11 @@ export function DocumentsBoard({
     setSavingNew(true);
     setError(null);
     const id = newId("d");
+    // Après le plus grand rang existant : le nombre de pièces retomberait sur un rang occupé après une suppression.
+    const position = nextStepPosition(documents);
     const { error: insertError } = await supabase
       .from("document")
-      .insert({ id, dossier_id: dossierId, name, position: documents.length });
+      .insert({ id, dossier_id: dossierId, name, position });
     setSavingNew(false);
     if (insertError) {
       setError(
@@ -139,6 +142,7 @@ export function DocumentsBoard({
         format: "",
         validity: "",
         expires: "",
+        position,
         checks: [],
         links: [],
         files: [],

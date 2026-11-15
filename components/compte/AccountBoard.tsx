@@ -10,6 +10,7 @@ import { PasswordInput, authErrorFr } from "@/components/PasswordInput";
 import { IconCheck, IconInfo, IconLock, IconLogout, IconShield } from "@/components/icons";
 import { Avatar } from "@/components/Avatar";
 import type { Account } from "@/lib/account";
+import { formatCreatedAt, formatLastSignIn } from "@/lib/compte";
 
 const MIN = 7;
 
@@ -47,6 +48,8 @@ export function AccountBoard({
   const [signingOut, setSigningOut] = useState(false);
   const [signOutError, setSignOutError] = useState<string | null>(null);
 
+  // Fuseau fixe : même texte au rendu serveur et sur l'appareil (pas d'erreur d'hydratation).
+  const lastSeen = formatLastSignIn(lastSignIn);
   const st = strength(next);
   const rules = [
     { ok: next.length >= MIN, text: `${MIN} caractères minimum` },
@@ -108,8 +111,8 @@ export function AccountBoard({
         aside={
           <DarkTiles
             items={[
-              { label: "Dernière connexion", value: lastSignIn ? new Date(lastSignIn).toLocaleDateString("fr-FR", { day: "numeric", month: "short" }) : "—", sub: lastSignIn ? `à ${new Date(lastSignIn).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}` : "" },
-              { label: "Compte créé", value: createdAt ? new Date(createdAt).toLocaleDateString("fr-FR", { month: "short", year: "numeric" }) : "—", sub: "compte unique" },
+              { label: "Dernière connexion", value: lastSeen?.day ?? "—", sub: lastSeen ? `à ${lastSeen.time} (Calgary)` : "" },
+              { label: "Compte créé", value: formatCreatedAt(createdAt) ?? "—", sub: "compte unique" },
             ]}
           />
         }

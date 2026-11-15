@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { CURRENCIES, convert, formatAmount, parseAmount, type Currency, type Rates } from "@/lib/currency";
+import { CURRENCIES, convert, formatAmount, parseAmount, pickPair, type Currency, type Rates } from "@/lib/currency";
 import { IconRefresh } from "@/components/icons";
 
 interface Props {
@@ -16,8 +16,8 @@ type Source = "jour" | "perso";
 
 /** Convertisseur dans les deux sens : on saisit d'un côté ou de l'autre, l'autre montant suit. */
 export function Converter({ rates, savedCadRate, presets = [] }: Props) {
-  const [from, setFrom] = useState<Currency>("XOF");
-  const [to, setTo] = useState<Currency>("CAD");
+  const [fromSel, setFrom] = useState<Currency>("XOF");
+  const [toSel, setTo] = useState<Currency>("CAD");
   const [left, setLeft] = useState("");
   const [right, setRight] = useState("");
   const [edited, setEdited] = useState<"left" | "right">("left");
@@ -27,7 +27,8 @@ export function Converter({ rates, savedCadRate, presets = [] }: Props) {
   const perXof: Partial<Record<Currency, number>> =
     source === "jour" && rates ? rates.perXof : { ...(rates?.perXof ?? { XOF: 1 }), XOF: 1, CAD: savedCadRate > 0 ? savedCadRate : undefined };
   const available = CURRENCIES.filter((c) => (perXof[c.code] ?? 0) > 0);
-  const ok = (perXof[from] ?? 0) > 0 && (perXof[to] ?? 0) > 0;
+  // Une devise sélectionnée mais devenue indisponible (ex. $ CA sans aucun taux) retombe sur une devise disponible.
+  const { from, to, ok } = pickPair(fromSel, toSel, available.map((c) => c.code));
   const table = perXof as Record<Currency, number>;
 
   const compute = (raw: string, a: Currency, b: Currency) => {
@@ -65,7 +66,9 @@ export function Converter({ rates, savedCadRate, presets = [] }: Props) {
 
   const unit = (c: Currency) => CURRENCIES.find((x) => x.code === c)?.symbol ?? c;
   const fmtRate = (n: number) => new Intl.NumberFormat("fr-FR", { maximumSignificantDigits: 5 }).format(n);
-  const rateLine = ok ? `1 ${unit(from)} = ${fmtRate(convert(1, from, to, table))} ${unit(to)} · 1 ${unit(to)} = ${fmtRate(convert(1, to, from, table))} ${unit(from)}` : "Taux indisponible pour cette devise.";
+  const rateLine = ok ? `1 ${unit(from)} = ${fmtRate(convert(1, from, to, table))} ${unit(to)} · 1 ${unit(to)} = ${fmtRate(convert(1, to, from, table))} ${unit(from)}` : available.length < 2
+      ? "Aucun taux disponible : conversion impossible pour le moment."
+      : "Taux indisponible pour cette devise.";
   const dateLabel = rates ? new Date(`${rates.date}T12:00:00`).toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" }) : null;
 
   const Side = ({ side, value, cur, onCur }: { side: "left" | "right"; value: string; cur: Currency; onCur: (c: Currency) => void }) => (
@@ -79,8 +82,9 @@ export function Converter({ rates, savedCadRate, presets = [] }: Props) {
         }}
         inputMode="decimal"
         placeholder="0"
+        disabled={!ok}
         aria-label={`Montant en ${CURRENCIES.find((c) => c.code === cur)?.label}`}
-        className="mono min-w-0 flex-1 bg-transparent px-3 py-2.5 text-right text-[17px] font-semibold outline-none"
+        className="mono min-w-0 flex-1 bg-transparent px-3 py-2.5 text-right text-[17px] font-semibold outline-none disabled:opacity-50"
       />
       <select value={cur} onChange={(e) => onCur(e.target.value as Currency)} aria-label="Devise" className="border-l border-line bg-surface-2 px-2 text-[13px] font-semibold outline-none">
         {available.map((c) => (
@@ -140,13 +144,17 @@ export function Converter({ rates, savedCadRate, presets = [] }: Props) {
         </div>
       )}
 
-      <p className="mono mt-3 text-[12.5px] text-muted">{rateLine}</p>
+      <p className={`mono mt-3 text-[12.5px] ${ok ? "text-muted" : "font-semibold text-ink"}`} role={ok ? undefined : "status"}>
+        {rateLine}
+      </p>
       <p className="mt-1 text-[11.5px] text-faint">
         {source === "jour" && rates
           ? `Taux de référence ${rates.source} du ${dateLabel} (franc CFA à parité fixe avec l'euro : 1 € = 655,957 FCFA). Votre banque applique en plus sa marge.`
           : rates
             ? "Dollar canadien au taux enregistré ci-contre ; autres devises au taux du jour."
-            : "Taux du jour indisponible pour le moment : conversion au taux enregistré."}
+            : savedCadRate > 0
+              ? "Taux du jour indisponible pour le moment : conversion au taux enregistré."
+              : "Ni taux du jour, ni taux enregistré : renseignez votre taux FCFA → $ CA pour convertir."}
       </p>
     </section>
   );

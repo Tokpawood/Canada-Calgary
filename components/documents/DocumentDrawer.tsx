@@ -161,26 +161,27 @@ export function DocumentDrawer({ doc, onChange, onDelete, onClose }: Props) {
           .in("id", removedLinks);
         if (error) throw error;
       }
-      // Sans rang explicite, un lien ajouté prenait la valeur par défaut 0 (ordre changeant au rechargement).
-      let nextLinkPos = doc.links.length;
+      // Rang après le plus grand existant (pas le nombre de liens : après une suppression il retomberait sur un rang occupé).
+      let nextLinkPos = nextStepPosition(doc.links);
       const links: DocumentRecord["links"] = [];
       for (const l of d.links) {
         if (!isTmp(l.id)) {
           links.push(l);
           continue;
         }
+        const position = nextLinkPos++;
         const { data, error } = await supabase
           .from("document_link")
           .insert({
             document_id: doc.id,
             label: l.label,
             url: l.url,
-            position: nextLinkPos++,
+            position,
           })
           .select("id")
           .single();
         if (error) throw error;
-        links.push({ ...l, id: data.id as string });
+        links.push({ ...l, id: data.id as string, position });
       }
 
       const changed = changedFields(saved, d, [
@@ -661,7 +662,7 @@ export function DocumentDrawer({ doc, onChange, onDelete, onClose }: Props) {
             onAdd={(label, url) =>
               ed.update((d) => ({
                 ...d,
-                links: [...d.links, { id: tmpId(), label, url }],
+                links: [...d.links, { id: tmpId(), label, url, position: nextStepPosition(d.links) }],
               }))
             }
             onDelete={(id) =>

@@ -23,7 +23,7 @@ const bundle: FullBundle = {
       risk: "R",
       position: 0,
       tasks: [{ id: "t1", text: "a", done: true, position: 0 }],
-      links: [{ id: "l1", label: "Lien", url: "https://exemple.ca" }],
+      links: [{ id: "l1", label: "Lien", url: "https://exemple.ca", position: 3 }],
     },
   ],
   documents: [
@@ -40,6 +40,7 @@ const bundle: FullBundle = {
       format: "PDF",
       validity: "5 ans",
       expires: "2031-01-01",
+      position: 0,
       checks: [{ id: "c1", text: "vérifié", done: true, position: 0 }],
       links: [],
       files: [],
@@ -89,6 +90,8 @@ describe("toRawDossierJson", () => {
     expect(parsed.addresses).toHaveLength(1);
     expect(raw.steps[0].sub).toEqual([{ t: "a", done: true }]);
     expect(raw.docs[0].checks).toEqual([{ t: "vérifié", done: true }]);
+    // Le rang interne des liens ne fuit pas dans le format exporté (compatibilité des sauvegardes).
+    expect(raw.steps[0].links).toEqual([{ l: "Lien", u: "https://exemple.ca" }]);
   });
 });
 

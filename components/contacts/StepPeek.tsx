@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { autoFillActual, isOpenStep, nextStatusAfterTaskToggle } from "@/lib/rules";
 import type { Contact, Step } from "@/lib/types";
@@ -36,23 +36,49 @@ export function StepPeek({ step, contacts, persons, links, backLabel, onBack, on
   const [error, setError] = useState<string | null>(null);
   const shown = links.filter((l) => (l.contactId && orgOf.has(l.contactId)) || (l.personId && personOf.has(l.personId)));
 
+  // Dernier état connu (et non la prop du rendu) : deux cases cochées coup sur coup ne s'écrasent pas.
+  const stepRef = useRef(step);
+  useEffect(() => {
+    stepRef.current = step;
+  }, [step]);
+  const pendingTasks = useRef(new Set<string>());
+
   async function toggle(taskId: string, value: boolean) {
+    // Une case déjà en cours d'enregistrement ignore les touchers suivants (pas d'écritures croisées).
+    if (pendingTasks.current.has(taskId)) return;
+    pendingTasks.current.add(taskId);
     const supabase = createClient();
-    const tasks = step.tasks.map((t) => (t.id === taskId ? { ...t, done: value } : t));
-    const status = nextStatusAfterTaskToggle(step.status, tasks.filter((t) => t.done).length, tasks.length);
-    const actual = autoFillActual(step, status);
+    const before = stepRef.current;
+    const tasks = before.tasks.map((t) => (t.id === taskId ? { ...t, done: value } : t));
+    const status = nextStatusAfterTaskToggle(before.status, tasks.filter((t) => t.done).length, tasks.length);
+    const actual = autoFillActual(before, status);
+    const statusChanged = status !== before.status || actual !== before.actual;
+    const apply = (fn: (s: Step) => Step) => {
+      const next = fn(stepRef.current);
+      stepRef.current = next;
+      onChange(next);
+    };
+    // Statut et montant reviennent à leur valeur d'avant, sauf si un autre geste les a changés entre-temps.
+    const restoreStatus = (s: Step): Step => (s.status === status && s.actual === actual ? { ...s, status: before.status, actual: before.actual } : s);
     setError(null);
-    onChange({ ...step, tasks, status, actual });
-    const [r1, r2] = await Promise.all([
-      supabase.from("step_task").update({ done: value }).eq("id", taskId),
-      status !== step.status || actual !== step.actual ? supabase.from("step").update({ status, actual }).eq("id", step.id) : Promise.resolve({ error: null }),
-    ]);
-    if (r1.error || r2.error) {
-      // Retour à l'état d'avant : l'écran ne doit pas montrer une case cochée qui n'est pas enregistrée.
-      onChange(step);
-      if (!r1.error) await supabase.from("step_task").update({ done: !value }).eq("id", taskId);
-      else if (!r2.error && (status !== step.status || actual !== step.actual)) await supabase.from("step").update({ status: step.status, actual: step.actual }).eq("id", step.id);
-      setError("Enregistrement impossible : vérifiez la connexion et réessayez.");
+    apply((s) => ({ ...s, tasks: s.tasks.map((t) => (t.id === taskId ? { ...t, done: value } : t)), status, actual }));
+    try {
+      // La case d'abord, le statut ensuite : jamais de statut « Fait » en base pour une case restée décochée.
+      const r1 = await supabase.from("step_task").update({ done: value }).eq("id", taskId);
+      if (r1.error) {
+        // Annulation ciblée : seule cette case revient en arrière, les autres gestes sont conservés.
+        apply((s) => restoreStatus({ ...s, tasks: s.tasks.map((t) => (t.id === taskId ? { ...t, done: !value } : t)) }));
+        setError("Enregistrement impossible : vérifiez la connexion et réessayez.");
+        return;
+      }
+      if (!statusChanged) return;
+      const r2 = await supabase.from("step").update({ status, actual }).eq("id", before.id);
+      if (r2.error) {
+        apply(restoreStatus);
+        setError("La mini-étape est enregistrée, mais pas le statut de la tâche : réessayez.");
+      }
+    } finally {
+      pendingTasks.current.delete(taskId);
     }
   }
 

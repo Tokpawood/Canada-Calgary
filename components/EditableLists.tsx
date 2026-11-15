@@ -10,6 +10,8 @@ interface CheckItem {
   done: boolean;
 }
 
+// Cibles tactiles : la case (18 px) et la croix (24 px) gardent leur aspect, mais une pseudo-zone
+// transparente (::after) étend la surface cliquable à 32 px pour le doigt sur iPad.
 export function Checklist({
   items,
   onToggle,
@@ -49,7 +51,7 @@ export function Checklist({
               aria-label={it.text}
               disabled={toggleDisabled}
               onClick={() => onToggle(it.id, !it.done)}
-              className={`mt-px grid h-[18px] w-[18px] shrink-0 place-items-center rounded-[5px] border-2 transition-colors disabled:cursor-default disabled:opacity-60 ${
+              className={`relative mt-px grid h-[18px] w-[18px] shrink-0 after:absolute after:-inset-[7px] after:content-[''] place-items-center rounded-[5px] border-2 transition-colors disabled:cursor-default disabled:opacity-60 ${
                 it.done ? "border-ok bg-ok text-surface" : "border-line text-transparent enabled:hover:border-ok"
               }`}
             >
@@ -61,7 +63,7 @@ export function Checklist({
                 type="button"
                 onClick={() => onDelete(it.id)}
                 aria-label={`Retirer « ${it.text} »`}
-                className="grid h-6 w-6 shrink-0 place-items-center rounded-md text-bad hover:bg-bad-bg"
+                className="relative grid h-6 w-6 shrink-0 place-items-center rounded-md text-bad after:absolute after:-inset-1 after:content-[''] hover:bg-bad-bg"
               >
                 <IconX size={13} />
               </button>
@@ -139,7 +141,7 @@ export function LinkList({
                   type="button"
                   onClick={() => onDelete(l.id)}
                   aria-label={`Retirer le lien « ${l.label} »`}
-                  className="grid h-6 w-6 shrink-0 place-items-center rounded-md text-bad hover:bg-bad-bg"
+                  className="relative grid h-6 w-6 shrink-0 place-items-center rounded-md text-bad after:absolute after:-inset-1 after:content-[''] hover:bg-bad-bg"
                 >
                   <IconX size={13} />
                 </button>

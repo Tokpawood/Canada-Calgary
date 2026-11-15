@@ -9,6 +9,8 @@ export interface Link {
   id: string;
   label: string;
   url: string;
+  /** Rang en base (ordre d'affichage) ; sert à placer un nouveau lien après le plus grand rang existant. */
+  position: number;
 }
 
 export interface SubTask {
@@ -74,6 +76,8 @@ export interface DocumentRecord {
   validity: string;
   /** Fin de validité (AAAA-MM-JJ), vide si sans objet. */
   expires: string;
+  /** Rang en base (ordre d'affichage) ; un nouveau document se place après le plus grand rang existant. */
+  position: number;
   checks: DocumentCheck[];
   links: Link[];
   files: VaultFile[];

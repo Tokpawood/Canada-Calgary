@@ -37,6 +37,7 @@ const doc = (over: Partial<DocumentRecord> = {}): DocumentRecord => ({
   format: "",
   validity: "",
   expires: "",
+  position: 0,
   checks: [],
   links: [],
   files: [],

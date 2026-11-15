@@ -60,9 +60,11 @@ export function NotificationsCard({ dossierId, initial, devices }: { dossierId: 
       const reg = await registration();
       const sub = (await reg.pushManager.getSubscription()) ?? (await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64ToBytes(vapid) }));
       const res = await fetch("/api/notifications/subscribe", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(sub.toJSON()) });
-      if (!res.ok) throw new Error(((await res.json().catch(() => ({}))) as { error?: string }).error ?? "Enregistrement impossible.");
+      const json = (await res.json().catch(() => ({}))) as { error?: string; devices?: number | null };
+      if (!res.ok) throw new Error(json.error ?? "Enregistrement impossible.");
       setSubscribed(true);
-      setDeviceCount((n) => n + 1);
+      // Compte renvoyé par le serveur : un appareil déjà abonné (même endpoint) n'est pas compté deux fois.
+      if (typeof json.devices === "number") setDeviceCount(json.devices);
       if (!settings.enabled) await save({ ...settings, enabled: true });
       setMessage({ tone: "ok", text: "Cet appareil recevra les rappels. Envoyez une notification d'essai pour vérifier." });
     } catch (e) {
@@ -75,12 +77,16 @@ export function NotificationsCard({ dossierId, initial, devices }: { dossierId: 
     setBusy("disable");
     const reg = await navigator.serviceWorker.getRegistration("/");
     const sub = await reg?.pushManager.getSubscription();
+    let devices: number | null = null;
     if (sub) {
-      await fetch("/api/notifications/subscribe", { method: "DELETE", headers: { "content-type": "application/json" }, body: JSON.stringify({ endpoint: sub.endpoint }) }).catch(() => null);
+      const res = await fetch("/api/notifications/subscribe", { method: "DELETE", headers: { "content-type": "application/json" }, body: JSON.stringify({ endpoint: sub.endpoint }) }).catch(() => null);
+      const json = (await res?.json().catch(() => ({}))) as { devices?: number | null } | undefined;
+      if (res?.ok && typeof json?.devices === "number") devices = json.devices;
       await sub.unsubscribe().catch(() => false);
     }
     setSubscribed(false);
-    setDeviceCount((n) => Math.max(0, n - 1));
+    if (devices !== null) setDeviceCount(devices);
+    else if (sub) setDeviceCount((n) => Math.max(0, n - 1));
     setBusy(null);
     setMessage({ tone: "ok", text: "Cet appareil ne recevra plus de rappels." });
   }

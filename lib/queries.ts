@@ -30,8 +30,27 @@ function mapDossier(row: Record<string, unknown>): Dossier {
   };
 }
 
+/**
+ * Dossier affiché : celui dont l'utilisateur est titulaire en priorité, sinon le premier dossier visible
+ * (lecteur invité). Sans filtre, `maybeSingle()` échouait dès que plusieurs dossiers étaient visibles
+ * (titulaire d'un dossier ET invité sur un autre).
+ */
 export async function getDossierForUser(supabase: SupabaseClient): Promise<Dossier | null> {
-  const { data } = await supabase.from("dossier").select("*").maybeSingle();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (user) {
+    const { data: owned } = await supabase.from("dossier").select("*").eq("owner_id", user.id).maybeSingle();
+    if (owned) return mapDossier(owned);
+  }
+  // Ordre stable : le plus ancien dossier visible (RLS : ceux où l'utilisateur est collaborateur).
+  const { data } = await supabase
+    .from("dossier")
+    .select("*")
+    .order("created_at", { ascending: true })
+    .order("id", { ascending: true })
+    .limit(1)
+    .maybeSingle();
   return data ? mapDossier(data) : null;
 }
 
@@ -97,7 +116,12 @@ function mapSubTask(row: Record<string, unknown>): SubTask {
 }
 
 function mapLink(row: Record<string, unknown>): StepLink {
-  return { id: row.id as string, label: row.label as string, url: row.url as string };
+  return {
+    id: row.id as string,
+    label: row.label as string,
+    url: row.url as string,
+    position: Number(row.position ?? 0),
+  };
 }
 
 function groupBy<T>(rows: T[], keyOf: (row: T) => string): Map<string, T[]> {
@@ -174,6 +198,7 @@ function mapDocument(
     format: (row.format as string) ?? "",
     validity: (row.validity as string) ?? "",
     expires: (row.expires as string) ?? "",
+    position: Number(row.position ?? 0),
     checks: checks.map(mapDocumentCheck),
     links: links.map(mapLink),
     files: files.map(mapVaultFile),

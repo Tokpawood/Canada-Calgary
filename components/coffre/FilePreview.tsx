@@ -17,6 +17,13 @@ export function fileDate(f: VaultFile): string {
   return f.uploadedAt ? new Date(f.uploadedAt).toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" }) : "";
 }
 
+/** Vrai si `el` est la dernière fenêtre modale ouverte (même règle que le Drawer de components/ui.tsx). */
+function isTopModal(el: HTMLElement | null): boolean {
+  if (!el) return false;
+  const modals = document.querySelectorAll('[aria-modal="true"]');
+  return modals[modals.length - 1] === el;
+}
+
 interface Props {
   files: VaultFile[];
   index: number;
@@ -49,8 +56,10 @@ export function FilePreview({ files, index, documentLabel, signUrl, onIndex, onD
     closeRef.current?.focus();
     const onTab = (e: KeyboardEvent) => {
       const box = dialogRef.current;
-      if (e.key !== "Tab" || !box) return;
-      const items = Array.from(box.querySelectorAll<HTMLElement>("button:not([disabled]), select:not([disabled]), iframe")).filter((el) => el.offsetParent !== null);
+      if (e.key !== "Tab" || !box || !isTopModal(box)) return;
+      const items = Array.from(
+        box.querySelectorAll<HTMLElement>('a[href], button:not([disabled]), select:not([disabled]), iframe, [tabindex]:not([tabindex="-1"])'),
+      ).filter((el) => el.offsetParent !== null);
       if (!items.length) return;
       const first = items[0];
       const last = items[items.length - 1];
@@ -83,8 +92,13 @@ export function FilePreview({ files, index, documentLabel, signUrl, onIndex, onD
   }, [file, signUrl]);
 
   useEffect(() => {
+    const self = dialogRef.current;
     const onKey = (e: KeyboardEvent) => {
+      // Une autre fenêtre ouverte par-dessus l'aperçu garde la main sur le clavier.
+      if (self && !isTopModal(self)) return;
       if (e.key === "Escape") {
+        // Échap ne ferme que l'aperçu : le tiroir dessous (Drawer) ignore un événement déjà traité.
+        e.preventDefault();
         onClose();
         return;
       }
@@ -98,7 +112,9 @@ export function FilePreview({ files, index, documentLabel, signUrl, onIndex, onD
     document.body.classList.add("locked");
     return () => {
       document.removeEventListener("keydown", onKey);
-      document.body.classList.remove("locked");
+      // Un tiroir resté ouvert sous l'aperçu doit garder la page verrouillée.
+      const others = Array.from(document.querySelectorAll('[aria-modal="true"]')).filter((el) => el !== self);
+      if (!others.length) document.body.classList.remove("locked");
     };
   }, [index, files.length, onIndex, onClose]);
 
