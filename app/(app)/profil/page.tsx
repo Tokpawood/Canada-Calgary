@@ -12,6 +12,7 @@ import {
   getSavingsActual,
   getStepsWithDetails,
 } from "@/lib/queries";
+import { getAccount } from "@/lib/account";
 import { ProfilBoard } from "@/components/profil/ProfilBoard";
 
 export default async function ProfilPage() {
@@ -21,7 +22,8 @@ export default async function ProfilPage() {
   if (!dossier) redirect("/import");
   if (dossier.ownerId !== userData.user?.id) redirect("/parcours");
 
-  const [identity, profile, fsw, history, addresses, steps, documents, gaps, savings] = await Promise.all([
+  const [account, identity, profile, fsw, history, addresses, steps, documents, gaps, savings] = await Promise.all([
+    userData.user ? getAccount(supabase, userData.user, dossier.id) : Promise.resolve(null),
     getIdentity(supabase, dossier.id),
     getProfile(supabase, dossier.id),
     getFsw(supabase, dossier.id),
@@ -36,6 +38,7 @@ export default async function ProfilPage() {
   return (
     <ProfilBoard
       dossier={dossier}
+      avatarUrl={account?.avatarUrl ?? null}
       initialIdentity={
         identity ?? { dossierId: dossier.id, nom: "", prenoms: "", naissance: null, lieu: "", pere: "", mere: "", statut: "" }
       }

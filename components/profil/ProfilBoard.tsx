@@ -36,6 +36,8 @@ export interface AuditSnapshot {
 interface Props {
   dossier: Dossier;
   initialIdentity: Identity;
+  /** Photo de profil ajoutée dans Compte et consentement. */
+  avatarUrl: string | null;
   initialProfile: Profile;
   initialFsw: FswProfile;
   initialHistory: HistoryEntry[];
@@ -114,7 +116,7 @@ const BADGE_CLASS: Record<Tone, string> = {
   todo: "bg-white/15 text-night-ink",
 };
 
-export function ProfilBoard({ dossier, initialIdentity, initialProfile, initialFsw, initialHistory, initialAddresses, auditSnapshot }: Props) {
+export function ProfilBoard({ dossier, avatarUrl, initialIdentity, initialProfile, initialFsw, initialHistory, initialAddresses, auditSnapshot }: Props) {
   const [identity, setIdentity] = useState(initialIdentity);
   const [profile, setProfile] = useState(initialProfile);
   const [fsw, setFsw] = useState(initialFsw);
@@ -249,6 +251,7 @@ export function ProfilBoard({ dossier, initialIdentity, initialProfile, initialF
         missing={idMissing + profileMissing}
         fswTotal={fswResult.total}
         fswStatus={fswResult.status}
+        avatarUrl={avatarUrl}
       >
         <div role="tablist" aria-label="Sections du profil" className="no-scrollbar -mb-px flex gap-1 overflow-x-auto px-3 sm:px-5">
           {TABS.map((t) => {
@@ -499,8 +502,10 @@ function ProfileHeader({
   missing,
   fswTotal,
   fswStatus,
+  avatarUrl,
   children,
 }: {
+  avatarUrl: string | null;
   identity: Identity;
   profile: Profile;
   completeness: number;
@@ -525,8 +530,13 @@ function ProfileHeader({
     <section className="overflow-hidden rounded-2xl bg-night text-night-ink print:rounded-none print:bg-transparent print:text-ink">
       <div className="flex flex-col gap-5 p-5 sm:p-6 xl:flex-row xl:items-center">
         <div className="flex min-w-0 flex-1 items-center gap-4">
-          <span className="grid h-16 w-16 shrink-0 place-items-center rounded-2xl bg-white/10 font-display text-[24px] font-bold ring-1 ring-white/15 sm:h-[76px] sm:w-[76px] sm:text-[28px]">
-            {initials}
+          <span className="relative grid h-16 w-16 shrink-0 place-items-center overflow-hidden rounded-full bg-white/10 font-display text-[24px] font-bold ring-2 ring-white/15 sm:h-[76px] sm:w-[76px] sm:text-[28px] print:ring-line">
+            {avatarUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element -- lien signé temporaire du stockage privé
+              <img src={avatarUrl} alt={fullName ? `Photo de ${fullName}` : "Photo de profil"} className="absolute inset-0 h-full w-full object-cover" />
+            ) : (
+              initials
+            )}
           </span>
           <div className="min-w-0">
             <h2 className="font-display text-[22px] leading-tight font-bold break-words sm:text-[26px]">{fullName || "Identité à compléter"}</h2>

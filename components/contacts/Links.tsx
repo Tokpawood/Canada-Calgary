@@ -37,7 +37,9 @@ export function ContactSteps({
   canEdit,
   onAdd,
   onRemove,
+  onOpenStep,
 }: {
+  onOpenStep?: (stepId: string) => void;
   contact: Contact;
   persons: ContactPerson[];
   links: ContactStepLink[];
@@ -68,9 +70,15 @@ export function ContactSteps({
             return (
               <li key={l.id} className="flex items-center gap-2 rounded-lg px-1 py-1 hover:bg-surface-2/60">
                 <span className={`h-2 w-2 shrink-0 rounded-full ${TONE_DOT[STEP_TONE[s.status]]}`} title={s.status} />
-                <Link href={`/parcours?etape=${encodeURIComponent(s.id)}`} className="min-w-0 flex-1 truncate text-[13.5px] font-medium hover:text-act hover:underline">
-                  {s.title}
-                </Link>
+                {onOpenStep ? (
+                  <button type="button" onClick={() => onOpenStep(s.id)} className="min-w-0 flex-1 truncate text-left text-[13.5px] font-medium hover:text-act hover:underline">
+                    {s.title}
+                  </button>
+                ) : (
+                  <Link href={`/parcours?etape=${encodeURIComponent(s.id)}`} className="min-w-0 flex-1 truncate text-[13.5px] font-medium hover:text-act hover:underline">
+                    {s.title}
+                  </Link>
+                )}
                 {p && <span className="hidden shrink-0 text-[12px] text-muted sm:inline">avec {p.name}</span>}
                 {s.due && <span className="mono shrink-0 text-[11.5px] text-faint">{fmtShortDate(s.due)}</span>}
                 {canEdit && (

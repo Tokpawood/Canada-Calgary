@@ -45,7 +45,7 @@ const bundle: FullBundle = {
     },
   ],
   savings: [{ id: "e1", dossierId: "dossier-1", label: "Nov", planned: 100, actual: 50, notes: "" }],
-  contacts: [{ id: "ct1", dossierId: "dossier-1", org: "Org", role: "Rôle", contact: "", person: "", next: "", notes: "" }],
+  contacts: [{ id: "ct1", dossierId: "dossier-1", org: "Org", role: "Rôle", contact: "", person: "", next: "", notes: "", stage: "en-contact" }],
   gaps: [{ id: "g1", dossierId: "dossier-1", text: "écart", done: false }],
   history: [{ id: "h1", dossierId: "dossier-1", from: "2018-01-01", to: "2020-01-01", type: "Travail", activity: "Emploi", org: "", place: "", parallel: false }],
   addresses: [{ id: "a1", dossierId: "dossier-1", from: "2018-01-01", to: "", address: "Adresse", city: "Ville", note: "", parallel: false }],

@@ -43,6 +43,7 @@ export async function getSavings(supabase: SupabaseClient, dossierId: string): P
     planned: row.planned == null ? null : Number(row.planned),
     actual: row.actual == null ? null : Number(row.actual),
     notes: (row.notes as string) ?? "",
+    stage: ((row.stage as string) ?? "a-contacter") as Contact["stage"],
   }));
 }
 
@@ -238,6 +239,7 @@ export async function getContacts(supabase: SupabaseClient, dossierId: string): 
     person: (row.person as string) ?? "",
     next: (row.next as string) ?? "",
     notes: (row.notes as string) ?? "",
+    stage: ((row.stage as string) ?? "a-contacter") as Contact["stage"],
   }));
 }
 

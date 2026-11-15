@@ -107,3 +107,11 @@ export function canReportTo(persons: ContactPerson[], id: string, parentId: stri
 export function personLabel(p: Pick<ContactPerson, "name" | "title">): string {
   return p.title ? `${p.name} · ${p.title}` : p.name;
 }
+
+export const CONTACT_STAGES: Array<{ id: import("./types").ContactStage; label: string; hint: string }> = [
+  { id: "a-contacter", label: "À contacter", hint: "Pas encore de premier échange" },
+  { id: "en-contact", label: "En contact", hint: "Échanges en cours" },
+  { id: "en-attente", label: "En attente", hint: "Une réponse ou un document est attendu" },
+  { id: "etabli", label: "Relation établie", hint: "Interlocuteur fiable, on peut compter dessus" },
+  { id: "termine", label: "Terminé", hint: "Plus d'action prévue" },
+];

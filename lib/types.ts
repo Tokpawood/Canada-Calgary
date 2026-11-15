@@ -95,7 +95,10 @@ export interface Contact {
   person: string;
   next: string;
   notes: string;
+  stage: ContactStage;
 }
+
+export type ContactStage = "a-contacter" | "en-contact" | "en-attente" | "etabli" | "termine";
 
 export interface Gap {
   id: string;

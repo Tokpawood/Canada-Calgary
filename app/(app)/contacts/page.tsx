@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { getContacts, getDossierForUser, getNetwork, getStepsLite } from "@/lib/queries";
+import { getContacts, getDossierForUser, getNetwork, getStepsWithDetails } from "@/lib/queries";
 import { ContactsBoard } from "@/components/contacts/ContactsBoard";
 
 export default async function ContactsPage() {
@@ -8,7 +8,7 @@ export default async function ContactsPage() {
   const dossier = await getDossierForUser(supabase);
   if (!dossier) redirect("/import");
 
-  const [contacts, steps] = await Promise.all([getContacts(supabase, dossier.id), getStepsLite(supabase, dossier.id)]);
+  const [contacts, steps] = await Promise.all([getContacts(supabase, dossier.id), getStepsWithDetails(supabase, dossier.id)]);
   const { persons, links } = await getNetwork(
     supabase,
     contacts.map((c) => c.id),
