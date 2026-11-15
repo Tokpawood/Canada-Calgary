@@ -45,3 +45,25 @@ export function folderOptions(folders: VaultFolder[]): Array<{ id: string; label
     .map(({ id, path }) => ({ id, label: path.map((f) => f.name).join(" › "), depth: path.length - 1 }))
     .sort((a, b) => a.label.localeCompare(b.label, "fr"));
 }
+
+/** Identifiants du dossier et de tous ses sous-dossiers (à n'importe quelle profondeur). */
+export function subtreeIds(folders: VaultFolder[], id: string): Set<string> {
+  const out = new Set<string>([id]);
+  let grew = true;
+  while (grew) {
+    grew = false;
+    for (const f of folders) {
+      if (f.parentId && out.has(f.parentId) && !out.has(f.id)) {
+        out.add(f.id);
+        grew = true;
+      }
+    }
+  }
+  return out;
+}
+
+/** Un dossier peut aller à la racine (null) ou dans tout dossier qui n'est ni lui-même ni l'un de ses sous-dossiers. */
+export function canMoveInto(folders: VaultFolder[], id: string, targetId: string | null): boolean {
+  if (targetId === null) return true;
+  return folders.some((f) => f.id === targetId) && !subtreeIds(folders, id).has(targetId);
+}

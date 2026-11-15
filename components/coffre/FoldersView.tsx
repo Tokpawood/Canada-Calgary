@@ -2,10 +2,10 @@
 
 import { useState } from "react";
 import type { VaultFile } from "@/lib/types";
-import { SUGGESTED_FOLDERS, folderChain, type VaultFolder } from "@/lib/folders";
+import { SUGGESTED_FOLDERS, canMoveInto, folderChain, folderOptions, type VaultFolder } from "@/lib/folders";
 import { ConfirmButton, EmptyState } from "@/components/ui";
 import { FileDropzone, formatSize } from "@/components/FileDropzone";
-import { IconChevronLeft, IconChevronRight, IconFolder, IconFolderPlus, IconPencil, IconPlus, IconTrash } from "@/components/icons";
+import { IconArrowRight, IconChevronLeft, IconChevronRight, IconFolder, IconFolderPlus, IconPencil, IconPlus, IconTrash } from "@/components/icons";
 import { FileCard } from "./FileCard";
 
 export const UNSORTED = "__non-classe__";
@@ -25,12 +25,14 @@ interface Props {
   onCreate: (name: string, parentId: string | null) => Promise<string | null>;
   onRename: (id: string, name: string) => Promise<string | null>;
   onDelete: (id: string) => Promise<string | null>;
+  onMove: (id: string, parentId: string | null) => Promise<string | null>;
 }
 
 /** Onglet « Dossiers » : classement libre avec sous-dossiers ; l'arborescence est reproduite sur Google Drive. */
 export function FoldersView(p: Props) {
   const [err, setErr] = useState<string | null>(null);
   const [renaming, setRenaming] = useState<string | null>(null);
+  const [moving, setMoving] = useState<string | null>(null);
 
   const direct = (id: string | null) => p.files.filter((f) => (f.folderId ?? null) === id && (id !== null || !f.documentId));
   const children = (id: string | null) => p.folders.filter((f) => f.parentId === id).sort((a, b) => a.name.localeCompare(b.name, "fr"));
@@ -112,6 +114,9 @@ export function FoldersView(p: Props) {
                 <button type="button" className="btn btn-ghost btn-sm" onClick={() => setRenaming(folder.id)}>
                   <IconPencil size={14} /> Renommer
                 </button>
+                <button type="button" className="btn btn-ghost btn-sm" onClick={() => setMoving(moving === folder.id ? null : folder.id)} aria-expanded={moving === folder.id}>
+                  <IconArrowRight size={14} /> Déplacer
+                </button>
                 <ConfirmButton
                   label={`Supprimer le dossier ${folder.name}`}
                   confirmLabel="Supprimer le dossier"
@@ -127,6 +132,41 @@ export function FoldersView(p: Props) {
             )}
           </div>
         </>
+      )}
+      {folder && moving === folder.id && (
+        <form
+          className="flex flex-wrap items-center gap-2 rounded-xl bg-surface-2 p-3"
+          onSubmit={async (e) => {
+            e.preventDefault();
+            const v = new FormData(e.currentTarget).get("dest") as string;
+            const er = await p.onMove(folder.id, v === "" ? null : v);
+            if (er) setErr(er);
+            else {
+              setErr(null);
+              setMoving(null);
+            }
+          }}
+        >
+          <label className="flex min-w-0 flex-1 items-center gap-2 text-[13px] font-semibold">
+            <span className="shrink-0">Déplacer « {folder.name} » vers</span>
+            <select name="dest" defaultValue={folder.parentId ?? ""} className="input h-9 min-w-0 flex-1 text-[13.5px]">
+              <option value="">Racine du Coffre</option>
+              {folderOptions(p.folders)
+                .filter((o) => canMoveInto(p.folders, folder.id, o.id))
+                .map((o) => (
+                  <option key={o.id} value={o.id}>
+                    {o.label}
+                  </option>
+                ))}
+            </select>
+          </label>
+          <button type="submit" className="btn btn-primary btn-sm">
+            Déplacer
+          </button>
+          <button type="button" className="btn btn-ghost btn-sm" onClick={() => setMoving(null)}>
+            Annuler
+          </button>
+        </form>
       )}
       {err && <p className="rounded-lg bg-bad-bg px-3 py-2 text-[12.5px] text-bad">{err}</p>}
 

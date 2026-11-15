@@ -152,3 +152,11 @@ export async function deleteFolder(id: string): Promise<string | null> {
   if (res.ok) return null;
   return ((await res.json().catch(() => ({}))) as { error?: string }).error ?? "Suppression impossible.";
 }
+
+/** Déplace un dossier dans un autre dossier (ou à la racine avec null). */
+export async function moveFolder(id: string, parentId: string | null): Promise<{ folder?: VaultFolder; error?: string }> {
+  const res = await fetch(`/api/folders/${id}`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ parentId }) }).catch(() => null);
+  if (!res) return { error: "Serveur injoignable." };
+  const json = (await res.json().catch(() => ({}))) as { folder?: VaultFolder; error?: string };
+  return res.ok && json.folder ? { folder: json.folder } : { error: json.error ?? "Déplacement impossible." };
+}

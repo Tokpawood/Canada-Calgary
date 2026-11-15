@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useMemo, useState } from "react";
-import { createFolder, deleteFolder, deleteVaultFile, fileUrl, moveVaultFile, renameFolder, signFileUrl, uploadMany } from "@/lib/vaultClient";
+import { createFolder, deleteFolder, deleteVaultFile, fileUrl, moveFolder, moveVaultFile, renameFolder, signFileUrl, uploadMany } from "@/lib/vaultClient";
 import { folderOptions, folderPath, type VaultFolder } from "@/lib/folders";
 import type { VaultFile } from "@/lib/types";
 import { EmptyState, PageHeader } from "@/components/ui";
@@ -159,6 +159,15 @@ export function VaultBoard({ initialFiles, documentNames, initialFolders }: Prop
     return null;
   }
 
+  async function relocateFolder(id: string, parentId: string | null): Promise<string | null> {
+    const res = await moveFolder(id, parentId);
+    if (!res.folder) return res.error ?? "Déplacement impossible.";
+    const moved = res.folder;
+    setFolders((prev) => prev.map((f) => (f.id === id ? moved : f)));
+    setNotice(`Dossier « ${moved.name} » déplacé ${parentId ? `dans « ${folderPath(folders, parentId)} »` : "à la racine du Coffre"}.`);
+    return null;
+  }
+
   async function removeFolder(id: string): Promise<string | null> {
     const err = await deleteFolder(id);
     if (err) return err;
@@ -313,6 +322,7 @@ export function VaultBoard({ initialFiles, documentNames, initialFolders }: Prop
           onCreate={addFolder}
           onRename={editFolder}
           onDelete={removeFolder}
+          onMove={relocateFolder}
         />
       )}
       {tab === "deposer" && <div className="mx-auto max-w-2xl">{dropAside}</div>}

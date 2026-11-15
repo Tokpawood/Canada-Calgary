@@ -45,3 +45,18 @@ describe("sous-dossiers", () => {
     expect(folderChain([F("x", "X", "y"), F("y", "Y", "x")], "x").length).toBe(2);
   });
 });
+
+describe("déplacement d'un dossier", () => {
+  const F = (id: string, name: string, parentId: string | null) => ({ id, name, parentId, createdAt: "" });
+  const folders = [F("a", "Bulletins", null), F("b", "2023", "a"), F("c", "T1", "b"), F("d", "Reçus", null)];
+
+  it("interdit de mettre un dossier dans lui-même ou dans un de ses sous-dossiers", async () => {
+    const { canMoveInto } = await import("./folders");
+    expect(canMoveInto(folders, "a", "a")).toBe(false);
+    expect(canMoveInto(folders, "a", "c")).toBe(false);
+    expect(canMoveInto(folders, "b", "d")).toBe(true);
+    expect(canMoveInto(folders, "c", null)).toBe(true);
+    expect(canMoveInto(folders, "d", "c")).toBe(true);
+    expect(canMoveInto(folders, "d", "inconnu")).toBe(false);
+  });
+});
