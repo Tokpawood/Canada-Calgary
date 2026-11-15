@@ -16,6 +16,7 @@ import type {
   VaultFile,
   Link as StepLink,
 } from "./types";
+import { mapContactStep, mapPerson, type ContactPerson, type ContactStepLink, type StepLite } from "./network";
 
 function mapDossier(row: Record<string, unknown>): Dossier {
   return {
@@ -299,4 +300,20 @@ export function mapAddress(row: Record<string, unknown>): AddressEntry {
     note: (row.note as string) ?? "",
     parallel: Boolean(row.parallel),
   };
+}
+
+/** Personnes des organismes et liens contacts <-> étapes du dossier. */
+export async function getNetwork(supabase: SupabaseClient, contactIds: string[]): Promise<{ persons: ContactPerson[]; links: ContactStepLink[] }> {
+  if (!contactIds.length) return { persons: [], links: [] };
+  const [{ data: persons }, { data: links }] = await Promise.all([
+    supabase.from("contact_person").select("*").in("contact_id", contactIds).order("position").order("created_at"),
+    supabase.from("contact_step").select("id,step_id,contact_id,person_id").in("contact_id", contactIds).order("created_at"),
+  ]);
+  return { persons: (persons ?? []).map(mapPerson), links: (links ?? []).map(mapContactStep) };
+}
+
+/** Étapes réduites à ce qu'il faut pour les lier à un contact. */
+export async function getStepsLite(supabase: SupabaseClient, dossierId: string): Promise<StepLite[]> {
+  const { data } = await supabase.from("step").select("id,title,phase,status,due").eq("dossier_id", dossierId).order("position");
+  return (data ?? []).map((r) => ({ id: r.id as string, title: r.title as string, phase: r.phase as string, status: r.status as StepLite["status"], due: (r.due as string | null) ?? null }));
 }

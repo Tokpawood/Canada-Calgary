@@ -11,6 +11,8 @@ import { FilterBar, FilterChip, FilterGroup } from "@/components/FilterBar";
 import { StatsRow, type Stat } from "@/components/StatsRow";
 import { Hero } from "@/components/Hero";
 import { StepDrawer } from "./StepDrawer";
+import type { Contact } from "@/lib/types";
+import type { ContactPerson, ContactStepLink } from "@/lib/network";
 
 type FilterKey = "upcoming" | "late" | "done" | "all";
 /** "apercu", "toutes" ou l'index de la phase (0, 1, 2…). */
@@ -26,14 +28,18 @@ interface Props {
   initialSteps: Step[];
   fundsStat: Stat;
   profileDate: string | null;
+  network: { contacts: Contact[]; persons: ContactPerson[]; links: ContactStepLink[] };
+  /** Étape à ouvrir à l'arrivée (lien depuis Contacts). */
+  initialOpen?: string | null;
 }
 
-export function ParcoursBoard({ initialSteps, fundsStat, profileDate }: Props) {
+export function ParcoursBoard({ initialSteps, fundsStat, profileDate, network, initialOpen = null }: Props) {
+  const [contactLinks, setContactLinks] = useState(network.links);
   const [steps, setSteps] = useState<Step[]>(initialSteps);
   const [tab, setTab] = useState<TabKey>("apercu");
   const [filter, setFilter] = useState<FilterKey>("all");
   const [query, setQuery] = useState("");
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(initialOpen && initialSteps.some((s) => s.id === initialOpen) ? initialOpen : null);
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
   const [adding, setAdding] = useState(false);
   const [newPhase, setNewPhase] = useState(initialSteps[0]?.phase ?? "1. Mise en ordre");
@@ -44,6 +50,11 @@ export function ParcoursBoard({ initialSteps, fundsStat, profileDate }: Props) {
 
   const phases = useMemo(() => phaseProgress(steps), [steps]);
   const phaseCount = phases.length;
+
+  // Arrivée depuis Contacts (?etape=…) : l'étape est ouverte, l'adresse est nettoyée.
+  useEffect(() => {
+    if (initialOpen) window.history.replaceState(null, "", `/parcours${window.location.hash}`);
+  }, [initialOpen]);
 
   // L'onglet suit l'ancre de l'URL (#apercu, #phase-2, #toutes).
   useEffect(() => {
@@ -444,6 +455,13 @@ export function ParcoursBoard({ initialSteps, fundsStat, profileDate }: Props) {
           }}
           onNavigate={navigate}
           onClose={() => setSelectedId(null)}
+          contacts={{
+            contacts: network.contacts,
+            persons: network.persons,
+            links: contactLinks.filter((l) => l.stepId === selected.id),
+            onAdd: (l) => setContactLinks((prev) => [...prev, l]),
+            onRemove: (id) => setContactLinks((prev) => prev.filter((l) => l.id !== id)),
+          }}
         />
       )}
     </div>

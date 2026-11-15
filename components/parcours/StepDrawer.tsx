@@ -3,7 +3,9 @@
 import { useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { autoFillActual, isOpenStep, nextStatusAfterTaskToggle } from "@/lib/rules";
-import type { Step, StepStatus } from "@/lib/types";
+import type { Contact, Step, StepStatus } from "@/lib/types";
+import type { ContactPerson, ContactStepLink } from "@/lib/network";
+import { StepContacts } from "@/components/contacts/Links";
 import { ConfirmButton, Drawer, Field, Meter, STEP_TONE, TONE_DOT, dueInfo, fcfa, fmtShortDate } from "@/components/ui";
 import { Checklist, LinkList } from "@/components/EditableLists";
 import { EditBar, changedFields, isTmp, tmpId, useEditable } from "@/components/editable";
@@ -11,7 +13,7 @@ import { IconAlert, IconChevronLeft, IconChevronRight, IconTrash } from "@/compo
 import { HeaderTabs } from "@/components/DarkHeader";
 import { DarkStatusPicker, DrawerCard, DrawerFacts, DrawerTitle, ReadRow } from "@/components/DrawerParts";
 
-type StepTab = "taches" | "infos" | "notes" | "liens";
+type StepTab = "taches" | "infos" | "contacts" | "notes" | "liens";
 
 const STATUSES: StepStatus[] = ["À faire", "En cours", "Bloqué", "Fait", "Si nécessaire"];
 
@@ -27,9 +29,16 @@ interface Props {
   onDelete: () => void;
   onNavigate: (direction: "prev" | "next") => void;
   onClose: () => void;
+  contacts: {
+    contacts: Contact[];
+    persons: ContactPerson[];
+    links: ContactStepLink[];
+    onAdd: (l: ContactStepLink) => void;
+    onRemove: (id: string) => void;
+  };
 }
 
-export function StepDrawer({ step, position, total, phases, onChange, onDelete, onNavigate, onClose }: Props) {
+export function StepDrawer({ step, position, total, phases, onChange, onDelete, onNavigate, onClose, contacts }: Props) {
   const supabase = createClient();
   const [warn, setWarn] = useState(false);
   const [tab, setTab] = useState<StepTab>("taches");
@@ -192,6 +201,7 @@ export function StepDrawer({ step, position, total, phases, onChange, onDelete, 
           tabs={[
             { id: "taches", label: "Mini-étapes", badge: v.tasks.length ? { text: `${tasksDone}/${v.tasks.length}` } : null },
             { id: "infos", label: "Infos" },
+            { id: "contacts", label: "Contacts", badge: contacts.links.length ? { text: String(contacts.links.length) } : null },
             { id: "notes", label: "Notes", badge: step.risk ? { text: "!", tone: "signal" } : notesCount ? { text: String(notesCount) } : null },
             { id: "liens", label: "Liens", badge: v.links.length ? { text: String(v.links.length) } : null },
           ]}
@@ -313,6 +323,20 @@ export function StepDrawer({ step, position, total, phases, onChange, onDelete, 
             {off && <p className="mt-2 text-[11.5px] text-faint">Passer l&apos;étape à « Fait » reporte le coût prévu si aucun montant payé n&apos;est saisi.</p>}
           </DrawerCard>
         </div>
+      )}
+
+      {tab === "contacts" && (
+        <DrawerCard title="Qui peut aider" sub="Organismes et personnes de vos contacts liés à cette étape.">
+          <StepContacts
+            stepId={step.id}
+            contacts={contacts.contacts}
+            persons={contacts.persons}
+            links={contacts.links}
+            canEdit={!ed.editing}
+            onAdd={contacts.onAdd}
+            onRemove={contacts.onRemove}
+          />
+        </DrawerCard>
       )}
 
       {tab === "notes" && (

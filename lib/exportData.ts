@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   getAddressEntries,
   getContacts,
+  getNetwork,
   getDocumentsWithDetails,
   getFsw,
   getGaps,
@@ -52,6 +53,16 @@ export async function getFullBundle(supabase: SupabaseClient, dossier: Dossier):
     getHistoryEntries(supabase, dossier.id),
     getAddressEntries(supabase, dossier.id),
   ]);
+
+  // Les personnes de chaque organisme reprennent la place de l'ancien champ « interlocuteur » (texte) dans les exports.
+  const { persons } = await getNetwork(
+    supabase,
+    contacts.map((c) => c.id),
+  );
+  for (const c of contacts) {
+    const team = persons.filter((p) => p.contactId === c.id).map((p) => [p.name, p.title, p.email, p.phone].filter(Boolean).join(", "));
+    if (team.length) c.person = team.join(" ; ");
+  }
 
   return {
     dossier,
