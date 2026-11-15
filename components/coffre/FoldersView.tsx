@@ -130,8 +130,10 @@ export function FoldersView(p: Props) {
       )}
       {err && <p className="rounded-lg bg-bad-bg px-3 py-2 text-[12.5px] text-bad">{err}</p>}
 
-      {/* Sous-dossiers (ou dossiers de la racine) + création */}
-      {!unsortedOpen && (
+      {!unsortedOpen && <NewFolder key={current ?? "racine"} label={folder ? "Nouveau sous-dossier" : "Nouveau dossier"} onCreate={(n) => create(n, current)} />}
+
+      {/* Sous-dossiers (ou dossiers de la racine) */}
+      {!unsortedOpen && (subfolders.length > 0 || (!p.open && unsorted.length > 0)) && (
         <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
           {subfolders.map((f) => {
             const inside = deep(f.id);
@@ -155,9 +157,6 @@ export function FoldersView(p: Props) {
               <FolderTile name="Non classés" muted count={unsorted.length} subCount={0} size={unsorted.reduce((s, x) => s + x.size, 0)} onClick={() => p.onOpen(UNSORTED)} />
             </li>
           )}
-          <li>
-            <NewFolder key={current ?? "racine"} label={folder ? `Nouveau dossier dans « ${folder.name} »` : "Nouveau dossier"} onCreate={(n) => create(n, current)} />
-          </li>
         </ul>
       )}
 
@@ -209,19 +208,16 @@ function NewFolder({ label, onCreate }: { label: string; onCreate: (name: string
   const [name, setName] = useState("");
   if (!creating) {
     return (
-      <button
-        type="button"
-        onClick={() => setCreating(true)}
-        className="flex h-full min-h-[112px] w-full flex-col items-center justify-center gap-1.5 rounded-2xl border-2 border-dashed border-line px-3 text-center text-[13.5px] font-semibold text-muted hover:border-act/50 hover:text-act"
-      >
-        <IconFolderPlus size={22} />
-        <span className="line-clamp-2">{label}</span>
-      </button>
+      <div>
+        <button type="button" onClick={() => setCreating(true)} className="btn btn-ghost btn-sm">
+          <IconFolderPlus size={15} /> {label}
+        </button>
+      </div>
     );
   }
   return (
     <form
-      className="card flex h-full flex-col gap-2 p-3"
+      className="flex flex-wrap items-center gap-2"
       onSubmit={async (e) => {
         e.preventDefault();
         if (!(await onCreate(name))) {
@@ -230,15 +226,13 @@ function NewFolder({ label, onCreate }: { label: string; onCreate: (name: string
         }
       }}
     >
-      <input value={name} onChange={(e) => setName(e.target.value)} maxLength={80} autoFocus placeholder="Nom du dossier" className="input h-9 text-[13.5px]" aria-label="Nom du nouveau dossier" />
-      <div className="flex gap-2">
-        <button type="submit" className="btn btn-primary btn-sm flex-1" disabled={!name.trim()}>
-          Créer
-        </button>
-        <button type="button" className="btn btn-ghost btn-sm" onClick={() => setCreating(false)}>
-          Annuler
-        </button>
-      </div>
+      <input value={name} onChange={(e) => setName(e.target.value)} maxLength={80} autoFocus placeholder="Nom du dossier" className="input h-9 w-56 max-w-full text-[13.5px]" aria-label="Nom du nouveau dossier" />
+      <button type="submit" className="btn btn-primary btn-sm" disabled={!name.trim()}>
+        Créer
+      </button>
+      <button type="button" className="btn btn-ghost btn-sm" onClick={() => setCreating(false)}>
+        Annuler
+      </button>
     </form>
   );
 }
