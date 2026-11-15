@@ -5,7 +5,7 @@ import { createPortal } from "react-dom";
 import type { VaultFile } from "@/lib/types";
 import { ConfirmButton } from "@/components/ui";
 import { formatSize } from "@/components/FileDropzone";
-import { IconChevronLeft, IconChevronRight, IconDownload, IconExternal, IconFile, IconFolder, IconTrash, IconX } from "@/components/icons";
+import { IconChevronLeft, IconChevronRight, IconCopy, IconDownload, IconExternal, IconFile, IconFolder, IconTrash, IconX } from "@/components/icons";
 
 export const isPdf = (f: VaultFile) => f.mime === "application/pdf";
 
@@ -29,10 +29,12 @@ interface Props {
   /** Classement dans un dossier du Coffre (absent ailleurs). */
   folders?: Array<{ id: string; name: string }>;
   onMove?: (f: VaultFile, folderId: string | null) => void;
+  /** Copie dans un dossier (l'original reste à sa place). */
+  onCopy?: (f: VaultFile, folderId: string | null) => void;
 }
 
 /** Visionneuse plein écran : image ou PDF, navigation au clavier (← → Échap). */
-export function FilePreview({ files, index, documentLabel, signUrl, onIndex, onDelete, onClose, folders, onMove }: Props) {
+export function FilePreview({ files, index, documentLabel, signUrl, onIndex, onDelete, onClose, folders, onMove, onCopy }: Props) {
   const file = files[index];
   const [loaded, setLoaded] = useState<{ id: string; url: string | null } | null>(null);
   const url = loaded?.id === file?.id ? loaded.url : undefined;
@@ -95,13 +97,33 @@ export function FilePreview({ files, index, documentLabel, signUrl, onIndex, onD
           {folders && onMove && !file.replacedAt && (
             <label className="flex items-center gap-1.5 rounded-lg bg-white/10 pl-2.5 text-[12.5px] font-semibold">
               <IconFolder size={14} />
-              <span className="sr-only">Classer dans un dossier</span>
+              <span className="sr-only">Déplacer dans un dossier{file.documentId ? " (reste lié à sa pièce)" : ""}</span>
               <select
                 value={file.folderId ?? ""}
                 onChange={(e) => onMove(file, e.target.value || null)}
                 className="h-8 max-w-[180px] cursor-pointer truncate rounded-lg bg-transparent pr-2 text-white outline-none [&>option]:text-black"
               >
                 <option value="">Non classé</option>
+                {folders.map((f) => (
+                  <option key={f.id} value={f.id}>
+                    {f.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+          {folders && onCopy && !file.replacedAt && folders.length > 0 && (
+            <label className="flex items-center gap-1.5 rounded-lg bg-white/10 pl-2.5 text-[12.5px] font-semibold" title="Mettre une copie dans un dossier">
+              <IconCopy size={14} />
+              <span className="sr-only">Copier dans un dossier</span>
+              <select
+                value=""
+                onChange={(e) => {
+                  if (e.target.value) onCopy(file, e.target.value);
+                }}
+                className="h-8 max-w-[150px] cursor-pointer truncate rounded-lg bg-transparent pr-2 text-white outline-none [&>option]:text-black"
+              >
+                <option value="">Copier dans…</option>
                 {folders.map((f) => (
                   <option key={f.id} value={f.id}>
                     {f.name}

@@ -181,7 +181,7 @@ export function OrgDrawer({ dossierId, onOpenPerson, onPhoto, contact: c, person
 
       {tab === "infos" && (
         <div className="flex flex-col gap-4">
-        <DrawerCard title="Logo ou photo">
+        <div className="px-1">
           <PhotoPicker
             dossierId={dossierId}
             kind="org"
@@ -192,7 +192,7 @@ export function OrgDrawer({ dossierId, onOpenPerson, onPhoto, contact: c, person
             suggestedUrl={link?.kind === "web" ? c.contact : ""}
             onChange={onPhoto}
           />
-        </DrawerCard>
+        </div>
         <DrawerCard title="Informations">
           {ed.editing ? (
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">

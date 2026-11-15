@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useMemo, useState } from "react";
-import { createFolder, deleteFolder, deleteVaultFile, fileUrl, moveFolder, moveVaultFile, renameFolder, signFileUrl, uploadMany } from "@/lib/vaultClient";
+import { copyVaultFile, createFolder, deleteFolder, deleteVaultFile, fileUrl, moveFolder, moveVaultFile, renameFolder, signFileUrl, uploadMany } from "@/lib/vaultClient";
 import { folderOptions, folderPath, type VaultFolder } from "@/lib/folders";
 import type { VaultFile } from "@/lib/types";
 import { EmptyState, PageHeader } from "@/components/ui";
@@ -134,13 +134,37 @@ export function VaultBoard({ initialFiles, documentNames, initialFolders }: Prop
     }
   }
 
-  async function moveFile(f: VaultFile, folderId: string | null) {
+  async function moveFile(f: VaultFile, folderId: string | null): Promise<boolean> {
     setFiles((prev) => prev.map((x) => (x.id === f.id ? { ...x, folderId } : x)));
     const res = await moveVaultFile(f.id, folderId);
     if (res.error) {
       setError(`${f.name} : ${res.error}`);
       setFiles((prev) => prev.map((x) => (x.id === f.id ? f : x)));
-    } else setNotice(`${f.name} classé ${folderId ? `dans « ${folderName(folderId)} »` : "hors dossier"}.`);
+      return false;
+    }
+    setNotice(`${f.name} classé ${folderId ? `dans « ${folderName(folderId)} »` : "hors dossier"}${f.documentId ? " ; il reste lié à sa pièce dans Documents" : ""}.`);
+    return true;
+  }
+
+  async function copyFile(f: VaultFile, folderId: string | null): Promise<boolean> {
+    const res = await copyVaultFile(f.id, folderId);
+    if (!res.file) {
+      setError(`${f.name} : ${res.error ?? "copie refusée"}`);
+      return false;
+    }
+    const copy = res.file;
+    const old = res.replaced;
+    setFiles((prev) => [copy, ...prev.map((x) => (old && x.id === old.id ? old : x))]);
+    setNotice(`Copie de ${f.name} ajoutée ${folderId ? `dans « ${folderName(folderId)} »` : "hors dossier"} ; l'original ne bouge pas.`);
+    return true;
+  }
+
+  /** Plusieurs fichiers déplacés ou copiés vers un dossier, depuis le sélecteur de pièces jointes. */
+  async function bringFiles(list: VaultFile[], folderId: string, mode: "move" | "copy") {
+    setError(null);
+    let done = 0;
+    for (const f of list) if (await (mode === "move" ? moveFile(f, folderId) : copyFile(f, folderId))) done += 1;
+    if (done > 1) setNotice(`${done} fichiers ${mode === "move" ? "rangés" : "copiés"} dans « ${folderName(folderId)} »${mode === "move" ? " ; ils restent liés à leurs pièces" : ""}.`);
   }
 
   async function addFolder(name: string, parentId: string | null): Promise<string | null> {
@@ -227,6 +251,7 @@ export function VaultBoard({ initialFiles, documentNames, initialFolders }: Prop
         </p>
         <p className="mt-1.5">Les fichiers sont d&apos;abord enregistrés dans l&apos;application (plusieurs à la fois, avec barre d&apos;avancement), puis copiés automatiquement sur Google Drive en sauvegarde. Les photos de plus de 2,5 Mo sont réduites avant l&apos;envoi (toujours lisibles) ; les PDF sont envoyés tels quels.</p>
         <p className="mt-1.5">Un fichier déposé ici n&apos;est rattaché à aucune pièce. Pour le lier au passeport, au diplôme, etc., déposez-le depuis sa fiche dans Documents.</p>
+        <p className="mt-1.5">Un fichier joint à une pièce peut aussi être rangé dans un dossier (il reste lié à sa pièce) ou copié dans un dossier : depuis son aperçu, ou avec « Ajouter des pièces jointes » dans un dossier ouvert.</p>
         <p className="mt-1.5">Même nom sur la même pièce : la nouvelle version remplace l&apos;ancienne, qui reste conservée dans « Remplacés » (dossier Drive « Fichiers remplacés »).</p>
         <p className="mt-1.5">Le type réel est vérifié avant l&apos;envoi : un fichier renommé en .pdf est refusé.</p>      </div>
     </aside>
@@ -323,6 +348,7 @@ export function VaultBoard({ initialFiles, documentNames, initialFolders }: Prop
           onRename={editFolder}
           onDelete={removeFolder}
           onMove={relocateFolder}
+          onBring={(list, id, mode) => bringFiles(list, id, mode)}
         />
       )}
       {tab === "deposer" && <div className="mx-auto max-w-2xl">{dropAside}</div>}
@@ -452,6 +478,7 @@ export function VaultBoard({ initialFiles, documentNames, initialFolders }: Prop
           }}
           folders={choices.map((c) => ({ id: c.id, name: c.label }))}
           onMove={(f, id) => void moveFile(f, id)}
+          onCopy={(f, id) => void copyFile(f, id)}
         />
       )}
     </>

@@ -134,6 +134,12 @@ export async function moveVaultFile(id: string, folderId: string | null): Promis
   return res.ok && json.file ? { file: json.file } : { error: json.error ?? "Classement refusé." };
 }
 
+/** Copie un fichier dans un dossier ; l'original reste à sa place et lié à sa pièce. */
+export async function copyVaultFile(id: string, folderId: string | null): Promise<UploadResult> {
+  const { ok, json } = await postJson<UploadResult>(`/api/files/${id}/copy`, { folderId });
+  return ok && json.file ? { file: json.file, replaced: json.replaced ?? null } : { error: json.error ?? "Copie refusée." };
+}
+
 export async function createFolder(name: string, parentId: string | null = null): Promise<{ folder?: VaultFolder; error?: string }> {
   const { ok, json } = await postJson<{ folder?: VaultFolder }>("/api/folders", { name, parentId });
   return ok && json.folder ? { folder: json.folder } : { error: json.error ?? "Création impossible." };

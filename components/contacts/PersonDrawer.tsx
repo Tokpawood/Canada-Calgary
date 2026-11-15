@@ -163,7 +163,7 @@ export function PersonDrawer(props: Props) {
     >
       {tab === "identite" && (
         <div className="flex flex-col gap-4">
-          <DrawerCard title="Photo">
+          <div className="px-1">
             <PhotoPicker
               dossierId={dossierId}
               kind="person"
@@ -173,7 +173,7 @@ export function PersonDrawer(props: Props) {
               label={initials(p.name)}
               onChange={(ph) => onChange({ ...p, photoPath: ph?.path ?? null, photoUrl: ph?.url ?? null })}
             />
-          </DrawerCard>
+          </div>
 
           <DrawerCard title="Rôle et rattachement">
             {ed.editing ? (
