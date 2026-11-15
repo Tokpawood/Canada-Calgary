@@ -5,6 +5,7 @@ import { Logo } from "@/components/Logo";
 import { CountUp } from "@/components/CountUp";
 import { UserMenu } from "@/components/UserMenu";
 import { Avatar } from "@/components/Avatar";
+import { OfflineBanner } from "@/components/OfflineBanner";
 import { ThemeToggle } from "@/components/Theme";
 import type { Account } from "@/lib/account";
 import { usePathname, useRouter } from "next/navigation";
@@ -19,7 +20,9 @@ import {
   IconRoute,
   IconUser,
   IconUsers,
-  IconWallet, IconBook } from "./icons";
+  IconWallet,
+  IconBook,
+} from "./icons";
 
 export interface ShellSummary {
   overallPct: number;
@@ -29,7 +32,12 @@ export interface ShellSummary {
   docs: { obtained: number; total: number };
 }
 
-type NavItem = { href: string; label: string; icon: (p: { size?: number }) => ReactNode; ownerOnly?: boolean };
+type NavItem = {
+  href: string;
+  label: string;
+  icon: (p: { size?: number }) => ReactNode;
+  ownerOnly?: boolean;
+};
 
 const NAV_GROUPS: Array<{ title: string; items: NavItem[] }> = [
   {
@@ -64,7 +72,10 @@ export function AppShell({
   children: ReactNode;
 }) {
   const pathname = usePathname() ?? "";
-  const groups = NAV_GROUPS.map((g) => ({ ...g, items: g.items.filter((n) => isOwner || !n.ownerOnly) })).filter((g) => g.items.length);
+  const groups = NAV_GROUPS.map((g) => ({
+    ...g,
+    items: g.items.filter((n) => isOwner || !n.ownerOnly),
+  })).filter((g) => g.items.length);
   const nav = groups.flatMap((g) => g.items);
 
   // La molette modifie la valeur d'un champ numérique qui a le focus : on le quitte avant que la page défile.
@@ -77,23 +88,40 @@ export function AppShell({
     return () => document.removeEventListener("wheel", onWheel);
   }, []);
 
-  function badgeFor(href: string): { text: string; alert: boolean; title: string } | null {
+  function badgeFor(
+    href: string,
+  ): { text: string; alert: boolean; title: string } | null {
     if (!summary) return null;
-    if (href === "/parcours" && summary.lateSteps > 0) return { text: String(summary.lateSteps), alert: true, title: "Étapes en retard" };
-    if (href === "/documents" && summary.docs.total > 0) return { text: `${summary.docs.obtained}/${summary.docs.total}`, alert: false, title: "Documents obtenus" };
+    if (href === "/parcours" && summary.lateSteps > 0)
+      return {
+        text: String(summary.lateSteps),
+        alert: true,
+        title: "Étapes en retard",
+      };
+    if (href === "/documents" && summary.docs.total > 0)
+      return {
+        text: `${summary.docs.obtained}/${summary.docs.total}`,
+        alert: false,
+        title: "Documents obtenus",
+      };
     return null;
   }
 
   return (
     <div className="min-h-screen lg:grid lg:grid-cols-[272px_minmax(0,1fr)]">
       <aside className="shell-aside no-print sticky top-0 hidden h-dvh flex-col overflow-y-auto border-r border-white/10 bg-night px-4 pt-5 pb-4 text-night-ink lg:flex">
-        <Link href="/parcours" className="logo-link flex items-center gap-3 rounded-xl px-1.5 py-1">
+        <Link
+          href="/parcours"
+          className="logo-link flex items-center gap-3 rounded-xl px-1.5 py-1"
+        >
           <Logo size={42} />
           <span className="min-w-0">
             <span className="flex items-baseline gap-1.5 font-mono text-[17px] leading-tight font-semibold tracking-wide">
               ABJ <span className="text-signal">→</span> YYC
             </span>
-            <span className="block text-[11.5px] text-night-muted">Entrée express · Calgary</span>
+            <span className="block text-[11.5px] text-night-muted">
+              Entrée express · Calgary
+            </span>
           </span>
         </Link>
 
@@ -102,7 +130,9 @@ export function AppShell({
         <nav aria-label="Sections" className="mt-5 flex flex-col gap-4">
           {groups.map((g) => (
             <div key={g.title}>
-              <p className="mb-1 px-3 text-[10.5px] font-semibold tracking-[0.14em] text-night-muted/70 uppercase">{g.title}</p>
+              <p className="mb-1 px-3 text-[10.5px] font-semibold tracking-[0.14em] text-night-muted/70 uppercase">
+                {g.title}
+              </p>
               <div className="flex flex-col gap-0.5">
                 {g.items.map((n) => {
                   const active = pathname.startsWith(n.href);
@@ -114,11 +144,20 @@ export function AppShell({
                       href={n.href}
                       aria-current={active ? "page" : undefined}
                       className={`nav-link group relative flex items-center gap-3 rounded-lg px-3 py-1.5 text-[14px] font-semibold transition-colors ${
-                        active ? "bg-white/10 text-night-ink" : "text-night-muted hover:bg-white/5 hover:text-night-ink"
+                        active
+                          ? "bg-white/10 text-night-ink"
+                          : "text-night-muted hover:bg-white/5 hover:text-night-ink"
                       }`}
                     >
-                      {active && <span aria-hidden className="nav-active-bar absolute top-1.5 bottom-1.5 left-0 w-[3px] rounded-r-full bg-signal" />}
-                      <span className={`grid h-7 w-7 shrink-0 place-items-center rounded-md transition-colors ${active ? "bg-signal/15 text-signal" : "group-hover:text-night-ink"}`}>
+                      {active && (
+                        <span
+                          aria-hidden
+                          className="nav-active-bar absolute top-1.5 bottom-1.5 left-0 w-[3px] rounded-r-full bg-signal"
+                        />
+                      )}
+                      <span
+                        className={`grid h-7 w-7 shrink-0 place-items-center rounded-md transition-colors ${active ? "bg-signal/15 text-signal" : "group-hover:text-night-ink"}`}
+                      >
                         <Icon size={17} />
                       </span>
                       <span className="flex-1">{n.label}</span>
@@ -144,9 +183,15 @@ export function AppShell({
       </aside>
 
       <div className="min-w-0">
-        <header className="no-print sticky top-0 z-30 border-b border-white/10 bg-night text-night-ink lg:hidden" style={{ paddingTop: "env(safe-area-inset-top, 0px)" }}>
+        <header
+          className="no-print sticky top-0 z-30 border-b border-white/10 bg-night text-night-ink lg:hidden"
+          style={{ paddingTop: "env(safe-area-inset-top, 0px)" }}
+        >
           <div className="flex items-center justify-between gap-3 px-4 py-3">
-            <Link href="/parcours" className="flex items-center gap-2 font-mono font-semibold">
+            <Link
+              href="/parcours"
+              className="flex items-center gap-2 font-mono font-semibold"
+            >
               <Logo size={30} animated={false} />
               <span>
                 ABJ <span className="text-signal">→</span> YYC
@@ -156,19 +201,35 @@ export function AppShell({
               {summary && (
                 <span className="flex items-center gap-2 rounded-full bg-white/10 px-2.5 py-1">
                   <span className="h-1 w-10 overflow-hidden rounded-full bg-white/15">
-                    <span className="bar-grow block h-full rounded-full bg-signal" style={{ width: `${Math.max(4, summary.overallPct)}%` }} />
+                    <span
+                      className="bar-grow block h-full rounded-full bg-signal"
+                      style={{ width: `${Math.max(4, summary.overallPct)}%` }}
+                    />
                   </span>
-                  <span className="mono text-[12px]">{summary.overallPct} %</span>
+                  <span className="mono text-[12px]">
+                    {summary.overallPct} %
+                  </span>
                 </span>
               )}
               <ThemeToggle />
-              <Link href="/compte" aria-label="Compte et sécurité" title={account.fullName}>
-                <Avatar url={account.avatarUrl} initials={account.initials} size={30} />
+              <Link
+                href="/compte"
+                aria-label="Compte et sécurité"
+                title={account.fullName}
+              >
+                <Avatar
+                  url={account.avatarUrl}
+                  initials={account.initials}
+                  size={30}
+                />
               </Link>
               <SignOut compact />
             </div>
           </div>
-          <nav aria-label="Sections" className="no-scrollbar flex gap-1 overflow-x-auto px-3">
+          <nav
+            aria-label="Sections"
+            className="no-scrollbar flex gap-1 overflow-x-auto px-3"
+          >
             {nav.map((n) => {
               const active = pathname.startsWith(n.href);
               const badge = badgeFor(n.href);
@@ -178,18 +239,27 @@ export function AppShell({
                   href={n.href}
                   aria-current={active ? "page" : undefined}
                   className={`flex shrink-0 items-center gap-1.5 rounded-t-lg px-3 py-2 text-[13px] font-semibold ${
-                    active ? "bg-white/10 text-night-ink shadow-[inset_0_-2px_0_var(--signal)]" : "text-night-muted"
+                    active
+                      ? "bg-white/10 text-night-ink shadow-[inset_0_-2px_0_var(--signal)]"
+                      : "text-night-muted"
                   }`}
                 >
                   {n.label}
-                  {badge?.alert && <span className="mono rounded-full bg-bad px-1.5 text-[10px] leading-[16px] text-white">{badge.text}</span>}
+                  {badge?.alert && (
+                    <span className="mono rounded-full bg-bad px-1.5 text-[10px] leading-[16px] text-white">
+                      {badge.text}
+                    </span>
+                  )}
                 </Link>
               );
             })}
           </nav>
         </header>
 
-        <main className="shell-main mx-auto w-full max-w-[1180px] px-4 pt-6 pb-20 sm:px-6 lg:px-10 lg:pt-9">{children}</main>
+        <main className="shell-main mx-auto w-full max-w-[1180px] px-4 pt-6 pb-20 sm:px-6 lg:px-10 lg:pt-9">
+          <OfflineBanner />
+          {children}
+        </main>
       </div>
     </div>
   );
@@ -203,38 +273,106 @@ function JourneyCard({ summary }: { summary: ShellSummary }) {
   const y = (1 - t) * (1 - t) * 34 + 2 * (1 - t) * t * -6 + t * t * 34;
 
   return (
-    <Link href="/parcours#apercu" className="anim-rise group relative mt-5 block shrink-0 overflow-hidden rounded-2xl border border-white/10 bg-night-2 p-3.5 transition-[border-color,transform] duration-300 hover:-translate-y-0.5 hover:border-white/20 [animation-delay:100ms]">
+    <Link
+      href="/parcours#apercu"
+      className="anim-rise group relative mt-5 block shrink-0 overflow-hidden rounded-2xl border border-white/10 bg-night-2 p-3.5 transition-[border-color,transform] duration-300 hover:-translate-y-0.5 hover:border-white/20 [animation-delay:100ms]"
+    >
       <div
         aria-hidden
         className="pointer-events-none absolute inset-0 opacity-[0.07]"
-        style={{ backgroundImage: "radial-gradient(circle at 1px 1px, #fff 1px, transparent 0)", backgroundSize: "16px 16px" }}
+        style={{
+          backgroundImage:
+            "radial-gradient(circle at 1px 1px, #fff 1px, transparent 0)",
+          backgroundSize: "16px 16px",
+        }}
       />
       <div className="relative">
         <div className="flex items-end justify-between">
           <div>
-            <p className="text-[10.5px] font-semibold tracking-[0.14em] text-night-muted uppercase">Parcours</p>
+            <p className="text-[10.5px] font-semibold tracking-[0.14em] text-night-muted uppercase">
+              Parcours
+            </p>
             <p className="font-display text-[30px] leading-none font-extrabold tracking-tight">
               <CountUp value={summary.overallPct} duration={1200} />
               <span className="text-[16px] text-signal"> %</span>
             </p>
           </div>
-          <IconArrowRight size={14} className="mb-1 text-night-muted transition-transform group-hover:translate-x-0.5 group-hover:text-night-ink" />        </div>
+          <IconArrowRight
+            size={14}
+            className="mb-1 text-night-muted transition-transform group-hover:translate-x-0.5 group-hover:text-night-ink"
+          />{" "}
+        </div>
 
         <svg viewBox="0 0 200 44" className="mt-2 w-full" aria-hidden>
-          <path d="M 8 34 Q 100 -6 192 34" fill="none" stroke="rgba(255,255,255,0.18)" strokeWidth="1.5" strokeDasharray="1.5 5" strokeLinecap="round" />
-          <path d="M 8 34 Q 100 -6 192 34" fill="none" stroke="var(--signal)" strokeWidth="2" strokeLinecap="round" pathLength={100} strokeDasharray={`${pct} 100`} className="draw" style={{ ["--draw-from" as string]: pct }} />
+          <path
+            d="M 8 34 Q 100 -6 192 34"
+            fill="none"
+            stroke="rgba(255,255,255,0.18)"
+            strokeWidth="1.5"
+            strokeDasharray="1.5 5"
+            strokeLinecap="round"
+          />
+          <path
+            d="M 8 34 Q 100 -6 192 34"
+            fill="none"
+            stroke="var(--signal)"
+            strokeWidth="2"
+            strokeLinecap="round"
+            pathLength={100}
+            strokeDasharray={`${pct} 100`}
+            className="draw"
+            style={{ ["--draw-from" as string]: pct }}
+          />
           <circle cx="8" cy="34" r="3" fill="var(--signal)" />
-          <circle cx="192" cy="34" r="3" fill="none" stroke="rgba(255,255,255,0.6)" strokeWidth="1.5" />
-          <circle cx={x} cy={y} r="6" fill="var(--signal)" opacity="0.25" className="pulse-soft" />
+          <circle
+            cx="192"
+            cy="34"
+            r="3"
+            fill="none"
+            stroke="rgba(255,255,255,0.6)"
+            strokeWidth="1.5"
+          />
+          <circle
+            cx={x}
+            cy={y}
+            r="6"
+            fill="var(--signal)"
+            opacity="0.25"
+            className="pulse-soft"
+          />
           <circle cx={x} cy={y} r="3" fill="var(--signal)" />
-          <text x="8" y="43" fill="var(--night-muted)" fontSize="7" fontFamily="var(--font-mono)" textAnchor="middle">ABJ</text>
-          <text x="192" y="43" fill="var(--night-muted)" fontSize="7" fontFamily="var(--font-mono)" textAnchor="middle">YYC</text>
+          <text
+            x="8"
+            y="43"
+            fill="var(--night-muted)"
+            fontSize="7"
+            fontFamily="var(--font-mono)"
+            textAnchor="middle"
+          >
+            ABJ
+          </text>
+          <text
+            x="192"
+            y="43"
+            fill="var(--night-muted)"
+            fontSize="7"
+            fontFamily="var(--font-mono)"
+            textAnchor="middle"
+          >
+            YYC
+          </text>
         </svg>
 
         {summary.countdown && (
           <div className="mt-2.5 flex items-center justify-between border-t border-white/10 pt-2.5">
-            <span className="text-[12px] text-night-muted">Profil Entrée express</span>
-            <span className={`mono text-[13px] font-semibold ${summary.countdown.late ? "text-[#f29a90]" : "text-night-ink"}`}>{summary.countdown.label}</span>
+            <span className="text-[12px] text-night-muted">
+              Profil Entrée express
+            </span>
+            <span
+              className={`mono text-[13px] font-semibold ${summary.countdown.late ? "text-[#f29a90]" : "text-night-ink"}`}
+            >
+              {summary.countdown.label}
+            </span>
           </div>
         )}
       </div>
@@ -251,13 +389,23 @@ function SignOut({ compact = false }: { compact?: boolean }) {
   }
   if (compact) {
     return (
-      <button type="button" onClick={signOut} aria-label="Se déconnecter" title="Se déconnecter" className="grid h-8 w-8 shrink-0 place-items-center rounded-lg text-night-muted hover:bg-white/10 hover:text-night-ink">
+      <button
+        type="button"
+        onClick={signOut}
+        aria-label="Se déconnecter"
+        title="Se déconnecter"
+        className="grid h-8 w-8 shrink-0 place-items-center rounded-lg text-night-muted hover:bg-white/10 hover:text-night-ink"
+      >
         <IconLogout size={17} />
       </button>
     );
   }
   return (
-    <button type="button" onClick={signOut} className="mt-1 flex w-full items-center gap-3 rounded-lg px-3 py-2 text-[13px] font-semibold text-night-muted hover:bg-white/5 hover:text-night-ink">
+    <button
+      type="button"
+      onClick={signOut}
+      className="mt-1 flex w-full items-center gap-3 rounded-lg px-3 py-2 text-[13px] font-semibold text-night-muted hover:bg-white/5 hover:text-night-ink"
+    >
       <IconLogout size={17} />
       Se déconnecter
     </button>
