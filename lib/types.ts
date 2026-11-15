@@ -46,6 +46,8 @@ export interface DocumentCheck {
 export interface VaultFile {
   id: string;
   documentId: string | null; // null = "Divers", non rattaché
+  /** Dossier du Coffre (« Bulletins »…), null = non classé. */
+  folderId: string | null;
   storagePath: string | null;
   provider: "supabase" | "gdrive";
   name: string;

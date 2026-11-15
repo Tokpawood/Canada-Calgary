@@ -11,27 +11,21 @@ function matches(buffer: Uint8Array, bytes: number[]): boolean {
   return bytes.every((b, i) => buffer[i] === b);
 }
 
-/** Lit les premiers octets du fichier pour vérifier son type réel (pas seulement l'extension/MIME déclaré). */
-export async function sniffMimeType(file: File): Promise<string | null> {
-  const head = new Uint8Array(await file.slice(0, 16).arrayBuffer());
-
+/** Type réel d'après les premiers octets (signature), indépendamment de l'extension. */
+export function sniffBytes(head: Uint8Array): string | null {
   for (const sig of SIGNATURES) {
     if (matches(head, sig.bytes)) return sig.mime;
   }
   // WEBP : "RIFF" (0..3) + taille (4..7) + "WEBP" (8..11)
-  if (
-    head[0] === 0x52 &&
-    head[1] === 0x49 &&
-    head[2] === 0x46 &&
-    head[3] === 0x46 &&
-    head[8] === 0x57 &&
-    head[9] === 0x45 &&
-    head[10] === 0x42 &&
-    head[11] === 0x50
-  ) {
+  if (head[0] === 0x52 && head[1] === 0x49 && head[2] === 0x46 && head[3] === 0x46 && head[8] === 0x57 && head[9] === 0x45 && head[10] === 0x42 && head[11] === 0x50) {
     return "image/webp";
   }
   return null;
+}
+
+/** Lit les premiers octets du fichier pour vérifier son type réel (pas seulement l'extension/MIME déclaré). */
+export async function sniffMimeType(file: Blob): Promise<string | null> {
+  return sniffBytes(new Uint8Array(await file.slice(0, 16).arrayBuffer()));
 }
 
 export interface FileValidationResult {
@@ -40,7 +34,7 @@ export interface FileValidationResult {
   mime?: string;
 }
 
-export async function validateVaultFile(file: File): Promise<FileValidationResult> {
+export async function validateVaultFile(file: Blob): Promise<FileValidationResult> {
   if (file.size > MAX_FILE_SIZE) return { ok: false, reason: "Fichier trop volumineux (20 Mo maximum)." };
   const mime = await sniffMimeType(file);
   if (!mime || !(ALLOWED_MIME as readonly string[]).includes(mime)) {

@@ -5,7 +5,7 @@ import { createPortal } from "react-dom";
 import type { VaultFile } from "@/lib/types";
 import { ConfirmButton } from "@/components/ui";
 import { formatSize } from "@/components/FileDropzone";
-import { IconChevronLeft, IconChevronRight, IconDownload, IconExternal, IconFile, IconTrash, IconX } from "@/components/icons";
+import { IconChevronLeft, IconChevronRight, IconDownload, IconExternal, IconFile, IconFolder, IconTrash, IconX } from "@/components/icons";
 
 export const isPdf = (f: VaultFile) => f.mime === "application/pdf";
 
@@ -26,10 +26,13 @@ interface Props {
   onIndex: (i: number) => void;
   onDelete: (f: VaultFile) => void;
   onClose: () => void;
+  /** Classement dans un dossier du Coffre (absent ailleurs). */
+  folders?: Array<{ id: string; name: string }>;
+  onMove?: (f: VaultFile, folderId: string | null) => void;
 }
 
 /** Visionneuse plein écran : image ou PDF, navigation au clavier (← → Échap). */
-export function FilePreview({ files, index, documentLabel, signUrl, onIndex, onDelete, onClose }: Props) {
+export function FilePreview({ files, index, documentLabel, signUrl, onIndex, onDelete, onClose, folders, onMove }: Props) {
   const file = files[index];
   const [loaded, setLoaded] = useState<{ id: string; url: string | null } | null>(null);
   const url = loaded?.id === file?.id ? loaded.url : undefined;
@@ -88,7 +91,25 @@ export function FilePreview({ files, index, documentLabel, signUrl, onIndex, onD
         <span className="mono hidden text-[12px] text-white/60 sm:inline">
           {index + 1} / {files.length}
         </span>
-        <div className="flex items-center gap-1.5">
+        <div className="flex flex-wrap items-center gap-1.5">
+          {folders && onMove && !file.replacedAt && (
+            <label className="flex items-center gap-1.5 rounded-lg bg-white/10 pl-2.5 text-[12.5px] font-semibold">
+              <IconFolder size={14} />
+              <span className="sr-only">Classer dans un dossier</span>
+              <select
+                value={file.folderId ?? ""}
+                onChange={(e) => onMove(file, e.target.value || null)}
+                className="h-8 max-w-[180px] cursor-pointer truncate rounded-lg bg-transparent pr-2 text-white outline-none [&>option]:text-black"
+              >
+                <option value="">Non classé</option>
+                {folders.map((f) => (
+                  <option key={f.id} value={f.id}>
+                    {f.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
           <button type="button" onClick={() => void download()} className="btn btn-sm bg-white/10 text-white hover:bg-white/20" title="Télécharger">
             <IconDownload size={15} />
             <span className="hidden md:inline">Télécharger</span>

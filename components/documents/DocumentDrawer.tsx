@@ -4,7 +4,7 @@ import { useCallback, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { FilePreview } from "@/components/coffre/FilePreview";
 import { createClient } from "@/lib/supabase/client";
-import { deleteVaultFile, signFileUrl, uploadVaultFile } from "@/lib/vaultClient";
+import { deleteVaultFile, signFileUrl, uploadMany } from "@/lib/vaultClient";
 import type { DocumentRecord, DocumentRequirement, DocumentStatus } from "@/lib/types";
 import { ConfirmButton, DOC_TONE, Drawer, Field, Meter, TONE_DOT, fmtShortDate } from "@/components/ui";
 import { HeaderTabs } from "@/components/DarkHeader";
@@ -31,6 +31,7 @@ export function DocumentDrawer({ doc, onChange, onDelete, onClose }: Props) {
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [uploadNotice, setUploadNotice] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [uploadPct, setUploadPct] = useState<number | null>(null);
 
   const [warn, setWarn] = useState(false);
   const [tab, setTab] = useState<"controles" | "scans" | "infos" | "liens">("controles");
@@ -116,17 +117,28 @@ export function DocumentDrawer({ doc, onChange, onDelete, onClose }: Props) {
     setUploadNotice(null);
     setUploadError(null);
     let files = doc.files;
-    for (const file of Array.from(fileList)) {
-      const res = await uploadVaultFile(file, doc.id);
-      if (res.error || !res.file) {
-        setUploadError(`${file.name} : ${res.error ?? "fichier refusé."}`);
-        continue;
-      }
-      const oldId = res.replaced?.id;
-      files = [...files.filter((f) => f.id !== oldId), res.file];
-      onChange({ ...doc, files });
-      if (res.replaced) setUploadNotice(`${res.file.name} : nouvelle version enregistrée, l'ancienne est conservée dans Coffre › Remplacés.`);
-    }
+    const list = Array.from(fileList);
+    const progress = new Map<File, number>();
+    setUploadPct(0);
+    await uploadMany(
+      list,
+      { documentId: doc.id },
+      (file, res) => {
+        if (res.error || !res.file) {
+          setUploadError(`${file.name} : ${res.error ?? "fichier refusé."}`);
+          return;
+        }
+        const oldId = res.replaced?.id;
+        files = [...files.filter((f) => f.id !== oldId), res.file];
+        onChange({ ...doc, files });
+        if (res.replaced) setUploadNotice(`${res.file.name} : nouvelle version enregistrée, l'ancienne est conservée dans Coffre › Remplacés.`);
+      },
+      (file, p) => {
+        progress.set(file, p);
+        setUploadPct([...progress.values()].reduce((s, v) => s + v, 0) / list.length);
+      },
+    );
+    setUploadPct(null);
     setUploading(false);
   }
 
@@ -313,7 +325,7 @@ export function DocumentDrawer({ doc, onChange, onDelete, onClose }: Props) {
             ))}
           </ul>
         )}
-        <FileDropzone compact busy={uploading} onFiles={handleUpload} title="Ajouter un scan" />
+        <FileDropzone compact busy={uploading} progress={uploadPct} onFiles={handleUpload} title="Ajouter un scan" />
         {uploadError && <p className="mt-1.5 text-[12px] text-bad">{uploadError}</p>}
         {uploadNotice && <p className="mt-1.5 text-[12px] text-ok" role="status">{uploadNotice}</p>}
       </DrawerCard>

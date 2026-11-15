@@ -1,28 +1,31 @@
 "use client";
 
 import { useCallback, useMemo, useState } from "react";
-import { deleteVaultFile, fileUrl, signFileUrl, uploadVaultFile } from "@/lib/vaultClient";
+import { createFolder, deleteFolder, deleteVaultFile, fileUrl, moveVaultFile, renameFolder, signFileUrl, uploadMany } from "@/lib/vaultClient";
+import type { VaultFolder } from "@/lib/folders";
 import type { VaultFile } from "@/lib/types";
 import { EmptyState, PageHeader } from "@/components/ui";
 import { FileDropzone, formatSize } from "@/components/FileDropzone";
-import { IconCheck, IconFile, IconImage, IconLock, IconPaperclip, IconRefresh, IconSearch, IconShield, IconUpload } from "@/components/icons";
+import { IconCheck, IconFile, IconFolder, IconImage, IconLock, IconPaperclip, IconRefresh, IconSearch, IconShield, IconUpload } from "@/components/icons";
 import { FilterBar, FilterChip, FilterDivider, FilterGroup, FilterSelect } from "@/components/FilterBar";
 import { DarkHeader, DarkTiles, HeaderTabs, useHashTab } from "@/components/DarkHeader";
 
-const TABS = ["fichiers", "par-piece", "remplaces", "deposer"] as const;
+const TABS = ["dossiers", "fichiers", "par-piece", "remplaces", "deposer"] as const;
 type Tab = (typeof TABS)[number];
-import { FilePreview, fileKind, isPdf } from "./FilePreview";
+import { FilePreview, isPdf } from "./FilePreview";
+import { FileCard } from "./FileCard";
+import { FoldersView } from "./FoldersView";
 
 type Kind = "all" | "pdf" | "image";
 const UNLINKED = "__divers__";
 
 interface Props {
-  dossierId: string;
   initialFiles: VaultFile[];
   documentNames: Record<string, string>;
+  initialFolders: VaultFolder[];
 }
 
-export function VaultBoard({ dossierId, initialFiles, documentNames }: Props) {
+export function VaultBoard({ initialFiles, documentNames, initialFolders }: Props) {
   const [allFiles, setFiles] = useState(initialFiles);
   // Versions actives d'un côté, versions remplacées (archivées sur Drive) de l'autre.
   const files = useMemo(() => allFiles.filter((f) => !f.replacedAt), [allFiles]);
@@ -34,7 +37,14 @@ export function VaultBoard({ dossierId, initialFiles, documentNames }: Props) {
   const [docFilter, setDocFilter] = useState<string>("all");
   const [query, setQuery] = useState("");
   const [previewId, setPreviewId] = useState<string | null>(null);
-  const [tab, setTab] = useHashTab<Tab>(TABS, "fichiers");
+  const [tab, setTab] = useHashTab<Tab>(TABS, "dossiers");
+  const [folders, setFolders] = useState(initialFolders);
+  const [openFolder, setOpenFolder] = useState<string | null>(null);
+  const [progress, setProgress] = useState<number | null>(null);
+  const [dropFolder, setDropFolder] = useState<string>("");
+  // Liste parcourue par l'aperçu quand il est ouvert depuis un dossier.
+  const [previewScope, setPreviewScope] = useState<VaultFile[] | null>(null);
+  const folderName = useCallback((id: string | null) => (id ? (folders.find((f) => f.id === id)?.name ?? null) : null), [folders]);
 
   const documentLabel = useCallback((f: VaultFile) => (f.documentId ? (documentNames[f.documentId] ?? "Document") : "Non rattaché"), [documentNames]);
 
@@ -65,31 +75,93 @@ export function VaultBoard({ dossierId, initialFiles, documentNames }: Props) {
 
   const totalSize = files.reduce((s, f) => s + f.size, 0);
   const pdfCount = files.filter(isPdf).length;
-  const previewList = tab === "remplaces" ? replaced : visible;
+  const previewList = useMemo(() => {
+    if (tab === "remplaces") return replaced;
+    if (previewScope) return previewScope.map((f) => files.find((x) => x.id === f.id)).filter((f): f is VaultFile => Boolean(f));
+    return visible;
+  }, [tab, replaced, previewScope, files, visible]);
   const previewIndex = previewId ? previewList.findIndex((f) => f.id === previewId) : -1;
 
-  async function handleUpload(fileList: FileList) {
+  async function handleUpload(fileList: FileList, folderId: string | null = null) {
     setUploading(true);
     setError(null);
     setNotice(null);
-    let added = 0;
+    const list = Array.from(fileList);
+    const pct = new Map<File, number>();
+    const failed: string[] = [];
     const swapped: string[] = [];
-    for (const file of Array.from(fileList)) {
-      const res = await uploadVaultFile(file, null);
-      if (res.error || !res.file) {
-        setError(`${file.name} : ${res.error ?? "fichier refusé."}`);
-        continue;
-      }
-      const saved = res.file;
-      const old = res.replaced ?? null;
-      setFiles((prev) => [...prev.filter((x) => x.id !== old?.id), ...(old ? [old] : []), saved]);
-      if (old) swapped.push(saved.name);
-      added += 1;
-    }
+    let added = 0;
+    setProgress(0);
+    await uploadMany(
+      list,
+      { folderId },
+      (file, res) => {
+        if (res.error || !res.file) {
+          failed.push(`${file.name} : ${res.error ?? "fichier refusé."}`);
+          return;
+        }
+        const saved = res.file;
+        const old = res.replaced ?? null;
+        setFiles((prev) => [...prev.filter((x) => x.id !== old?.id), ...(old ? [old] : []), saved]);
+        if (old) swapped.push(saved.name);
+        added += 1;
+      },
+      (file, p) => {
+        pct.set(file, p);
+        setProgress([...pct.values()].reduce((a, b) => a + b, 0) / list.length);
+      },
+    );
     setUploading(false);
-    if (swapped.length) setNotice(`${swapped.join(", ")} : nouvelle version enregistrée, l'ancienne est conservée dans « Remplacés ».`);
-    // Après un dépôt réussi, on montre le fichier dans la grille.
-    if (added > 0) setTab("fichiers");
+    setProgress(null);
+    if (failed.length) setError(failed.join(" · "));
+    const parts = [`${added} fichier${added > 1 ? "s" : ""} envoyé${added > 1 ? "s" : ""}${folderId ? ` dans « ${folderName(folderId)} »` : ""}.`];
+    if (swapped.length) parts.push(`${swapped.join(", ")} : nouvelle version enregistrée, l'ancienne est conservée dans « Remplacés ».`);
+    if (added) setNotice(parts.join(" "));
+    // Dépôt depuis l'onglet Déposer : on montre le dossier (ou la grille) qui l'a reçu.
+    if (added > 0 && tab === "deposer") {
+      if (folderId) {
+        setOpenFolder(folderId);
+        setTab("dossiers");
+      } else setTab("fichiers");
+    }
+  }
+
+  async function moveFile(f: VaultFile, folderId: string | null) {
+    setFiles((prev) => prev.map((x) => (x.id === f.id ? { ...x, folderId } : x)));
+    const res = await moveVaultFile(f.id, folderId);
+    if (res.error) {
+      setError(`${f.name} : ${res.error}`);
+      setFiles((prev) => prev.map((x) => (x.id === f.id ? f : x)));
+    } else setNotice(`${f.name} classé ${folderId ? `dans « ${folderName(folderId)} »` : "hors dossier"}.`);
+  }
+
+  async function addFolder(name: string): Promise<string | null> {
+    const res = await createFolder(name);
+    if (!res.folder) return res.error ?? "Création impossible.";
+    const created = res.folder;
+    setFolders((prev) => [...prev, created]);
+    return null;
+  }
+
+  async function editFolder(id: string, name: string): Promise<string | null> {
+    const res = await renameFolder(id, name);
+    if (!res.folder) return res.error ?? "Renommage impossible.";
+    const renamed = res.folder;
+    setFolders((prev) => prev.map((f) => (f.id === id ? renamed : f)));
+    return null;
+  }
+
+  async function removeFolder(id: string): Promise<string | null> {
+    const err = await deleteFolder(id);
+    if (err) return err;
+    setFolders((prev) => prev.filter((f) => f.id !== id));
+    setOpenFolder(null);
+    return null;
+  }
+
+  function openPreview(f: VaultFile) {
+    setPreviewScope(null);
+    setPreviewId(f.id);
   }
 
   async function deleteFile(f: VaultFile) {
@@ -116,13 +188,25 @@ export function VaultBoard({ dossierId, initialFiles, documentNames }: Props) {
 
   const dropAside = (
     <aside className="flex flex-col gap-4">
-      <FileDropzone busy={uploading} onFiles={handleUpload} title="Déposer un fichier" />
+      <label className="flex flex-col gap-1.5 text-[12.5px] font-semibold text-muted">
+        Ranger dans
+        <select value={dropFolder} onChange={(e) => setDropFolder(e.target.value)} className="input h-10 text-[14px] text-ink">
+          <option value="">Aucun dossier (non classé)</option>
+          {folders.map((f) => (
+            <option key={f.id} value={f.id}>
+              {f.name}
+            </option>
+          ))}
+        </select>
+      </label>
+      <FileDropzone busy={uploading} progress={progress} onFiles={(fl) => void handleUpload(fl, dropFolder || null)} title="Déposer un fichier" />
       {error && <p className="rounded-lg bg-bad-bg px-3 py-2 text-[12.5px] text-bad">{error}</p>}
       {notice && <p className="rounded-lg bg-ok-bg px-3 py-2 text-[12.5px] text-ok" role="status">{notice}</p>}
       <div className="card p-4 text-[12.5px] text-muted shadow-none">
         <p className="flex items-center gap-2 font-semibold text-ink">
           <IconShield size={15} className="text-act" /> Bon à savoir
         </p>
+        <p className="mt-1.5">Les fichiers partent directement vers Google Drive, plusieurs à la fois. Les photos de plus de 2,5 Mo sont réduites avant l&apos;envoi (toujours lisibles) ; les PDF sont envoyés tels quels.</p>
         <p className="mt-1.5">Un fichier déposé ici n&apos;est rattaché à aucune pièce. Pour le lier au passeport, au diplôme, etc., déposez-le depuis sa fiche dans Documents.</p>
         <p className="mt-1.5">Même nom sur la même pièce : la nouvelle version remplace l&apos;ancienne, qui reste conservée dans « Remplacés » (dossier Drive « Fichiers remplacés »).</p>
         <p className="mt-1.5">Le type réel est vérifié avant l&apos;envoi : un fichier renommé en .pdf est refusé.</p>      </div>
@@ -160,6 +244,7 @@ export function VaultBoard({ dossierId, initialFiles, documentNames }: Props) {
             active={tab}
             onSelect={setTab}
             tabs={[
+              { id: "dossiers", label: "Dossiers", icon: <IconFolder size={15} />, badge: folders.length ? { text: String(folders.length) } : null },
               { id: "fichiers", label: "Fichiers", icon: <IconImage size={15} />, badge: { text: String(files.length) } },
               { id: "par-piece", label: "Par pièce", icon: <IconPaperclip size={15} />, badge: groups.length ? { text: String(groups.length) } : null },
               { id: "remplaces", label: "Remplacés", icon: <IconRefresh size={15} />, badge: replaced.length ? { text: String(replaced.length) } : null },
@@ -193,6 +278,32 @@ export function VaultBoard({ dossierId, initialFiles, documentNames }: Props) {
       </DarkHeader>
 
       <div className="mt-5" role="tabpanel">
+      {(error || notice) && tab !== "deposer" && (
+        <div className="mb-4 flex flex-col gap-2">
+          {error && <p className="rounded-lg bg-bad-bg px-3 py-2 text-[12.5px] text-bad">{error}</p>}
+          {notice && <p className="rounded-lg bg-ok-bg px-3 py-2 text-[12.5px] text-ok" role="status">{notice}</p>}
+        </div>
+      )}
+      {tab === "dossiers" && (
+        <FoldersView
+          folders={folders}
+          files={files}
+          thumbs={thumbs}
+          documentLabel={documentLabel}
+          open={openFolder}
+          onOpen={setOpenFolder}
+          onOpenFile={(f, list) => {
+            setPreviewScope(list);
+            setPreviewId(f.id);
+          }}
+          onUpload={(fl, id) => void handleUpload(fl, id)}
+          uploading={uploading}
+          progress={progress}
+          onCreate={addFolder}
+          onRename={editFolder}
+          onDelete={removeFolder}
+        />
+      )}
       {tab === "deposer" && <div className="mx-auto max-w-2xl">{dropAside}</div>}
 
       {tab === "remplaces" &&
@@ -205,7 +316,7 @@ export function VaultBoard({ dossierId, initialFiles, documentNames }: Props) {
             <p className="mb-3 text-[12.5px] text-muted">Anciennes versions, conservées dans le dossier Drive « Fichiers remplacés ». Elles ne comptent plus dans les pièces du dossier.</p>
             <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-5">
               {replaced.map((f) => (
-                <FileCard key={f.id} file={f} thumb={thumbs[f.id]} doc={documentLabel(f)} onOpen={() => setPreviewId(f.id)} />
+                <FileCard key={f.id} file={f} thumb={thumbs[f.id]} doc={documentLabel(f)} folder={folderName(f.folderId)} onOpen={() => openPreview(f)} />
               ))}
             </ul>
           </>
@@ -236,11 +347,12 @@ export function VaultBoard({ dossierId, initialFiles, documentNames }: Props) {
                       file={f}
                       thumb={thumbs[f.id]}
                       doc={documentLabel(f)}
+                      folder={folderName(f.folderId)}
                       onOpen={() => {
                         setKind("all");
                         setDocFilter("all");
                         setQuery("");
-                        setPreviewId(f.id);
+                        openPreview(f);
                       }}
                     />
                   ))}
@@ -295,7 +407,7 @@ export function VaultBoard({ dossierId, initialFiles, documentNames }: Props) {
           ) : (
             <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-5">
               {visible.map((f) => (
-                <FileCard key={f.id} file={f} thumb={thumbs[f.id]} doc={documentLabel(f)} onOpen={() => setPreviewId(f.id)} />
+                <FileCard key={f.id} file={f} thumb={thumbs[f.id]} doc={documentLabel(f)} folder={folderName(f.folderId)} onOpen={() => openPreview(f)} />
               ))}
             </ul>
           )}
@@ -313,55 +425,14 @@ export function VaultBoard({ dossierId, initialFiles, documentNames }: Props) {
           signUrl={signUrl}
           onIndex={(i) => setPreviewId(previewList[i]?.id ?? null)}
           onDelete={(f) => void deleteFile(f)}
-          onClose={() => setPreviewId(null)}
+          onClose={() => {
+            setPreviewId(null);
+            setPreviewScope(null);
+          }}
+          folders={folders}
+          onMove={(f, id) => void moveFile(f, id)}
         />
       )}
     </>
-  );
-}
-
-function FileCard({ file, thumb, doc, onOpen }: { file: VaultFile; thumb?: string; doc: string; onOpen: () => void }) {
-  const pdf = isPdf(file);
-  return (
-    <li>
-      <button type="button" onClick={onOpen} className="card group flex w-full flex-col overflow-hidden text-left transition-shadow hover:ring-2 hover:ring-act/30" title={`Aperçu de ${file.name}`}>
-        <span className="relative block aspect-[4/3] w-full overflow-hidden border-b border-line bg-surface-2">
-          {pdf ? (
-            <span className="absolute inset-0 grid place-items-center">
-              <span className="relative grid h-[68%] aspect-[3/4] place-items-center rounded-md border border-line bg-surface shadow-sm transition-transform group-hover:-translate-y-0.5">
-                <span className="absolute inset-x-[18%] top-[18%] flex flex-col gap-1.5" aria-hidden>
-                  <span className="h-1 rounded-full bg-line" />
-                  <span className="h-1 w-4/5 rounded-full bg-line" />
-                  <span className="h-1 rounded-full bg-line" />
-                  <span className="h-1 w-3/5 rounded-full bg-line" />
-                </span>
-                <span className="mono absolute bottom-[14%] rounded bg-bad px-1.5 py-0.5 text-[10px] font-bold text-white">PDF</span>
-              </span>
-            </span>
-          ) : thumb ? (
-            // eslint-disable-next-line @next/next/no-img-element -- vignette servie par lien signé temporaire
-            <img src={thumb} alt="" className="absolute inset-0 h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]" />
-          ) : (
-            <span className="absolute inset-0 grid place-items-center text-faint">
-              <IconImage size={26} />
-            </span>
-          )}
-          <span className="mono absolute top-2 left-2 rounded-md bg-black/60 px-1.5 py-0.5 text-[10px] font-semibold text-white">{fileKind(file)}</span>
-        </span>
-        <span className="block min-w-0 px-3 py-2.5">
-          <span className="block truncate text-[13px] font-semibold group-hover:text-act">{file.name}</span>
-          <span className="mt-0.5 flex items-center gap-1.5 text-[11.5px] text-muted">
-            {pdf ? <IconFile size={12} className="shrink-0" /> : <IconImage size={12} className="shrink-0" />}
-            <span className="truncate">{doc}</span>
-          </span>
-          <span className="mono mt-0.5 block text-[11px] text-faint">
-            {formatSize(file.size)}
-            {file.replacedAt
-              ? ` · remplacé le ${new Date(file.replacedAt).toLocaleDateString("fr-FR", { day: "numeric", month: "short" })}`
-              : file.uploadedAt && ` · ${new Date(file.uploadedAt).toLocaleDateString("fr-FR", { day: "numeric", month: "short" })}`}
-          </span>
-        </span>
-      </button>
-    </li>
   );
 }

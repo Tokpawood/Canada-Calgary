@@ -1,5 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { downloadFile, requireDrive, trashFile } from "@/lib/drive";
+import { downloadFile, moveFile, requireDrive, trashFile } from "@/lib/drive";
+import { driveFolderFor, resolveTarget } from "@/lib/fileStore";
+import { mapVaultFile } from "@/lib/queries";
 import { errorResponse, requireOwner, safeFileName } from "@/lib/driveRoute";
 
 type Ctx = { params: Promise<{ id: string }> };
@@ -56,6 +58,34 @@ export async function DELETE(_request: NextRequest, { params }: Ctx) {
     const { error } = await supabase.from("file").delete().eq("id", id);
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
     return NextResponse.json({ ok: true });
+  } catch (e) {
+    return errorResponse(e);
+  }
+}
+
+/** Classement : déplace le fichier dans un dossier du Coffre (ou le sort de tout dossier), y compris sur Drive. */
+export async function PATCH(request: NextRequest, { params }: Ctx) {
+  try {
+    const { id } = await params;
+    const { supabase, dossierId, row } = await loadFile(id);
+    if (!row) return NextResponse.json({ error: "Fichier introuvable." }, { status: 404 });
+    const { folderId = null } = (await request.json().catch(() => ({}))) as { folderId?: string | null };
+    if ((row.folder_id ?? null) === folderId) return NextResponse.json({ file: mapVaultFile(row) });
+
+    if (row.provider === "gdrive" && !row.replaced_at) {
+      // La pièce rattachée garde la priorité pour l'emplacement Drive ; sinon on suit le dossier.
+      const target = await resolveTarget(supabase, dossierId, (row.document_id as string | null) ?? null, folderId);
+      if (!row.document_id) {
+        const { conn, token } = await requireDrive(dossierId);
+        const driveFolder = await driveFolderFor(conn, token, target);
+        await moveFile(token, row.drive_file_id as string, driveFolder, row.name as string);
+      }
+    } else if (folderId) {
+      await resolveTarget(supabase, dossierId, null, folderId);
+    }
+    const { data, error } = await supabase.from("file").update({ folder_id: folderId }).eq("id", id).select("*").single();
+    if (error || !data) return NextResponse.json({ error: "Classement non enregistré." }, { status: 500 });
+    return NextResponse.json({ file: mapVaultFile(data) });
   } catch (e) {
     return errorResponse(e);
   }

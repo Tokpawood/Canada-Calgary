@@ -253,3 +253,16 @@ export const IconBook = (p: IconProps) => (
     <path d="M8 7.5h8M8 11h5" />
   </svg>
 );
+
+export const IconFolder = (p: IconProps) => (
+  <svg {...base(p)}>
+    <path d="M3 7.5A2.5 2.5 0 0 1 5.5 5h3.6a2 2 0 0 1 1.5.7l1.3 1.6a2 2 0 0 0 1.5.7h5.1A2.5 2.5 0 0 1 21 10.5v7a2.5 2.5 0 0 1-2.5 2.5h-13A2.5 2.5 0 0 1 3 17.5z" />
+  </svg>
+);
+
+export const IconFolderPlus = (p: IconProps) => (
+  <svg {...base(p)}>
+    <path d="M3 7.5A2.5 2.5 0 0 1 5.5 5h3.6a2 2 0 0 1 1.5.7l1.3 1.6a2 2 0 0 0 1.5.7h5.1A2.5 2.5 0 0 1 21 10.5v7a2.5 2.5 0 0 1-2.5 2.5h-13A2.5 2.5 0 0 1 3 17.5z" />
+    <path d="M12 11v6M9 14h6" />
+  </svg>
+);

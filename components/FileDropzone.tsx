@@ -41,9 +41,12 @@ export function FileDropzone({
   title = "Déposez vos scans ici",
   hint = "PDF, JPEG, PNG ou WEBP · 20 Mo maximum",
   compact = false,
+  progress = null,
 }: {
   onFiles: (files: FileList) => void;
   busy?: boolean;
+  /** Avancement de l'envoi en cours (0 à 1). */
+  progress?: number | null;
   accept?: string;
   multiple?: boolean;
   title?: string;
@@ -73,7 +76,12 @@ export function FileDropzone({
         <IconUpload size={compact ? 17 : 21} />
       </span>
       <div className={compact ? "min-w-0 flex-1" : ""}>
-        <p className="text-[14px] font-semibold">{busy ? "Envoi en cours…" : title}</p>
+        <p className="text-[14px] font-semibold">{busy ? `Envoi en cours${progress != null ? ` · ${Math.round(progress * 100)} %` : "…"}` : title}</p>
+        {busy && progress != null && (
+          <span className="mt-1.5 block h-1.5 w-full min-w-[140px] overflow-hidden rounded-full bg-line" aria-hidden>
+            <span className="block h-full rounded-full bg-act transition-[width] duration-200" style={{ width: `${Math.max(3, progress * 100)}%` }} />
+          </span>
+        )}
         <p className="text-[12px] text-muted">
           {hint} — ou{" "}
           <button type="button" disabled={busy} onClick={() => input.current?.click()} className="font-semibold text-act underline-offset-2 hover:underline">
