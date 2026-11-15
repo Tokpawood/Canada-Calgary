@@ -173,6 +173,7 @@ function mapDocument(
     req: row.req as DocumentRecord["req"],
     format: (row.format as string) ?? "",
     validity: (row.validity as string) ?? "",
+    expires: (row.expires as string) ?? "",
     checks: checks.map(mapDocumentCheck),
     links: links.map(mapLink),
     files: files.map(mapVaultFile),

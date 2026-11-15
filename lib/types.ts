@@ -72,6 +72,8 @@ export interface DocumentRecord {
   req: DocumentRequirement;
   format: string;
   validity: string;
+  /** Fin de validité (AAAA-MM-JJ), vide si sans objet. */
+  expires: string;
   checks: DocumentCheck[];
   links: Link[];
   files: VaultFile[];

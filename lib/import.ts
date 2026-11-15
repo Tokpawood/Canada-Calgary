@@ -30,6 +30,7 @@ const docSchema = z.object({
   req: z.enum(["Obligatoire", "Conseillé", "Si applicable"]).default("Obligatoire"),
   format: z.string().optional().default(""),
   validity: z.string().optional().default(""),
+  expires: z.string().optional().default(""),
   checks: z.array(subTaskSchema).optional().default([]),
   links: z.array(linkSchema).optional().default([]),
 });
@@ -260,6 +261,7 @@ export function buildImportPlan(dossierId: string, raw: RawDossier): ImportPlan 
       req: d.req,
       format: d.format,
       validity: d.validity,
+      expires: d.expires || null,
       position: i,
     };
   });
