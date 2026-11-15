@@ -6,7 +6,8 @@ import type { ErrorEntry, Lang, TrainingScore } from "@/lib/formation";
 
 export const metadata = { title: "Formation TCF · IELTS — Projet Canada Calgary" };
 
-export default async function FormationPage() {
+export default async function FormationPage({ searchParams }: { searchParams: Promise<{ d?: string; t?: string }> }) {
+  const { d, t } = await searchParams;
   const supabase = await createClient();
   const { data: userData } = await supabase.auth.getUser();
   const dossier = await getDossierForUser(supabase);
@@ -51,6 +52,8 @@ export default async function FormationPage() {
       initialScores={scores}
       initialErrors={errors}
       canEdit={dossier.ownerId === userData.user?.id}
+      initialDate={d && /^\d{4}-\d{2}-\d{2}$/.test(d) ? d : undefined}
+      initialOpen={t && t.length < 40 ? t : undefined}
     />
   );
 }

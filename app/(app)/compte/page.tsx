@@ -5,6 +5,8 @@ import { DriveCard, type DriveStatus } from "@/components/compte/DriveCard";
 import { driveConfigured, folderLink, getConnection } from "@/lib/drive";
 import { getAccount } from "@/lib/account";
 import { AccountIdentityCard } from "@/components/compte/AccountIdentityCard";
+import { NotificationsCard } from "@/components/compte/NotificationsCard";
+import { DEFAULT_SETTINGS, cleanTimes, type NotifySettings } from "@/lib/notifyPlan";
 
 export default async function ComptePage({ searchParams }: { searchParams: Promise<{ drive?: string }> }) {
   const supabase = await createClient();
@@ -28,9 +30,22 @@ export default async function ComptePage({ searchParams }: { searchParams: Promi
 
   const account = await getAccount(supabase, data.user, (dossier?.id as string | undefined) ?? null);
 
+  let notify: { settings: NotifySettings; devices: number } | null = null;
+  if (dossier) {
+    const [{ data: row }, { count }] = await Promise.all([
+      supabase.from("notification_settings").select("enabled,times,include_steps").eq("dossier_id", dossier.id).maybeSingle(),
+      supabase.from("push_subscription").select("id", { count: "exact", head: true }).eq("dossier_id", dossier.id),
+    ]);
+    notify = {
+      settings: row ? { enabled: Boolean(row.enabled), times: cleanTimes(row.times), includeSteps: Boolean(row.include_steps) } : DEFAULT_SETTINGS,
+      devices: count ?? 0,
+    };
+  }
+
   return (
     <AccountBoard email={data.user.email ?? ""} account={account} lastSignIn={data.user.last_sign_in_at ?? null} createdAt={data.user.created_at ?? null}>
       <AccountIdentityCard account={account} />
+      {dossier && notify && <NotificationsCard dossierId={dossier.id as string} initial={notify.settings} devices={notify.devices} />}
       {drive && <DriveCard status={drive} />}
     </AccountBoard>
   );

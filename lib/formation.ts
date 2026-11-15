@@ -225,6 +225,8 @@ export interface DayItem {
   detail?: string;
   lang: Lang | null;
   group: SlotGroup;
+  /** Sujet du guide affiché dans le tiroir de la tâche (méthode, ressources). */
+  topic: string;
 }
 
 export interface DayPlan {
@@ -248,15 +250,15 @@ function tcfWeekday(iso: string, w: Week): Slot[] {
   const writing = d === 2 ? "tâches 1 et 2" : d === 4 ? "exercices de grammaire de la semaine et réécriture d'une copie corrigée" : "tâche 3";
   const oral = d === 2 ? "tâche 2" : d === 4 ? "tâche 1" : "tâche 3";
   return [
-    { id: "am", time: "05:15", minutes: 45, group: "matin", lang: "tcf", label: d === 4 ? "Grammaire et réécriture d'une copie corrigée" : `Expression écrite chronométrée : ${writing}`, detail: d === 4 ? w.grammar : undefined },
-    { id: "t1", time: "Trajet aller", minutes: 30, group: "trajet", lang: "tcf", label: "Compréhension orale", detail: iso >= "2026-12-14" ? "Séries du pack Gold" : "Exercices TCF sur téléphone (RFI, TV5Monde)" },
-    { id: "t2", time: "Trajet aller", minutes: 60, group: "trajet", lang: "tcf", label: "Podcast français de niveau C1-C2" },
-    { id: "t3", time: "Trajet aller", minutes: 20, group: "trajet", lang: "tcf", label: `Anki : 20 mots du thème « ${w.theme} »` },
-    { id: "midi", time: "Pause déjeuner", minutes: 20, group: "midi", lang: "tcf", label: "Compréhension écrite : un texte et ses questions, chronométré" },
-    { id: "t4", time: "Trajet retour", minutes: 75, group: "trajet", lang: "tcf", label: "Podcast français et relecture mentale du carnet d'erreurs" },
-    { id: "en", time: "Trajet retour", minutes: 15, group: "trajet", lang: "ielts", label: "Maintien de l'anglais", detail: "BBC 6 Minute English ou BBC Global News Podcast" },
-    { id: "pm", time: "20:30", minutes: 45, group: "soir", lang: "tcf", label: `Expression orale : ${oral}`, detail: "S'enregistrer, transcrire, corriger" },
-    { id: "fin", time: "21:15", minutes: 15, group: "soir", lang: "tcf", label: "Carnet d'erreurs, puis lecture du sujet du lendemain" },
+    { id: "am", time: "05:15", minutes: 45, group: "matin", lang: "tcf", topic: d === 4 ? "tcf-grammaire" : d === 2 ? "tcf-ee12" : "tcf-ee3", label: d === 4 ? "Grammaire et réécriture d'une copie corrigée" : `Expression écrite chronométrée : ${writing}`, detail: d === 4 ? w.grammar : undefined },
+    { id: "t1", time: "Trajet aller", minutes: 30, group: "trajet", lang: "tcf", topic: "tcf-co", label: "Compréhension orale", detail: iso >= "2026-12-14" ? "Séries du pack Gold" : "Exercices TCF sur téléphone (RFI, TV5Monde)" },
+    { id: "t2", time: "Trajet aller", minutes: 60, group: "trajet", lang: "tcf", topic: "fr-podcast", label: "Podcast français de niveau C1-C2" },
+    { id: "t3", time: "Trajet aller", minutes: 20, group: "trajet", lang: "tcf", topic: "anki", label: `Anki : 20 mots du thème « ${w.theme} »` },
+    { id: "midi", time: "Pause déjeuner", minutes: 20, group: "midi", lang: "tcf", topic: "tcf-ce", label: "Compréhension écrite : un texte et ses questions, chronométré" },
+    { id: "t4", time: "Trajet retour", minutes: 75, group: "trajet", lang: "tcf", topic: "fr-podcast", label: "Podcast français et relecture mentale du carnet d'erreurs" },
+    { id: "en", time: "Trajet retour", minutes: 15, group: "trajet", lang: "ielts", topic: "en-maintien", label: "Maintien de l'anglais", detail: "BBC 6 Minute English ou BBC Global News Podcast" },
+    { id: "pm", time: "20:30", minutes: 45, group: "soir", lang: "tcf", topic: d === 2 ? "tcf-eo2" : d === 4 ? "tcf-eo1" : "tcf-eo3", label: `Expression orale : ${oral}`, detail: "S'enregistrer, transcrire, corriger" },
+    { id: "fin", time: "21:15", minutes: 15, group: "soir", lang: "tcf", topic: "carnet", label: "Carnet d'erreurs, puis lecture du sujet du lendemain" },
   ];
 }
 
@@ -265,37 +267,37 @@ function ieltsWeekday(iso: string, w: Week): Slot[] {
   const writing = d === 2 || d === 4 ? "Writing Task 1 (20 min) et réécriture d'une copie corrigée" : "Writing Task 2 chronométrée (40 min)";
   const speaking = d === 1 || d === 3 ? "Speaking Part 2 (2 min) et Part 3" : d === 5 ? "Speaking : les 3 parts d'affilée" : "Speaking Part 1";
   return [
-    { id: "am", time: "05:15", minutes: 45, group: "matin", lang: "ielts", label: writing },
-    { id: "t1", time: "Trajet aller", minutes: 30, group: "trajet", lang: "ielts", label: "Listening : une section d'un test officiel" },
-    { id: "t2", time: "Trajet aller", minutes: 60, group: "trajet", lang: "ielts", label: "Podcast anglais" },
-    { id: "t3", time: "Trajet aller", minutes: 20, group: "trajet", lang: "ielts", label: `Anki : 20 collocations du thème « ${w.theme} »` },
-    { id: "midi", time: "Pause déjeuner", minutes: 20, group: "midi", lang: "ielts", label: "Reading : un passage et ses questions, chronométré" },
-    { id: "t4", time: "Trajet retour", minutes: 90, group: "trajet", lang: "ielts", label: "Podcast anglais, idées notées pour la Task 2" },
-    { id: "pm", time: "20:30", minutes: 45, group: "soir", lang: "ielts", label: speaking, detail: "S'enregistrer, transcrire, corriger" },
-    { id: "fin", time: "21:15", minutes: 15, group: "soir", lang: "ielts", label: "Carnet d'erreurs, puis lecture du sujet du lendemain" },
+    { id: "am", time: "05:15", minutes: 45, group: "matin", lang: "ielts", topic: d === 2 || d === 4 ? "ielts-task1" : "ielts-task2", label: writing },
+    { id: "t1", time: "Trajet aller", minutes: 30, group: "trajet", lang: "ielts", topic: "ielts-listening", label: "Listening : une section d'un test officiel" },
+    { id: "t2", time: "Trajet aller", minutes: 60, group: "trajet", lang: "ielts", topic: "en-podcast", label: "Podcast anglais" },
+    { id: "t3", time: "Trajet aller", minutes: 20, group: "trajet", lang: "ielts", topic: "anki", label: `Anki : 20 collocations du thème « ${w.theme} »` },
+    { id: "midi", time: "Pause déjeuner", minutes: 20, group: "midi", lang: "ielts", topic: "ielts-reading", label: "Reading : un passage et ses questions, chronométré" },
+    { id: "t4", time: "Trajet retour", minutes: 90, group: "trajet", lang: "ielts", topic: "en-podcast", label: "Podcast anglais, idées notées pour la Task 2" },
+    { id: "pm", time: "20:30", minutes: 45, group: "soir", lang: "ielts", topic: "ielts-speaking", label: speaking, detail: "S'enregistrer, transcrire, corriger" },
+    { id: "fin", time: "21:15", minutes: 15, group: "soir", lang: "ielts", topic: "carnet", label: "Carnet d'erreurs, puis lecture du sujet du lendemain" },
   ];
 }
 
 /** Semaine de finition IELTS (22 au 26/03) : programme allégé jour par jour. */
 const IELTS_FINISH: Record<string, Slot[]> = {
   "2027-03-22": [
-    { id: "t2", time: "Trajets", minutes: 60, group: "trajet", lang: "ielts", label: "Podcast anglais" },
-    { id: "t3", time: "Trajet aller", minutes: 20, group: "trajet", lang: "ielts", label: "Anki : révision des collocations" },
-    { id: "fin", time: "21:00", minutes: 30, group: "soir", lang: "ielts", label: "Relecture du carnet d'erreurs" },
+    { id: "t2", time: "Trajets", minutes: 60, group: "trajet", topic: "en-podcast", lang: "ielts", label: "Podcast anglais" },
+    { id: "t3", time: "Trajet aller", minutes: 20, group: "trajet", topic: "anki", lang: "ielts", label: "Anki : révision des collocations" },
+    { id: "fin", time: "21:00", minutes: 30, group: "soir", topic: "carnet", lang: "ielts", label: "Relecture du carnet d'erreurs" },
   ],
   "2027-03-23": [
-    { id: "pm", time: "20:30", minutes: 15, group: "soir", lang: "ielts", label: "Simulation complète du Speaking (3 parts)" },
-    { id: "t2", time: "Trajets", minutes: 60, group: "trajet", lang: "ielts", label: "Podcast anglais" },
+    { id: "pm", time: "20:30", minutes: 15, group: "soir", topic: "ielts-speaking", lang: "ielts", label: "Simulation complète du Speaking (3 parts)" },
+    { id: "t2", time: "Trajets", minutes: 60, group: "trajet", topic: "en-podcast", lang: "ielts", label: "Podcast anglais" },
   ],
   "2027-03-24": [
-    { id: "t1", time: "Trajet aller", minutes: 30, group: "trajet", lang: "ielts", label: "Listening léger : une section" },
-    { id: "fin", time: "21:00", minutes: 30, group: "soir", lang: "ielts", label: "Relecture du carnet d'erreurs" },
+    { id: "t1", time: "Trajet aller", minutes: 30, group: "trajet", topic: "ielts-listening", lang: "ielts", label: "Listening léger : une section" },
+    { id: "fin", time: "21:00", minutes: 30, group: "soir", topic: "carnet", lang: "ielts", label: "Relecture du carnet d'erreurs" },
   ],
   "2027-03-25": [
-    { id: "rev", time: "Soir", minutes: 30, group: "soir", lang: "ielts", label: "Révision légère : phrases clés et registres des lettres", detail: "Dernier jour de révision : rien de nouveau ensuite" },
+    { id: "rev", time: "Soir", minutes: 30, group: "soir", topic: "ielts-revision", lang: "ielts", label: "Révision légère : phrases clés et registres des lettres", detail: "Dernier jour de révision : rien de nouveau ensuite" },
   ],
   "2027-03-26": [
-    { id: "prep", time: "Soir", minutes: null, group: "soir", lang: null, label: "Préparer la convocation, la pièce d'identité et le trajet ; se coucher tôt" },
+    { id: "prep", time: "Soir", minutes: null, group: "soir", topic: "veille-examen", lang: null, label: "Préparer la convocation, la pièce d'identité et le trajet ; se coucher tôt" },
   ],
 };
 
@@ -311,14 +313,14 @@ export function dayPlan(iso: string): DayPlan | null {
   if (iso === TCF_DATE) {
     return {
       ...base, kind: "examen", title: "Jour du TCF Canada",
-      items: [{ key: k("examen"), time: "Journée", minutes: null, label: "Passer le TCF Canada", detail: "Objectif NCLC 10 : 549 en compréhension, 16/20 en expression", lang: "tcf", group: "examen" }],
+      items: [{ key: k("examen"), time: "Journée", minutes: null, label: "Passer le TCF Canada", detail: "Objectif NCLC 10 : 549 en compréhension, 16/20 en expression", lang: "tcf", group: "examen", topic: "examen-tcf" }],
       tip: "Lisez les réponses proposées avant d'écouter ou de lire le document.",
     };
   }
   if (iso === IELTS_DATE) {
     return {
       ...base, kind: "examen", title: "Jour de l'IELTS General Training",
-      items: [{ key: k("examen"), time: "Journée", minutes: null, label: "Passer l'IELTS General Training", detail: "Objectif CLB 9 : Listening 8,0 ; Reading 7,0 ; Writing 7,0 ; Speaking 7,0", lang: "ielts", group: "examen" }],
+      items: [{ key: k("examen"), time: "Journée", minutes: null, label: "Passer l'IELTS General Training", detail: "Objectif CLB 9 : Listening 8,0 ; Reading 7,0 ; Writing 7,0 ; Speaking 7,0", lang: "ielts", group: "examen", topic: "examen-ielts" }],
       tip: "Writing : commencez par la Task 2, qui compte double.",
     };
   }
@@ -328,7 +330,7 @@ export function dayPlan(iso: string): DayPlan | null {
   const ref = DATED_SENDS[iso];
   if (ref) {
     const s = week.sends[Number(ref.split(":e")[1])];
-    if (s) dated.push({ key: ref, time: "À faire", minutes: null, label: s.label, detail: s.subject, lang: program.id, group: "jalon" });
+    if (s) dated.push({ key: ref, time: "À faire", minutes: null, label: s.label, detail: s.subject, lang: program.id, group: "jalon", topic: "jalon:" + ref });
   }
   const withKeys = (slots: Slot[]): DayItem[] => slots.map(({ id, ...s }) => ({ ...s, key: k(id) }));
 
@@ -339,7 +341,7 @@ export function dayPlan(iso: string): DayPlan | null {
   if (program.id === "tcf" && iso >= "2027-02-13") {
     return {
       ...base, kind: "repos", title: `${DAY_NAMES[d]} · repos avant le TCF`,
-      items: [{ key: k("repos"), time: "Journée", minutes: null, label: "Repos : relecture légère du carnet d'erreurs", lang: "tcf", group: "weekend" }],
+      items: [{ key: k("repos"), time: "Journée", minutes: null, label: "Repos : relecture légère du carnet d'erreurs", lang: "tcf", group: "weekend", topic: "veille-examen" }],
       tip: "Arrivez reposé le 15/02 : rien de nouveau.",
     };
   }
@@ -347,8 +349,8 @@ export function dayPlan(iso: string): DayPlan | null {
   if (d === 6) {
     const items: DayItem[] = [...dated];
     if (week.saturday) {
-      items.push({ key: k("matin"), time: "08:00", minutes: 180, label: week.saturday.label, detail: week.saturday.mock ? "En conditions réelles, chronomètre lancé" : "Chronométré", lang: program.id, group: "weekend" });
-      items.push({ key: k("correction"), time: "15:00", minutes: 60, label: "Correction et carnet d'erreurs", lang: program.id, group: "weekend" });
+      items.push({ key: k("matin"), time: "08:00", minutes: 180, label: week.saturday.label, detail: week.saturday.mock ? "En conditions réelles, chronomètre lancé" : "Chronométré", lang: program.id, group: "weekend", topic: program.id + (week.saturday.mock ? "-blanc" : "-samedi") });
+      items.push({ key: k("correction"), time: "15:00", minutes: 60, label: "Correction et carnet d'erreurs", lang: program.id, group: "weekend", topic: "correction" });
     }
     return { ...base, kind: "samedi", title: `Samedi · ${week.saturday?.mock ? "examen blanc" : "entraînement"}`, items };
   }
@@ -357,17 +359,17 @@ export function dayPlan(iso: string): DayPlan | null {
     const study: DayItem[] =
       program.id === "tcf"
         ? [
-            { key: k("grammaire"), time: "15:00", minutes: 60, label: `Grammaire de la semaine : ${week.grammar}`, lang: "tcf", group: "weekend" },
-            { key: k("shadowing"), time: "16:00", minutes: 30, label: "Shadowing en français : répéter à voix haute un extrait audio", lang: "tcf", group: "weekend" },
+            { key: k("grammaire"), time: "15:00", minutes: 60, label: `Grammaire de la semaine : ${week.grammar}`, lang: "tcf", group: "weekend", topic: "tcf-grammaire" },
+            { key: k("shadowing"), time: "16:00", minutes: 30, label: "Shadowing en français : répéter à voix haute un extrait audio", lang: "tcf", group: "weekend", topic: "shadowing" },
           ]
-        : [{ key: k("shadowing"), time: "15:00", minutes: 60, label: "30 min de shadowing et révision du vocabulaire", lang: "ielts", group: "weekend" }];
+        : [{ key: k("shadowing"), time: "15:00", minutes: 60, label: "30 min de shadowing et révision du vocabulaire", lang: "ielts", group: "weekend", topic: "shadowing" }];
     return {
       ...base, kind: "dimanche", title: "Dimanche · révision et bilan",
       items: [
         ...dated,
         ...study,
-        { key: k("carnet"), time: "Après-midi", minutes: 15, label: "Relire le carnet d'erreurs", detail: "Une erreur revenue 3 fois devient un exercice ciblé la semaine suivante", lang: program.id, group: "weekend" },
-        { key: k("bilan"), time: "20:00", minutes: null, label: "Envoyer le bilan de la semaine à Claude (scores et copies)", lang: null, group: "weekend" },
+        { key: k("carnet"), time: "Après-midi", minutes: 15, label: "Relire le carnet d'erreurs", detail: "Une erreur revenue 3 fois devient un exercice ciblé la semaine suivante", lang: program.id, group: "weekend", topic: "carnet" },
+        { key: k("bilan"), time: "20:00", minutes: null, label: "Envoyer le bilan de la semaine à Claude (scores et copies)", lang: null, group: "weekend", topic: "bilan" },
       ],
     };
   }

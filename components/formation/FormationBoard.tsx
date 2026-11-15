@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import {
   ERROR_REPEAT_THRESHOLD,
@@ -44,7 +44,11 @@ export function FormationBoard({
   initialScores,
   initialErrors,
   canEdit,
+  initialDate,
+  initialOpen,
 }: {
+  initialDate?: string;
+  initialOpen?: string;
   dossierId: string;
   today: string;
   initialDone: string[];
@@ -55,9 +59,15 @@ export function FormationBoard({
   const [done, setDone] = useState(() => new Set(initialDone));
   const [scores, setScores] = useState(initialScores);
   const [errors, setErrors] = useState(initialErrors);
-  const [date, setDate] = useState(() => clampToProgram(today));
+  const [date, setDate] = useState(() => clampToProgram(initialDate ?? today));
   const [tab, setTab] = useHashTab<Tab>(TABS, "jour");
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [openKey, setOpenKey] = useState<string | null>(initialOpen ?? null);
+
+  // Lien d'une notification (/formation?d=…&t=…#jour) : une fois ouvert, on nettoie l'adresse.
+  useEffect(() => {
+    if (window.location.search) window.history.replaceState(null, "", `/formation${window.location.hash || "#jour"}`);
+  }, []);
 
   // Écritures enchaînées par case : deux touches rapides ne peuvent pas arriver dans le désordre.
   const queues = useRef(new Map<string, Promise<void>>());
@@ -201,6 +211,14 @@ export function FormationBoard({
         ]}
       />
 
+      {canEdit && tab === "jour" && (
+        <p className="mb-4 text-[12.5px] text-muted">
+          Touchez une tâche pour sa méthode et ses ressources.{" "}
+          <a href="/compte#notifications" className="font-semibold text-ink underline underline-offset-2">
+            Régler les rappels
+          </a>
+        </p>
+      )}
       {!canEdit && <p className="mb-4 rounded-lg bg-surface-2 px-3 py-2 text-[13px] text-muted">Lecture seule : seul le titulaire peut cocher les tâches.</p>}
       {saveError && (
         <p role="alert" className="mb-4 rounded-lg bg-bad-bg px-3 py-2 text-[13px] text-bad">
@@ -209,7 +227,7 @@ export function FormationBoard({
       )}
 
       <div role="tabpanel">
-        {tab === "jour" && <DayView date={date} today={today} onDate={setDate} done={done} toggle={toggle} />}
+        {tab === "jour" && <DayView date={date} today={today} onDate={(d) => { setOpenKey(null); setDate(d); }} done={done} toggle={toggle} openKey={openKey} onOpen={setOpenKey} canEdit={canEdit} />}
         {tab === "semaines" && <WeeksView today={today} done={done} toggle={toggle} onOpenDay={openDay} />}
         {tab === "calendrier" && <CalendarView today={today} done={done} onOpenDay={openDay} />}
         {tab === "carnet" && <ErrorsView dossierId={dossierId} errors={errors} setErrors={setErrors} defaultExam={program.id} canEdit={canEdit} />}

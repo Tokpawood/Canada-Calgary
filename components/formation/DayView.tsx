@@ -4,6 +4,7 @@ import { PROGRAM_END, PROGRAM_START, addDays, dayPlan, sendKey, type DayItem, ty
 import { Meter } from "@/components/ui";
 import { IconChevronLeft, IconChevronRight, IconInfo } from "@/components/icons";
 import { CheckBox, LangTag, fmtDay, minutesLabel } from "./shared";
+import { TaskDrawer } from "./TaskDrawer";
 
 const GROUP_LABEL: Record<DayItem["group"], string> = {
   jalon: "À faire aujourd'hui",
@@ -21,12 +22,19 @@ export function DayView({
   onDate,
   done,
   toggle,
+  openKey,
+  onOpen,
+  canEdit,
 }: {
   date: string;
   today: string;
   onDate: (d: string) => void;
   done: Set<string>;
   toggle: (key: string, v: boolean) => void;
+  /** Tâche dont le tiroir est ouvert. */
+  openKey: string | null;
+  onOpen: (key: string | null) => void;
+  canEdit: boolean;
 }) {
   const plan = dayPlan(date);
   if (!plan) return null;
@@ -93,20 +101,26 @@ export function DayView({
                   const on = done.has(it.key);
                   return (
                     <li key={it.key}>
-                      <label className="flex cursor-pointer items-start gap-3 rounded-xl px-2 py-2.5 hover:bg-surface-2">
+                      <div className="flex items-start gap-3 rounded-xl px-2 py-2.5 hover:bg-surface-2">
                         <span className="pt-0.5">
-                          <CheckBox checked={on} onChange={(v) => toggle(it.key, v)} label={it.label} />
+                          <CheckBox checked={on} onChange={(v) => toggle(it.key, v)} label={it.label} disabled={!canEdit} />
                         </span>
-                        <span className="mono w-[92px] shrink-0 pt-1 text-[12px] text-muted sm:w-[104px]">{it.time}</span>
-                        <span className="min-w-0 flex-1">
-                          <span className={`block text-[14.5px] leading-snug font-medium ${on ? "text-faint line-through" : ""}`}>{it.label}</span>
-                          {it.detail && <span className="mt-0.5 block text-[12.5px] text-muted">{it.detail}</span>}
-                        </span>
-                        <span className="flex shrink-0 flex-col items-end gap-1 pt-0.5">
-                          {it.lang && <LangTag lang={it.lang} />}
-                          {it.minutes != null && <span className="mono text-[11px] text-faint">{minutesLabel(it.minutes)}</span>}
-                        </span>
-                      </label>
+                        <button type="button" onClick={() => onOpen(it.key)} className="flex min-w-0 flex-1 cursor-pointer items-start gap-3 text-left">
+                          <span className="mono w-[92px] shrink-0 pt-1 text-[12px] text-muted sm:w-[104px]">{it.time}</span>
+                          <span className="min-w-0 flex-1">
+                            <span className={`block text-[14.5px] leading-snug font-medium ${on ? "text-faint line-through" : ""}`}>{it.label}</span>
+                            {it.detail && <span className="mt-0.5 block text-[12.5px] text-muted">{it.detail}</span>}
+                            <span className="mt-1 inline-flex items-center gap-0.5 text-[12px] font-semibold text-muted">
+                              Méthode et ressources
+                              <IconChevronRight size={13} />
+                            </span>
+                          </span>
+                          <span className="flex shrink-0 flex-col items-end gap-1 pt-0.5">
+                            {it.lang && <LangTag lang={it.lang} />}
+                            {it.minutes != null && <span className="mono text-[11px] text-faint">{minutesLabel(it.minutes)}</span>}
+                          </span>
+                        </button>
+                      </div>
                     </li>
                   );
                 })}
@@ -124,6 +138,9 @@ export function DayView({
       </section>
 
       {plan.week && <WeekAside week={plan.week} done={done} toggle={toggle} />}
+      {openKey && plan.items.some((i) => i.key === openKey) && (
+        <TaskDrawer plan={plan} itemKey={openKey} done={done} toggle={toggle} onSelect={onOpen} onClose={() => onOpen(null)} canEdit={canEdit} />
+      )}
     </div>
   );
 }
