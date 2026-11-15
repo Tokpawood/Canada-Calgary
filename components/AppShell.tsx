@@ -19,8 +19,7 @@ import {
   IconRoute,
   IconUser,
   IconUsers,
-  IconWallet,
-} from "./icons";
+  IconWallet, IconBook } from "./icons";
 
 export interface ShellSummary {
   overallPct: number;
@@ -40,6 +39,7 @@ const NAV_GROUPS: Array<{ title: string; items: NavItem[] }> = [
       { href: "/documents", label: "Documents", icon: IconFile },
       { href: "/budget", label: "Budget", icon: IconWallet },
       { href: "/epargne", label: "Épargne", icon: IconPiggy },
+      { href: "/formation", label: "Formation", icon: IconBook },
     ],
   },
   {

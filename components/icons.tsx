@@ -246,3 +246,10 @@ export const IconGlobe = (p: IconProps) => (
     <path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18" />
   </svg>
 );
+export const IconBook = (p: IconProps) => (
+  <svg {...base(p)}>
+    <path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v15H6.5A2.5 2.5 0 0 0 4 20.5z" />
+    <path d="M4 20.5A2.5 2.5 0 0 0 6.5 23H20v-5" />
+    <path d="M8 7.5h8M8 11h5" />
+  </svg>
+);
