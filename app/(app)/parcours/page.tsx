@@ -12,10 +12,7 @@ export default async function ParcoursPage({ searchParams }: { searchParams: Pro
   if (!dossier) redirect("/import");
 
   const [steps, savings, contacts] = await Promise.all([getStepsWithDetails(supabase, dossier.id), getSavingsActual(supabase, dossier.id), getContacts(supabase, dossier.id)]);
-  const { persons, links } = await getNetwork(
-    supabase,
-    contacts.map((c) => c.id),
-  );
+  const { persons, links } = await getNetwork(supabase, dossier.id);
   const funds = fundsProgress(savings, dossier);
 
   const fundsStat: Stat = {
