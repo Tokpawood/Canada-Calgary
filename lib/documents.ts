@@ -42,21 +42,21 @@ export function joinUploadErrors(errors: string[], max = 3): string | null {
 /** Délai d'alerte avant la fin de validité d'une pièce. */
 export const EXPIRY_WARN_DAYS = 90;
 
-export interface ExpiringDoc {
-  doc: DocumentRecord;
+export interface ExpiringDoc<T = DocumentRecord> {
+  doc: T;
   state: "expired" | "soon";
   /** Jours restants (négatif si expirée). */
   days: number;
 }
 
 /** Pièces expirées ou expirant bientôt, les plus urgentes d'abord. */
-export function expiringDocs(
-  docs: DocumentRecord[],
+export function expiringDocs<T extends { expires: string | null }>(
+  docs: T[],
   today = new Date(),
   warnDays = EXPIRY_WARN_DAYS,
-): ExpiringDoc[] {
+): ExpiringDoc<T>[] {
   const t0 = Date.UTC(today.getFullYear(), today.getMonth(), today.getDate());
-  const out: ExpiringDoc[] = [];
+  const out: ExpiringDoc<T>[] = [];
   for (const doc of docs) {
     const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(doc.expires ?? "");
     if (!m) continue;

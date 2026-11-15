@@ -3,6 +3,9 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { daysUntil, isOpenStep } from "@/lib/rules";
 import { sendReminderEmail } from "@/lib/email";
 import type { Step, StepStatus } from "@/lib/types";
+import { expiringDocs, type ExpiringDoc } from "@/lib/documents";
+
+type DocRow = { name: string; expires: string | null };
 
 type StepRow = Pick<Step, "id" | "title" | "due" | "status">;
 
@@ -25,8 +28,9 @@ export async function GET(request: NextRequest) {
 
   for (const d of dossiers ?? []) {
     const dossierId = d.id as string;
-    const [{ data: stepsRaw }, { data: profile }] = await Promise.all([
+    const [{ data: stepsRaw }, { data: docsRaw }, { data: profile }] = await Promise.all([
       supabase.from("step").select("id,title,due,status").eq("dossier_id", dossierId),
+      supabase.from("document").select("name,expires").eq("dossier_id", dossierId).not("expires", "is", null),
       supabase.from("profile").select("courriel").eq("dossier_id", dossierId).maybeSingle(),
     ]);
     const to = profile?.courriel as string | undefined;
@@ -46,7 +50,7 @@ export async function GET(request: NextRequest) {
         const result = await sendReminderEmail(
           to,
           `Échéance ${kind} : ${s.title}`,
-          `<p>L'étape « ${s.title} » arrive à échéance le ${s.due}.</p>`,
+          `<p>L'étape « ${esc(s.title)} » arrive à échéance le ${esc(s.due ?? "")}.</p>`,
         );
         if (result.sent) {
           await supabase.from("reminder_log").insert({ step_id: s.id, kind });
@@ -59,8 +63,9 @@ export async function GET(request: NextRequest) {
     if (isMonday) {
       const late = steps.filter((s) => isOpenStep(s.status) && (daysUntil(s.due) ?? 1) < 0);
       const upcoming = steps.filter((s) => isOpenStep(s.status) && inNext7Days(daysUntil(s.due)));
-      if (late.length || upcoming.length) {
-        const result = await sendReminderEmail(to, "Résumé hebdomadaire — Projet Canada Calgary", renderDigest(late, upcoming));
+      const expiring = expiringDocs((docsRaw ?? []) as DocRow[]);
+      if (late.length || upcoming.length || expiring.length) {
+        const result = await sendReminderEmail(to, "Résumé hebdomadaire — Projet Canada Calgary", renderDigest(late, upcoming, expiring));
         digestSent = result.sent;
       }
     }
@@ -75,11 +80,18 @@ function inNext7Days(d: number | null): boolean {
   return d !== null && d >= 0 && d <= 7;
 }
 
-function renderDigest(late: StepRow[], upcoming: StepRow[]): string {
-  const item = (s: StepRow) => `<li>${s.title} — ${s.due ?? "sans échéance"}</li>`;
+function esc(s: string): string {
+  return s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
+}
+
+function renderDigest(late: StepRow[], upcoming: StepRow[], expiring: ExpiringDoc<DocRow>[]): string {
+  const item = (s: StepRow) => `<li>${esc(s.title)} — ${esc(s.due ?? "sans échéance")}</li>`;
+  const docItem = (e: ExpiringDoc<DocRow>) =>
+    `<li>${esc(e.doc.name)} — ${e.state === "expired" ? "expirée depuis le" : "valable jusqu'au"} ${esc(e.doc.expires ?? "")}</li>`;
   return `
     <h2>Résumé de la semaine</h2>
     ${late.length ? `<p><strong>En retard (${late.length})</strong></p><ul>${late.map(item).join("")}</ul>` : ""}
     ${upcoming.length ? `<p><strong>À venir dans les 7 jours (${upcoming.length})</strong></p><ul>${upcoming.map(item).join("")}</ul>` : ""}
+    ${expiring.length ? `<p><strong>Pièces à renouveler (${expiring.length})</strong></p><ul>${expiring.map(docItem).join("")}</ul>` : ""}
   `;
 }
