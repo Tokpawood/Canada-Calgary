@@ -1,3 +1,4 @@
+import { expiringDocs } from "@/lib/documents";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getDossierForUser, getStepsWithDetails } from "@/lib/queries";
@@ -17,7 +18,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   if (dossier) {
     const [steps, { data: docRows }] = await Promise.all([
       getStepsWithDetails(supabase, dossier.id),
-      supabase.from("document").select("status").eq("dossier_id", dossier.id),
+      supabase.from("document").select("status,expires").eq("dossier_id", dossier.id),
     ]);
     const next = nextOpenStep(steps);
     const nextDays = daysUntil(next?.due);
@@ -40,6 +41,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       docs: {
         obtained: (docRows ?? []).filter((d) => d.status === "Obtenu").length,
         total: (docRows ?? []).length,
+        expired: expiringDocs((docRows ?? []).map((d) => ({ expires: (d.expires as string | null) ?? null })), new Date(), -1).filter((e) => e.state === "expired").length,
       },
     };
   }

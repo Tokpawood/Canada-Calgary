@@ -29,7 +29,7 @@ export interface ShellSummary {
   nextStep: { title: string; dueLabel: string | null; late: boolean } | null;
   countdown: { label: string; date: string | null; late: boolean } | null;
   lateSteps: number;
-  docs: { obtained: number; total: number };
+  docs: { obtained: number; total: number; expired: number };
 }
 
 type NavItem = {
@@ -97,6 +97,12 @@ export function AppShell({
         text: String(summary.lateSteps),
         alert: true,
         title: "Étapes en retard",
+      };
+    if (href === "/documents" && summary.docs.expired > 0)
+      return {
+        text: String(summary.docs.expired),
+        alert: true,
+        title: summary.docs.expired > 1 ? "Pièces expirées" : "Pièce expirée",
       };
     if (href === "/documents" && summary.docs.total > 0)
       return {
