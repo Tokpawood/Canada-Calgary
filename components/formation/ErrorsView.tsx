@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { newId } from "@/lib/ids";
 import { ERROR_REPEAT_THRESHOLD, ERROR_SKILLS, type ErrorEntry, type Lang } from "@/lib/formation";
@@ -41,7 +41,14 @@ export function ErrorsView({
   const [formOpen, setFormOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [listError, setListError] = useState<string | null>(null);
   const supabase = createClient();
+  const formRef = useRef<HTMLFormElement>(null);
+
+  // « Modifier » sur une erreur en bas de liste : le formulaire (en haut) revient à l'écran.
+  useEffect(() => {
+    if (formOpen) formRef.current?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  }, [formOpen, editing]);
 
   const counts = useMemo(() => {
     const scope = errors.filter((e) => exam === "all" || e.exam === exam);
@@ -110,14 +117,27 @@ export function ErrorsView({
   async function patch(id: string, p: Partial<Pick<ErrorEntry, "count" | "mastered">>) {
     const before = errors.find((e) => e.id === id);
     if (!before) return;
+    setListError(null);
     setErrors((list) => list.map((e) => (e.id === id ? { ...e, ...p } : e)));
     const { error: err } = await supabase.from("training_error").update({ ...p, updated_at: new Date().toISOString() }).eq("id", id);
-    if (err) setErrors((list) => list.map((e) => (e.id === id ? before : e)));
+    if (err) {
+      setErrors((list) => list.map((e) => (e.id === id ? before : e)));
+      setListError("La modification n'a pas pu être enregistrée. Vérifiez la connexion et réessayez.");
+    }
   }
 
   async function remove(id: string) {
+    setListError(null);
     const { error: err } = await supabase.from("training_error").delete().eq("id", id);
-    if (!err) setErrors((list) => list.filter((e) => e.id !== id));
+    if (err) {
+      setListError("Suppression impossible. Vérifiez la connexion et réessayez.");
+      return;
+    }
+    setErrors((list) => list.filter((e) => e.id !== id));
+    if (editing === id) {
+      setFormOpen(false);
+      setEditing(null);
+    }
   }
 
   return (
@@ -144,10 +164,10 @@ export function ErrorsView({
             { value: "toutes", label: "Toutes", count: counts.toutes },
           ]}
         />
-        <div className="ml-auto flex items-center gap-2">
-          <label className="relative">
+        <div className="flex w-full items-center gap-2 sm:ml-auto sm:w-auto">
+          <label className="relative min-w-0 flex-1 sm:flex-none">
             <IconSearch size={15} className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-muted" />
-            <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Rechercher" aria-label="Rechercher dans le carnet" className="input w-[180px] pl-9" />
+            <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Rechercher" aria-label="Rechercher dans le carnet" className="input w-full pl-9 sm:w-[200px]" type="search" />
           </label>
           {canEdit && (
             <button type="button" className="btn btn-primary" onClick={openNew}>
@@ -171,8 +191,14 @@ export function ErrorsView({
         </button>
       )}
 
+      {listError && (
+        <p role="alert" className="rounded-lg bg-bad-bg px-3 py-2 text-[13px] text-bad">
+          {listError}
+        </p>
+      )}
+
       {formOpen && (
-        <form onSubmit={save} className="card flex flex-col gap-3 p-4 sm:p-5">
+        <form ref={formRef} onSubmit={save} className="card flex scroll-mt-24 flex-col gap-3 p-4 sm:p-5">
           <p className="text-[15px] font-bold">{editing ? "Modifier l'erreur" : "Nouvelle erreur"}</p>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-[auto_1fr]">
             <Segmented
@@ -211,7 +237,14 @@ export function ErrorsView({
             <button type="submit" className="btn btn-primary btn-sm" disabled={busy}>
               {busy ? "Enregistrement…" : "Enregistrer"}
             </button>
-            <button type="button" className="btn btn-ghost btn-sm" onClick={() => setFormOpen(false)}>
+            <button
+              type="button"
+              className="btn btn-ghost btn-sm"
+              onClick={() => {
+                setFormOpen(false);
+                setEditing(null);
+              }}
+            >
               Annuler
             </button>
           </div>
@@ -221,7 +254,9 @@ export function ErrorsView({
       {!shown.length ? (
         <EmptyState icon={<IconPencil size={20} />} title={errors.length ? "Aucune erreur dans ce filtre" : "Carnet vide"}>
           {errors.length
-            ? "Changez de filtre ou de recherche."
+            ? q.trim()
+              ? `Aucun résultat pour « ${q.trim()} » : changez de recherche ou de filtre.`
+              : "Changez de filtre ou d'examen."
             : "Après chaque correction, notez ici la phrase fautive, la phrase corrigée et la règle. Relisez le carnet chaque dimanche."}
         </EmptyState>
       ) : (

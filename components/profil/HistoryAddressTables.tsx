@@ -1,6 +1,7 @@
 "use client";
 
 import { eighteenthBirthdayIso, pd, today0 } from "@/lib/rules";
+import { periodIssues } from "@/lib/profilPeriods";
 import type { AddressEntry, HistoryEntry, HistoryType } from "@/lib/types";
 import type { ReactNode } from "react";
 import { Chip, TONE_DOT, type Tone } from "@/components/ui";
@@ -214,9 +215,8 @@ export function HistoryTable({ rows, gaps, naissance, onAdd, onUpdate, onDelete,
           <tbody>
             {rows.map((r) => (
               <tr key={r.id} className="group border-b border-line last:border-0">
-                <Cell off={off} value={r.from} mono onChange={(v) => onUpdate(r.id, { from: v })} placeholder="AAAA-MM-JJ" label="Début" />
-                <Cell off={off} value={r.to} mono onChange={(v) => onUpdate(r.id, { to: v })} placeholder="en cours" label="Fin" />
-                <td className="px-0.5 py-1">
+                <DateCells row={r} off={off} ongoing="en cours" onUpdate={(patch) => onUpdate(r.id, patch)} />
+                <td className="px-0.5 py-1 align-top">
                   <select disabled={off} value={r.type} onChange={(e) => onUpdate(r.id, { type: e.target.value as HistoryType })} className="input-ghost" aria-label="Type">
                     {HISTORY_TYPES.map((t) => (
                       <option key={t} value={t}>
@@ -228,11 +228,11 @@ export function HistoryTable({ rows, gaps, naissance, onAdd, onUpdate, onDelete,
                 <Cell off={off} value={r.activity} onChange={(v) => onUpdate(r.id, { activity: v })} label="Activité" />
                 <Cell off={off} value={r.org} onChange={(v) => onUpdate(r.id, { org: v })} label="Organisme" />
                 <Cell off={off} value={r.place} onChange={(v) => onUpdate(r.id, { place: v })} label="Lieu" />
-                <td className="py-1 text-center">
+                <td className="py-1 pt-3 text-center align-top">
                   <input type="checkbox" disabled={off} checked={r.parallel} onChange={(e) => onUpdate(r.id, { parallel: e.target.checked })} aria-label="En parallèle" className="h-4 w-4 accent-[var(--act)]" />
                 </td>
                 {editing && (
-                  <td className="py-1 text-right">
+                  <td className="py-1 text-right align-top">
                     <RowDelete onDelete={() => onDelete(r.id)} />
                   </td>
                 )}
@@ -240,6 +240,7 @@ export function HistoryTable({ rows, gaps, naissance, onAdd, onUpdate, onDelete,
             ))}
           </tbody>
         </table>
+        <EditFooter rows={rows} onAdd={onAdd} addLabel={"Ajouter une période"} />
       </div>
       )}
     </section>
@@ -294,13 +295,12 @@ export function AddressesTable({ rows, gaps, naissance, onAdd, onUpdate, onDelet
           <tbody>
             {rows.map((r) => (
               <tr key={r.id} className="group border-b border-line last:border-0">
-                <Cell off={off} value={r.from} mono onChange={(v) => onUpdate(r.id, { from: v })} placeholder="AAAA-MM-JJ" label="Début" />
-                <Cell off={off} value={r.to} mono onChange={(v) => onUpdate(r.id, { to: v })} placeholder="actuelle" label="Fin" />
+                <DateCells row={r} off={off} ongoing="actuelle" onUpdate={(patch) => onUpdate(r.id, patch)} />
                 <Cell off={off} value={r.address} onChange={(v) => onUpdate(r.id, { address: v })} label="Adresse" />
                 <Cell off={off} value={r.city} onChange={(v) => onUpdate(r.id, { city: v })} label="Ville, pays" />
                 <Cell off={off} value={r.note} onChange={(v) => onUpdate(r.id, { note: v })} label="Note" />
                 {editing && (
-                  <td className="py-1 text-right">
+                  <td className="py-1 text-right align-top">
                     <RowDelete onDelete={() => onDelete(r.id)} />
                   </td>
                 )}
@@ -308,6 +308,7 @@ export function AddressesTable({ rows, gaps, naissance, onAdd, onUpdate, onDelet
             ))}
           </tbody>
         </table>
+        <EditFooter rows={rows} onAdd={onAdd} addLabel={"Ajouter une adresse"} />
       </div>
       )}
     </section>
@@ -383,10 +384,75 @@ function RowDelete({ onDelete }: { onDelete: () => void }) {
   );
 }
 
-function Cell({ value, onChange, placeholder, mono, label, off }: { value: string; onChange: (v: string) => void; placeholder?: string; mono?: boolean; label: string; off: boolean }) {
+function Cell({
+  value,
+  onChange,
+  placeholder,
+  mono,
+  label,
+  off,
+  error,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  placeholder?: string;
+  mono?: boolean;
+  label: string;
+  off: boolean;
+  /** Problème de saisie, affiché sous le champ. */
+  error?: string;
+}) {
   return (
-    <td className="px-0.5 py-1">
-      <input value={value} disabled={off} placeholder={placeholder} aria-label={label} onChange={(e) => onChange(e.target.value)} className={`input-ghost min-w-[90px] ${off ? "" : "border-line bg-surface"} ${mono ? "mono text-[12.5px]" : ""}`} />
+    <td className="px-0.5 py-1 align-top">
+      <input
+        value={value}
+        disabled={off}
+        placeholder={placeholder}
+        aria-label={label}
+        aria-invalid={error ? true : undefined}
+        title={error}
+        onChange={(e) => onChange(e.target.value)}
+        className={`input-ghost min-w-[90px] ${off ? "" : error ? "border-bad bg-bad-bg" : "border-line bg-surface"} ${mono ? "mono text-[12.5px]" : ""}`}
+      />
+      {error && !off && <span className="mt-0.5 block px-1 text-[11px] leading-tight text-bad">{error}</span>}
     </td>
+  );
+}
+
+/** Cellules « Du » et « Au » avec contrôle du format et de l'ordre des dates. */
+function DateCells({ row, off, ongoing, onUpdate }: { row: { from: string; to: string }; off: boolean; ongoing: string; onUpdate: (patch: { from?: string; to?: string }) => void }) {
+  const issues = off ? {} : periodIssues(row.from, row.to);
+  return (
+    <>
+      <Cell off={off} value={row.from} mono onChange={(v) => onUpdate({ from: v })} placeholder="AAAA-MM-JJ" label="Début" error={issues.from} />
+      <Cell off={off} value={row.to} mono onChange={(v) => onUpdate({ to: v })} placeholder={ongoing} label="Fin (vide si en cours)" error={issues.to} />
+    </>
+  );
+}
+
+/** Pied du tableau en modification : état vide, rappel du format et bilan des dates à corriger. */
+function EditFooter({ rows, onAdd, addLabel }: { rows: Array<{ from: string; to: string }>; onAdd: () => void; addLabel: string }) {
+  const bad = rows.filter((r) => {
+    const i = periodIssues(r.from, r.to);
+    return Boolean(i.from || i.to);
+  }).length;
+  if (rows.length === 0)
+    return (
+      <div className="mx-1.5 mt-3 flex flex-col items-center gap-2 rounded-xl border border-dashed border-line px-4 py-6 text-center">
+        <p className="text-[13px] text-muted">Aucune ligne pour l&apos;instant. Commencez par la plus ancienne, à partir de vos 18 ans.</p>
+        <button type="button" onClick={onAdd} className="btn btn-sm btn-soft">
+          <IconPlus size={14} /> {addLabel}
+        </button>
+      </div>
+    );
+  return (
+    <div className="mx-1.5 mt-2 flex flex-wrap items-center justify-between gap-2 text-[11.5px] text-faint">
+      <span>Dates au format AAAA-MM-JJ (ou AAAA-MM). Laissez « Au » vide pour une période en cours.</span>
+      {bad > 0 && (
+        <span role="status" className="flex items-center gap-1 font-semibold text-bad">
+          <IconAlert size={13} /> {bad} ligne{bad > 1 ? "s" : ""} à corriger
+        </span>
+      )}
+    </div>
   );
 }

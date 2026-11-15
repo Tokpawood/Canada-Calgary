@@ -8,7 +8,19 @@ import { CheckBox, LangTag, fmtDay, fmtRange } from "./shared";
 
 const wid = (w: Week) => `${w.prog}${w.n}`;
 
-export function WeeksView({ today, done, toggle, onOpenDay }: { today: string; done: Set<string>; toggle: (key: string, v: boolean) => void; onOpenDay: (d: string) => void }) {
+export function WeeksView({
+  today,
+  done,
+  toggle,
+  onOpenDay,
+  canEdit,
+}: {
+  today: string;
+  done: Set<string>;
+  toggle: (key: string, v: boolean) => void;
+  onOpenDay: (d: string) => void;
+  canEdit: boolean;
+}) {
   const allWeeks = PROGRAMS.flatMap((p) => p.weeks);
   const current = allWeeks.find((w) => today >= w.from && today <= w.to) ?? (today < allWeeks[0].from ? allWeeks[0] : null);
   const [open, setOpen] = useState<Set<string>>(() => new Set(current ? [wid(current)] : []));
@@ -47,6 +59,7 @@ export function WeeksView({ today, done, toggle, onOpenDay }: { today: string; d
                         done={done}
                         toggle={toggle}
                         onOpenDay={onOpenDay}
+                        canEdit={canEdit}
                         isCurrent={current ? wid(current) === wid(w) : false}
                         isOpen={open.has(wid(w))}
                         onToggleOpen={() =>
@@ -76,6 +89,7 @@ function WeekCard({
   done,
   toggle,
   onOpenDay,
+  canEdit,
   isCurrent,
   isOpen,
   onToggleOpen,
@@ -85,6 +99,7 @@ function WeekCard({
   done: Set<string>;
   toggle: (key: string, v: boolean) => void;
   onOpenDay: (d: string) => void;
+  canEdit: boolean;
   isCurrent: boolean;
   isOpen: boolean;
   onToggleOpen: () => void;
@@ -141,6 +156,7 @@ function WeekCard({
                       type="button"
                       onClick={() => onOpenDay(d)}
                       title={`${fmtDay(d)} : ${c}/${tot}`}
+                      aria-label={`${fmtDay(d)} : ${exam ? "jour d'examen" : `${c} tâche${c > 1 ? "s" : ""} sur ${tot}`}${d === today ? ", aujourd'hui" : ""}. Ouvrir le jour`}
                       className={`flex flex-col items-center rounded-lg border px-1 py-1.5 text-[11px] transition-colors ${
                         full ? "border-ok bg-ok-bg text-ok" : exam ? "border-bad" : d === today ? "border-signal" : "border-line hover:bg-surface-2"
                       }`}
@@ -163,8 +179,8 @@ function WeekCard({
                 const on = done.has(key);
                 return (
                   <li key={key}>
-                    <label className="-mx-2 flex cursor-pointer items-start gap-2.5 rounded-lg px-2 py-2 hover:bg-surface-2">
-                      <CheckBox checked={on} onChange={(v) => toggle(key, v)} label={s.label} size={20} />
+                    <label className={`-mx-2 flex items-start gap-2.5 rounded-lg px-2 py-2 ${canEdit ? "cursor-pointer hover:bg-surface-2" : ""}`}>
+                      <CheckBox checked={on} onChange={(v) => toggle(key, v)} label={s.label} size={20} disabled={!canEdit} />
                       <span className="min-w-0 flex-1">
                         <span className={`block text-[13.5px] leading-snug font-medium ${on ? "text-faint line-through" : ""}`}>{s.label}</span>
                         {s.subject && <span className="block text-[12px] text-muted">{s.subject}</span>}

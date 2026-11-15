@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { autoFillActual, isOpenStep, nextStatusAfterTaskToggle } from "@/lib/rules";
 import type { Contact, Step } from "@/lib/types";
@@ -32,17 +33,27 @@ export function StepPeek({ step, contacts, persons, links, backLabel, onBack, on
   const done = step.tasks.filter((t) => t.done).length;
   const orgOf = new Map(contacts.map((c) => [c.id, c]));
   const personOf = new Map(persons.map((p) => [p.id, p]));
+  const [error, setError] = useState<string | null>(null);
+  const shown = links.filter((l) => (l.contactId && orgOf.has(l.contactId)) || (l.personId && personOf.has(l.personId)));
 
   async function toggle(taskId: string, value: boolean) {
     const supabase = createClient();
     const tasks = step.tasks.map((t) => (t.id === taskId ? { ...t, done: value } : t));
     const status = nextStatusAfterTaskToggle(step.status, tasks.filter((t) => t.done).length, tasks.length);
     const actual = autoFillActual(step, status);
+    setError(null);
     onChange({ ...step, tasks, status, actual });
-    await Promise.all([
+    const [r1, r2] = await Promise.all([
       supabase.from("step_task").update({ done: value }).eq("id", taskId),
-      status !== step.status || actual !== step.actual ? supabase.from("step").update({ status, actual }).eq("id", step.id) : Promise.resolve(),
+      status !== step.status || actual !== step.actual ? supabase.from("step").update({ status, actual }).eq("id", step.id) : Promise.resolve({ error: null }),
     ]);
+    if (r1.error || r2.error) {
+      // Retour à l'état d'avant : l'écran ne doit pas montrer une case cochée qui n'est pas enregistrée.
+      onChange(step);
+      if (!r1.error) await supabase.from("step_task").update({ done: !value }).eq("id", taskId);
+      else if (!r2.error && (status !== step.status || actual !== step.actual)) await supabase.from("step").update({ status: step.status, actual: step.actual }).eq("id", step.id);
+      setError("Enregistrement impossible : vérifiez la connexion et réessayez.");
+    }
   }
 
   return (
@@ -88,8 +99,9 @@ export function StepPeek({ step, contacts, persons, links, backLabel, onBack, on
     >
       <div className="flex flex-col gap-4">
         <DrawerCard title="Qui peut aider" sub="Contacts liés à cette tâche.">
+          {shown.length === 0 && <p className="text-[13px] text-faint">Aucun contact lié à cette tâche.</p>}
           <ul className="flex flex-col gap-2">
-            {links.map((l) => {
+            {shown.map((l) => {
               const c = l.contactId ? orgOf.get(l.contactId) : undefined;
               const p = l.personId ? personOf.get(l.personId) : undefined;
               if (!c && !p) return null;
@@ -136,6 +148,11 @@ export function StepPeek({ step, contacts, persons, links, backLabel, onBack, on
             <Checklist items={step.tasks} editable={false} onToggle={(id, v) => void toggle(id, v)} onDelete={() => undefined} onAdd={() => undefined} placeholder="" />
           ) : (
             <p className="text-[13px] text-faint">Aucune mini-étape.</p>
+          )}
+          {error && (
+            <p role="alert" className="mt-2 text-[12.5px] font-semibold text-bad">
+              {error}
+            </p>
           )}
         </DrawerCard>
 

@@ -8,12 +8,14 @@ interface Props {
   rates: Rates | null;
   /** Taux enregistré du dossier (FCFA pour 1 $ CA), utilisé au choix ou quand le taux du jour est indisponible. */
   savedCadRate: number;
+  /** Montants du budget (en FCFA) proposés en un geste. */
+  presets?: Array<{ label: string; xof: number }>;
 }
 
 type Source = "jour" | "perso";
 
 /** Convertisseur dans les deux sens : on saisit d'un côté ou de l'autre, l'autre montant suit. */
-export function Converter({ rates, savedCadRate }: Props) {
+export function Converter({ rates, savedCadRate, presets = [] }: Props) {
   const [from, setFrom] = useState<Currency>("XOF");
   const [to, setTo] = useState<Currency>("CAD");
   const [left, setLeft] = useState("");
@@ -44,6 +46,19 @@ export function Converter({ rates, savedCadRate }: Props) {
       setEdited("right");
     } else {
       setLeft(right);
+      setEdited("left");
+    }
+  }
+
+  function applyPreset(xof: number) {
+    // Le montant s'affiche en FCFA, du côté où se trouve déjà le franc CFA (à gauche sinon).
+    const raw = String(Math.round(xof));
+    if (to === "XOF") {
+      setRight(raw);
+      setEdited("right");
+    } else {
+      if (from !== "XOF") setFrom("XOF");
+      setLeft(raw);
       setEdited("left");
     }
   }
@@ -113,6 +128,17 @@ export function Converter({ rates, savedCadRate }: Props) {
         </button>
         {Side({ side: "right", value: rightShown, cur: to, onCur: (c) => (c === from ? swap() : setTo(c)) })}
       </div>
+
+      {presets.length > 0 && (
+        <div className="mt-3 flex flex-wrap items-center gap-1.5">
+          <span className="text-[11.5px] text-muted">Reprendre :</span>
+          {presets.map((p) => (
+            <button key={p.label} type="button" onClick={() => applyPreset(p.xof)} className="rounded-full border border-line px-2.5 py-1 text-[12px] font-semibold text-muted hover:border-act hover:text-act">
+              {p.label}
+            </button>
+          ))}
+        </div>
+      )}
 
       <p className="mono mt-3 text-[12.5px] text-muted">{rateLine}</p>
       <p className="mt-1 text-[11.5px] text-faint">

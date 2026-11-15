@@ -7,6 +7,8 @@ const FEATURES = [
   { title: "Documents", text: "La liste des pièces à réunir, les contrôles à faire avant dépôt et les scans associés à chaque pièce." },
   { title: "Budget et épargne", text: "Les frais prévus et payés par phase, et le suivi de l'épargne par rapport aux fonds exigés." },
   { title: "Profil et contrôles", text: "La grille de points du Programme des travailleurs qualifiés et un contrôle de cohérence du dossier." },
+  { title: "Coffre et contacts", text: "Un coffre de fichiers privé pour les justificatifs et un carnet des contacts utiles à la démarche." },
+  { title: "Formation linguistique", text: "Un programme quotidien de préparation au TCF Canada et à l'IELTS General Training, avec carnet d'erreurs et suivi des scores." },
 ];
 
 /** Page d'accueil publique : présente l'application sans aucune donnée personnelle. */
@@ -19,8 +21,8 @@ export function LandingPage() {
           className="pointer-events-none absolute inset-0 opacity-[0.07]"
           style={{ backgroundImage: "radial-gradient(circle at 1px 1px, #fff 1px, transparent 0)", backgroundSize: "22px 22px" }}
         />
-        <div className="relative mx-auto w-full max-w-[1080px] px-5 py-14 sm:px-8 sm:py-20">
-          <h1 className="anim-rise max-w-3xl font-display text-[36px] leading-[1.05] font-extrabold tracking-tight sm:text-[52px]">
+        <div className="relative mx-auto w-full max-w-[1080px] px-4 py-14 sm:px-8 sm:py-20">
+          <h1 className="anim-rise max-w-3xl font-display text-[32px] leading-[1.05] font-extrabold tracking-tight sm:text-[52px]">
             Organiser une demande d&apos;immigration au Canada, <span className="text-signal">étape par étape</span>.
           </h1>
           <p className="mt-5 max-w-2xl text-[16px] leading-relaxed text-night-muted">
@@ -38,13 +40,13 @@ export function LandingPage() {
         </div>
       </section>
 
-      <section className="mx-auto w-full max-w-[1080px] px-5 py-12 sm:px-8">
+      <section className="mx-auto w-full max-w-[1080px] px-4 py-12 sm:px-8">
         <h2 className="font-display text-[24px] font-extrabold">Ce que fait l&apos;application</h2>
-        <div className="stagger mt-6 grid gap-4 sm:grid-cols-2">
+        <div className="stagger mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {FEATURES.map((f) => (
             <div key={f.title} className="card p-5">
               <p className="flex items-center gap-2 text-[15px] font-bold">
-                <span className="grid h-6 w-6 place-items-center rounded-full bg-act-soft text-act">
+                <span aria-hidden className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-act-soft text-act">
                   <IconCheck size={13} strokeWidth={3} />
                 </span>
                 {f.title}
@@ -55,10 +57,10 @@ export function LandingPage() {
         </div>
       </section>
 
-      <section className="mx-auto w-full max-w-[1080px] px-5 pb-14 sm:px-8">
+      <section className="mx-auto w-full max-w-[1080px] px-4 pb-14 sm:px-8">
         <div className="card p-6 sm:p-8">
           <h2 className="flex items-center gap-2 font-display text-[22px] font-extrabold">
-            <IconLock size={20} /> Utilisation de Google Drive
+            <IconLock size={20} className="shrink-0" /> Utilisation de Google Drive
           </h2>
           <div className="mt-4 flex flex-col gap-3 text-[14.5px] leading-relaxed text-muted">
             <p>

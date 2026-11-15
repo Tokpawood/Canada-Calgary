@@ -3,10 +3,10 @@
 import { useEffect, useState, type DragEvent } from "react";
 import { createClient } from "@/lib/supabase/client";
 import type { Contact, ContactStage, Step } from "@/lib/types";
-import { CONTACT_STAGES, type ContactPerson, type ContactStepLink } from "@/lib/network";
+import { CONTACT_STAGES, matchesQuery, type ContactPerson, type ContactStepLink } from "@/lib/network";
 import { newId } from "@/lib/ids";
 import { EmptyState, Field, PageHeader, STEP_TONE, TONE_DOT } from "@/components/ui";
-import { IconArrowRight, IconCheck, IconChevronRight, IconLink, IconPlus, IconSearch, IconUser, IconUsers } from "@/components/icons";
+import { IconArrowRight, IconCheck, IconChevronRight, IconLink, IconPlus, IconSearch, IconUser, IconUsers, IconX } from "@/components/icons";
 import { DarkHeader, DarkTiles, HeaderTabs, useHashTab } from "@/components/DarkHeader";
 import { CopyButton } from "@/components/profil/FieldGrid";
 import { initials } from "./contactLink";
@@ -46,6 +46,7 @@ export function ContactsBoard({ dossierId, initialContacts, initialPersons, init
   const [query, setQuery] = useState("");
   const [peopleFilter, setPeopleFilter] = useState<PeopleFilter>("tous");
   const [addingPerson, setAddingPerson] = useState(false);
+  const [moveError, setMoveError] = useState<string | null>(null);
   const [tab, setTab] = useHashTab<Tab>(TABS, "organismes");
   const supabase = createClient();
 
@@ -87,6 +88,19 @@ export function ContactsBoard({ dossierId, initialContacts, initialPersons, init
     setContacts((prev) => prev.map((c) => (c.id === id ? { ...c, ...patch } : c)));
   }
 
+  /** Kanban : la carte change de colonne tout de suite, et revient si l'enregistrement échoue. */
+  async function moveContact(id: string, stage: ContactStage) {
+    const before = contacts.find((c) => c.id === id)?.stage;
+    if (!before || before === stage) return;
+    setMoveError(null);
+    setContacts((prev) => prev.map((c) => (c.id === id ? { ...c, stage } : c)));
+    const { error } = await supabase.from("contact").update({ stage }).eq("id", id);
+    if (error) {
+      setContacts((prev) => prev.map((c) => (c.id === id ? { ...c, stage: before } : c)));
+      setMoveError("Déplacement non enregistré : vérifiez la connexion et réessayez.");
+    }
+  }
+
   async function deleteContact(id: string) {
     const { error } = await supabase.from("contact").delete().eq("id", id);
     if (error) throw new Error("Suppression impossible.");
@@ -110,18 +124,24 @@ export function ContactsBoard({ dossierId, initialContacts, initialPersons, init
   const personWhere = (p: ContactPerson) => orgName.get(p.contactId) ?? (p.relation || "Indépendant");
   const stepOf = new Map(steps.map((s) => [s.id, s]));
 
-  const q = query.trim().toLowerCase();
-  const orgText = (c: Contact) =>
-    `${c.org} ${c.role} ${c.contact} ${c.next} ${c.notes} ${stageLabel(c.stage)} ${persons
-      .filter((p) => p.contactId === c.id)
-      .map((p) => `${p.name} ${p.title} ${p.email} ${p.phone}`)
-      .join(" ")}`.toLowerCase();
-  const visible = contacts.filter((c) => (!q || orgText(c).includes(q)) && (tab !== "a-relancer" || c.next.trim()));
+  const q = query.trim();
+  const orgMatches = (c: Contact) =>
+    matchesQuery(
+      q,
+      c.org,
+      c.role,
+      c.contact,
+      c.next,
+      c.notes,
+      stageLabel(c.stage),
+      ...persons.filter((p) => p.contactId === c.id).map((p) => `${p.name} ${p.title} ${p.email} ${p.phone} ${p.whatsapp}`),
+    );
+  const visible = contacts.filter((c) => (!q || orgMatches(c)) && (tab !== "a-relancer" || c.next.trim()));
   const personSteps = (id: string) => links.filter((l) => l.personId === id).map((l) => stepOf.get(l.stepId)).filter((s): s is Step => !!s);
   const independents = persons.filter((p) => !p.contactId).length;
   const visiblePeople = persons
     .filter((p) => peopleFilter === "tous" || (peopleFilter === "independants" ? !p.contactId : !!p.contactId))
-    .filter((p) => !q || `${p.name} ${p.title} ${p.relation} ${p.email} ${p.phone} ${p.whatsapp} ${p.city} ${personWhere(p)} ${personSteps(p.id).map((s) => s.title).join(" ")}`.toLowerCase().includes(q))
+    .filter((p) => !q || matchesQuery(q, p.name, p.title, p.relation, p.email, p.phone, p.whatsapp, p.city, personWhere(p), ...personSteps(p.id).map((s) => s.title)))
     .sort((a, b) => Number(!a.contactId) - Number(!b.contactId) || personWhere(a).localeCompare(personWhere(b), "fr") || a.name.localeCompare(b.name, "fr"));
   const shown = tab === "reseau" ? visiblePeople.length : visible.length;
   const total = tab === "reseau" ? persons.length : contacts.length;
@@ -229,8 +249,26 @@ export function ContactsBoard({ dossierId, initialContacts, initialPersons, init
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder="Rechercher un organisme, une personne, une tâche…"
                 aria-label="Rechercher un contact"
-                className="min-w-0 flex-1 bg-transparent py-1 text-[14px] outline-none placeholder:text-faint"
+                onKeyDown={(e) => {
+                  if (e.key === "Escape" && query) {
+                    e.preventDefault();
+                    setQuery("");
+                  }
+                }}
+                type="search"
+                enterKeyHint="search"
+                className="min-w-0 flex-1 bg-transparent py-1 text-[14px] outline-none placeholder:text-faint [&::-webkit-search-cancel-button]:hidden"
               />
+              {query && (
+                <button
+                  type="button"
+                  onClick={() => setQuery("")}
+                  aria-label="Effacer la recherche"
+                  className="grid h-7 w-7 shrink-0 place-items-center rounded-md text-faint hover:bg-surface-2 hover:text-ink"
+                >
+                  <IconX size={14} />
+                </button>
+              )}
               <span className="mono shrink-0 text-[12px] text-muted">
                 {shown} / {total}
               </span>
@@ -302,7 +340,17 @@ export function ContactsBoard({ dossierId, initialContacts, initialPersons, init
             {tab === "a-relancer" && !q ? "Aucun organisme n'a de prochaine action." : "Essayez une autre recherche."}
           </EmptyState>
         ) : tab === "organismes" && view === "kanban" ? (
-          <Kanban contacts={visible} persons={persons} links={links} onOpen={(id) => openOrg(id)} onMove={(id, stage) => void patchContact(id, { stage })} />
+          <>
+            {moveError && (
+              <p role="alert" className="mb-3 flex items-center gap-2 rounded-xl bg-bad-bg px-3 py-2 text-[13px] font-semibold text-bad">
+                <span className="min-w-0 flex-1">{moveError}</span>
+                <button type="button" onClick={() => setMoveError(null)} aria-label="Masquer le message" className="grid h-7 w-7 shrink-0 place-items-center rounded-md hover:bg-surface-2">
+                  <IconX size={14} />
+                </button>
+              </p>
+            )}
+            <Kanban contacts={visible} persons={persons} links={links} onOpen={(id) => openOrg(id)} onMove={(id, stage) => void moveContact(id, stage)} />
+          </>
         ) : (
           <OrgList contacts={visible} persons={persons} links={links} onOpen={(id) => openOrg(id, tab === "a-relancer" ? "infos" : "equipe")} />
         )}

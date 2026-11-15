@@ -44,6 +44,8 @@ export function AccountBoard({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
+  const [signingOut, setSigningOut] = useState(false);
+  const [signOutError, setSignOutError] = useState<string | null>(null);
 
   const st = strength(next);
   const rules = [
@@ -85,7 +87,15 @@ export function AccountBoard({
   }
 
   async function signOutEverywhere() {
-    await createClient().auth.signOut({ scope: "global" });
+    if (!window.confirm("Fermer toutes les sessions, y compris celle-ci ? Vous devrez vous reconnecter sur chaque appareil.")) return;
+    setSigningOut(true);
+    setSignOutError(null);
+    const { error: outErr } = await createClient().auth.signOut({ scope: "global" });
+    if (outErr) {
+      setSigningOut(false);
+      setSignOutError(authErrorFr(outErr.message));
+      return;
+    }
     router.replace("/login");
     router.refresh();
   }
@@ -151,7 +161,7 @@ export function AccountBoard({
                       <span key={i} className={`h-1.5 rounded-full ${i < st.score ? (st.score <= 2 ? "bg-opt" : "bg-ok") : "bg-surface-2"}`} />
                     ))}
                   </span>
-                  <span className={`text-[12px] font-semibold ${next.length < MIN ? "text-bad" : st.score <= 2 ? "text-opt" : "text-ok"}`}>{st.label}</span>
+                  <span aria-live="polite" className={`text-[12px] font-semibold ${next.length < MIN ? "text-bad" : st.score <= 2 ? "text-opt" : "text-ok"}`}>{st.label}</span>
                 </span>
               )}
             </label>
@@ -178,7 +188,7 @@ export function AccountBoard({
             )}
             {done && (
               <p role="status" className="flex items-center gap-2 rounded-lg bg-ok-bg px-3 py-2 text-[13px] font-semibold text-ok">
-                <IconCheck size={15} strokeWidth={2.6} /> Mot de passe modifié. Utilisez-le à votre prochaine connexion.
+                <IconCheck size={15} strokeWidth={2.6} className="shrink-0" /> Mot de passe modifié. Utilisez-le à votre prochaine connexion, et pensez à déconnecter les autres appareils (Sessions).
               </p>
             )}
 
@@ -194,9 +204,14 @@ export function AccountBoard({
           <section className="card p-5">
             <h2 className="text-[15px] font-bold">Sessions</h2>
             <p className="mt-1 text-[12.5px] text-muted">Après un changement de mot de passe, déconnectez les autres appareils (iPad, ordinateur…).</p>
-            <button type="button" onClick={() => void signOutEverywhere()} className="btn btn-ghost mt-4 w-full">
-              <IconLogout size={15} /> Se déconnecter partout
+            <button type="button" onClick={() => void signOutEverywhere()} disabled={signingOut} className="btn btn-ghost mt-4 w-full">
+              <IconLogout size={15} /> {signingOut ? "Déconnexion…" : "Se déconnecter partout"}
             </button>
+            {signOutError && (
+              <p role="alert" className="mt-2 rounded-lg bg-bad-bg px-3 py-2 text-[12.5px] text-bad">
+                {signOutError}
+              </p>
+            )}
           </section>
           <aside className="rounded-2xl border border-dashed border-line p-5">
             <p className="flex items-center gap-2 text-[13px] font-bold">

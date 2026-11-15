@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { autoFillActual, isOpenStep, nextStatusAfterTaskToggle } from "@/lib/rules";
+import { parseAmount } from "@/lib/parcours";
 import type { Contact, Step, StepStatus } from "@/lib/types";
 import type { ContactPerson, ContactStepLink } from "@/lib/network";
 import { StepContacts } from "@/components/contacts/Links";
@@ -42,6 +43,9 @@ export function StepDrawer({ step, position, total, phases, onChange, onDelete, 
   const supabase = createClient();
   const [warn, setWarn] = useState(false);
   const [tab, setTab] = useState<StepTab>("taches");
+  /** Erreur d'une action immédiate (case cochée, suppression) : affichée en pied de panneau. */
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   const saved: StepDraft = useMemo(
     () => ({
@@ -61,7 +65,10 @@ export function StepDrawer({ step, position, total, phases, onChange, onDelete, 
     [step],
   );
 
-  const ed = useEditable(saved, async (d) => {
+  const ed = useEditable(saved, async (draft) => {
+    const title = draft.title.trim();
+    if (!title) throw new Error("L'intitulé de l'étape ne peut pas être vide.");
+    const d = { ...draft, title };
     const removedTasks = step.tasks.filter((t) => !d.tasks.some((x) => x.id === t.id)).map((t) => t.id);
     if (removedTasks.length) {
       const { error } = await supabase.from("step_task").delete().in("id", removedTasks);
@@ -124,19 +131,33 @@ export function StepDrawer({ step, position, total, phases, onChange, onDelete, 
     const tasks = step.tasks.map((t) => (t.id === taskId ? { ...t, done } : t));
     const nextStatus = nextStatusAfterTaskToggle(step.status, tasks.filter((t) => t.done).length, tasks.length);
     const actual = autoFillActual(step, nextStatus);
+    const before = step;
+    setActionError(null);
     onChange({ ...step, tasks, status: nextStatus, actual });
-    await Promise.all([
+    const [taskRes, stepRes] = await Promise.all([
       supabase.from("step_task").update({ done }).eq("id", taskId),
-      nextStatus !== step.status || actual !== step.actual ? supabase.from("step").update({ status: nextStatus, actual }).eq("id", step.id) : Promise.resolve(),
+      nextStatus !== step.status || actual !== step.actual ? supabase.from("step").update({ status: nextStatus, actual }).eq("id", step.id) : Promise.resolve({ error: null }),
     ]);
+    const error = taskRes.error ?? stepRes.error;
+    if (error) {
+      // Retour à l'état enregistré : l'écran ne doit pas montrer une case cochée qui n'est pas en base.
+      if (taskRes.error) onChange(before);
+      setActionError(`La mini-étape n'a pas pu être enregistrée (${error.message}).`);
+    }
   }
 
   async function handleDelete() {
-    await supabase.from("step").delete().eq("id", step.id);
+    if (deleting) return;
+    setDeleting(true);
+    setActionError(null);
+    const { error } = await supabase.from("step").delete().eq("id", step.id);
+    setDeleting(false);
+    if (error) {
+      setActionError(`L'étape n'a pas pu être supprimée (${error.message}).`);
+      return;
+    }
     onDelete();
   }
-
-  const num = (s: string) => (s === "" ? null : Number(s));
 
   const costGap = v.planned != null && v.actual != null && v.actual !== v.planned ? v.actual - v.planned : null;
   const notesCount = [v.req, v.risk, v.notes].filter((x) => x.trim()).length;
@@ -209,12 +230,24 @@ export function StepDrawer({ step, position, total, phases, onChange, onDelete, 
       }
       footer={
         <div>
-          {warn && <p className="mb-2 text-[12.5px] font-semibold text-bad">Modifications non enregistrées : enregistrez-les ou annulez avant de fermer.</p>}
+          {warn && (
+            <p role="alert" className="mb-2 text-[12.5px] font-semibold text-bad">
+              Modifications non enregistrées : enregistrez-les ou annulez avant de fermer.
+            </p>
+          )}
+          {actionError && (
+            <p role="alert" className="mb-2 flex items-start justify-between gap-2 text-[12.5px] font-semibold text-bad">
+              <span>{actionError}</span>
+              <button type="button" onClick={() => setActionError(null)} className="shrink-0 text-[12px] text-muted underline hover:text-ink">
+                OK
+              </button>
+            </p>
+          )}
           <div className="flex items-center justify-between gap-2">
             {ed.editing ? (
               <span className="text-[12.5px] font-semibold text-opt">Modification en cours</span>
             ) : (
-              <ConfirmButton label="Supprimer l'étape" confirmLabel="Confirmer" onConfirm={handleDelete}>
+              <ConfirmButton label="Supprimer l'étape" confirmLabel={deleting ? "Suppression…" : "Confirmer la suppression"} onConfirm={() => void handleDelete()}>
                 <IconTrash size={14} />
                 <span className="hidden sm:inline">Supprimer</span>
               </ConfirmButton>
@@ -313,10 +346,10 @@ export function StepDrawer({ step, position, total, phases, onChange, onDelete, 
             ) : (
               <div className="grid grid-cols-2 gap-3">
                 <Field label="Prévu (FCFA)">
-                  <input type="number" inputMode="numeric" value={v.planned ?? ""} onChange={(e) => ed.set({ planned: num(e.target.value) })} className="input mono text-right" />
+                  <input type="number" inputMode="numeric" min={0} step="any" value={v.planned ?? ""} onChange={(e) => ed.set({ planned: parseAmount(e.target.value) })} className="input mono text-right" />
                 </Field>
                 <Field label="Payé (FCFA)">
-                  <input type="number" inputMode="numeric" value={v.actual ?? ""} onChange={(e) => ed.set({ actual: num(e.target.value) })} className="input mono text-right" />
+                  <input type="number" inputMode="numeric" min={0} step="any" value={v.actual ?? ""} onChange={(e) => ed.set({ actual: parseAmount(e.target.value) })} className="input mono text-right" />
                 </Field>
               </div>
             )}

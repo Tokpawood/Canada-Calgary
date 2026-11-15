@@ -219,7 +219,7 @@ export function FormationBoard({
           </a>
         </p>
       )}
-      {!canEdit && <p className="mb-4 rounded-lg bg-surface-2 px-3 py-2 text-[13px] text-muted">Lecture seule : seul le titulaire peut cocher les tâches.</p>}
+      {!canEdit && <p className="mb-4 rounded-lg bg-surface-2 px-3 py-2 text-[13px] text-muted">Lecture seule : seul le titulaire peut cocher les tâches, noter ses erreurs et ajouter ses scores.</p>}
       {saveError && (
         <p role="alert" className="mb-4 rounded-lg bg-bad-bg px-3 py-2 text-[13px] text-bad">
           {saveError}
@@ -228,10 +228,10 @@ export function FormationBoard({
 
       <div role="tabpanel">
         {tab === "jour" && <DayView date={date} today={today} onDate={(d) => { setOpenKey(null); setDate(d); }} done={done} toggle={toggle} openKey={openKey} onOpen={setOpenKey} canEdit={canEdit} />}
-        {tab === "semaines" && <WeeksView today={today} done={done} toggle={toggle} onOpenDay={openDay} />}
+        {tab === "semaines" && <WeeksView today={today} done={done} toggle={toggle} onOpenDay={openDay} canEdit={canEdit} />}
         {tab === "calendrier" && <CalendarView today={today} done={done} onOpenDay={openDay} />}
         {tab === "carnet" && <ErrorsView dossierId={dossierId} errors={errors} setErrors={setErrors} defaultExam={program.id} canEdit={canEdit} />}
-        {tab === "scores" && <ScoresView dossierId={dossierId} scores={scores} setScores={setScores} today={today} />}
+        {tab === "scores" && <ScoresView dossierId={dossierId} scores={scores} setScores={setScores} today={today} canEdit={canEdit} />}
         {tab === "methode" && <MethodView />}
       </div>
     </>

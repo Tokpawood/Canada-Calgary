@@ -3,11 +3,12 @@
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import type { Dossier } from "@/lib/types";
-import { Chip, Meter, PageHeader, dueInfo, fcfa } from "@/components/ui";
+import { Chip, EmptyState, Meter, PageHeader, dueInfo, fcfa } from "@/components/ui";
 import { EditBar, useEditable } from "@/components/editable";
 import { DarkHeader, DarkTiles, HeaderTabs, useHashTab } from "@/components/DarkHeader";
 import { IconCalendar, IconGlobe, IconRoute, IconWallet } from "@/components/icons";
 import type { Rates } from "@/lib/currency";
+import { bankMarginPct, overdueTotal, rateError } from "@/lib/budget";
 import { Converter } from "./Converter";
 
 interface Props {
@@ -28,6 +29,8 @@ export function BudgetBoard({ dossier, rows, upcoming, rates }: Props) {
   const [tab, setTab] = useHashTab<Tab>(TABS, "phases");
   const supabase = createClient();
   const rateEd = useEditable({ rate: savedRate }, async (d) => {
+    const invalid = rateError(d.rate);
+    if (invalid) throw new Error(invalid);
     const { error } = await supabase.from("dossier").update({ cad_rate: d.rate }).eq("id", dossier.id);
     if (error) throw error;
     setSavedRate(d.rate);
@@ -52,6 +55,16 @@ export function BudgetBoard({ dossier, rows, upcoming, rates }: Props) {
   const cad = (n: number) => (estRate > 0 ? `≈ ${cadNum(n)} $ CA` : "—");
   const rateDate = rates ? new Date(`${rates.date}T12:00:00`).toLocaleDateString("fr-FR", { day: "numeric", month: "long" }) : null;
   const fmt2 = (n: number) => new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 2 }).format(n);
+  const margin = bankMarginPct(cadRate, liveCad);
+  const rateInvalid = rateEd.editing ? rateError(cadRate) : null;
+  const now = new Date();
+  const todayIso = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+  const overdue = overdueTotal(upcoming, todayIso);
+  const presets = [
+    { label: "Reste à payer", xof: remaining },
+    { label: "Dépenses à venir", xof: upcomingTotal },
+    { label: "Budget total", xof: totalPlanned },
+  ].filter((p) => p.xof > 0);
 
   return (
     <>
@@ -101,7 +114,13 @@ export function BudgetBoard({ dossier, rows, upcoming, rates }: Props) {
       </DarkHeader>
 
       <div className="mt-5" role="tabpanel">
-        {tab === "phases" && (
+        {tab === "phases" && rows.length === 0 && (
+          <EmptyState icon={<IconWallet size={20} />} title="Aucun coût saisi">
+            Renseignez le coût prévu des étapes dans l&apos;onglet Parcours : le budget par phase se construit automatiquement.
+          </EmptyState>
+        )}
+
+        {tab === "phases" && rows.length > 0 && (
           <div className="flex flex-col gap-5">
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
               {rows.map((r, i) => {
@@ -195,6 +214,11 @@ export function BudgetBoard({ dossier, rows, upcoming, rates }: Props) {
               <div className="text-right">
                 <p className="mono text-[18px] font-semibold">{fcfa(upcomingTotal)} F</p>
                 <p className="text-[11.5px] text-muted">{cad(upcomingTotal)}</p>
+                {overdue.count > 0 && (
+                  <p className="mt-0.5 text-[11.5px] font-semibold text-bad">
+                    dont <span className="mono">{fcfa(overdue.total)} F</span> en retard ({overdue.count})
+                  </p>
+                )}
               </div>
             </div>
             {upcoming.length === 0 ? (
@@ -210,14 +234,17 @@ export function BudgetBoard({ dossier, rows, upcoming, rates }: Props) {
                       </span>
                       <span className="min-w-0 flex-1">
                         <span className="block truncate text-[14px] font-semibold">{u.title}</span>
-                        <span className="block truncate text-[12px] text-muted">{shortPhase(u.phase)}</span>
+                        <span className="block truncate text-[12px] text-muted">
+                          {shortPhase(u.phase)}
+                          {due && <span className={`sm:hidden ${due.tone === "bad" ? "font-semibold text-bad" : ""}`}> · {due.text}</span>}
+                        </span>
                       </span>
                       {due && (
                         <Chip tone={due.tone} className="mono hidden sm:inline-flex">
                           {due.text}
                         </Chip>
                       )}
-                      <span className="w-28 shrink-0 text-right">
+                      <span className="w-24 shrink-0 text-right sm:w-28">
                         <span className="mono block text-[13.5px] font-semibold">{fcfa(u.planned)} F</span>
                         <span className="mono block text-[11px] text-faint">{cadNum(u.planned)} $</span>
                       </span>
@@ -260,12 +287,16 @@ export function BudgetBoard({ dossier, rows, upcoming, rates }: Props) {
                 <span className="font-semibold">1 $ CA =</span>
                 <input
                   type="number"
-                  inputMode="numeric"
+                  inputMode="decimal"
+                  min={0}
+                  step="0.01"
                   disabled={!rateEd.editing}
-                  value={cadRate}
+                  value={cadRate || ""}
                   onChange={(e) => rateEd.set({ rate: Number(e.target.value) || 0 })}
                   aria-label="Taux de conversion, en francs CFA pour un dollar canadien"
-                  className="input mono w-32 text-right text-[18px] font-semibold"
+                  aria-invalid={rateInvalid ? true : undefined}
+                  aria-describedby="budget-rate-help"
+                  className={`input mono w-32 text-right text-[18px] font-semibold ${rateInvalid ? "border-bad" : ""}`}
                 />
                 <span className="font-semibold">FCFA</span>
                 {rateEd.editing && liveCad && (
@@ -274,26 +305,42 @@ export function BudgetBoard({ dossier, rows, upcoming, rates }: Props) {
                   </button>
                 )}
               </label>
-              <p className="mt-4 text-[12px] text-faint">Votre banque ajoute une marge au taux de référence : saisissez son taux pour estimer un virement au plus juste (« Mon taux » dans le convertisseur).</p>
+              <p id="budget-rate-help" className="mt-2 text-[12.5px]" aria-live="polite">
+                {rateInvalid ? (
+                  <span className="font-semibold text-bad">{rateInvalid}</span>
+                ) : margin != null ? (
+                  <span className="text-muted">
+                    {Math.abs(margin) < 0.05
+                      ? "Identique au taux du jour."
+                      : `${margin > 0 ? "Marge de" : "Écart de"} ${new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 1, signDisplay: "exceptZero" }).format(margin)} % par rapport au taux du jour.`}
+                  </span>
+                ) : null}
+              </p>
+              <p className="mt-3 text-[12px] text-faint">Votre banque ajoute une marge au taux de référence : saisissez son taux pour estimer un virement au plus juste (« Mon taux » dans le convertisseur).</p>
             </section>
 
             <div className="flex flex-col gap-5">
-              <Converter rates={rates} savedCadRate={savedRate} />
+              <Converter rates={rates} savedCadRate={savedRate} presets={presets} />
               <section className="card p-4 sm:p-6">
                 <h2 className="text-[15px] font-bold">Budget en dollars canadiens</h2>
                 <p className="text-[12.5px] text-muted">{liveCad ? `Au taux du jour (${rateDate}).` : "Au taux enregistré."}</p>
-              <dl className="mt-4 grid grid-cols-3 gap-3">
-                {[
-                  { label: "Prévu", v: totalPlanned },
-                  { label: "Payé", v: totalActual },
-                  { label: "Reste", v: remaining },
-                ].map((x) => (
-                  <div key={x.label}>
-                    <dt className="text-[11.5px] text-muted">{x.label}</dt>
-                    <dd className="mono m-0 mt-0.5 text-[14px] font-semibold">{cadNum(x.v)} $</dd>
-                  </div>
-                ))}
-              </dl>
+                <dl className="mt-4 grid grid-cols-3 gap-3">
+                  {[
+                    { label: "Prévu", v: totalPlanned },
+                    { label: "Payé", v: totalActual },
+                    { label: "Reste", v: remaining },
+                  ].map((x) => (
+                    <div key={x.label}>
+                      <dt className="text-[11.5px] text-muted">{x.label}</dt>
+                      <dd className="mono m-0 mt-0.5 text-[14px] font-semibold">{cadNum(x.v)} $</dd>
+                      {liveCad && savedRate > 0 && Math.abs(savedRate - liveCad) >= 0.01 && (
+                        <dd className="mono m-0 text-[11.5px] text-muted" title="Au taux enregistré (celui de ma banque)">
+                          {new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 0 }).format(x.v / savedRate)} $ <span className="font-sans">banque</span>
+                        </dd>
+                      )}
+                    </div>
+                  ))}
+                </dl>
               </section>
             </div>
           </div>

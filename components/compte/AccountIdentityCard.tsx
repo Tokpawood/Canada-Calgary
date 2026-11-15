@@ -6,6 +6,7 @@ import type { Account } from "@/lib/account";
 import { createClient } from "@/lib/supabase/client";
 import { removeAvatar, uploadAvatar } from "@/lib/avatarUpload";
 import { Avatar } from "@/components/Avatar";
+import { authErrorFr } from "@/components/PasswordInput";
 import { IconCheck, IconTrash, IconUpload, IconUser } from "@/components/icons";
 
 /** Titulaire du compte : photo de profil, prénom et nom (affichés dans la barre latérale). */
@@ -24,7 +25,7 @@ export function AccountIdentityCard({ account }: { account: Account }) {
     setBusy("name");
     const { error } = await createClient().auth.updateUser({ data: { first_name: firstName.trim(), last_name: lastName.trim() } });
     setBusy(null);
-    setMsg(error ? { ok: false, text: error.message } : { ok: true, text: "Nom du titulaire enregistré." });
+    setMsg(error ? { ok: false, text: authErrorFr(error.message) } : { ok: true, text: "Nom du titulaire enregistré." });
     if (!error) router.refresh();
   }
 
@@ -38,7 +39,9 @@ export function AccountIdentityCard({ account }: { account: Account }) {
   }
 
   async function onRemove() {
+    if (!window.confirm("Retirer la photo de profil ?")) return;
     setBusy("photo");
+    setMsg(null);
     const err = await removeAvatar(account.avatarPath);
     setBusy(null);
     setMsg(err ? { ok: false, text: err } : { ok: true, text: "Photo retirée." });
@@ -59,23 +62,24 @@ export function AccountIdentityCard({ account }: { account: Account }) {
 
       <div className="mt-5 flex flex-col gap-6 sm:flex-row sm:items-start">
         <div className="flex flex-col items-center gap-2.5 sm:w-[150px]">
-          <button type="button" onClick={() => input.current?.click()} disabled={busy !== null} className="group/photo relative rounded-full" title="Changer la photo">
+          <button type="button" onClick={() => input.current?.click()} disabled={busy !== null} className="group/photo relative rounded-full focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-act" title="Changer la photo" aria-label={account.avatarUrl ? "Changer la photo de profil" : "Ajouter une photo de profil"} aria-busy={busy === "photo"}>
             <Avatar url={account.avatarUrl} initials={account.initials} size={104} className="ring-4 ring-surface-2" />
-            <span className="absolute inset-0 grid place-items-center rounded-full bg-black/50 text-white opacity-0 transition-opacity group-hover/photo:opacity-100">
+            <span className="absolute inset-0 grid place-items-center rounded-full bg-black/50 text-white opacity-0 transition-opacity group-hover/photo:opacity-100 group-focus-visible/photo:opacity-100">
               <IconUpload size={22} />
             </span>
             {busy === "photo" && <span className="absolute inset-0 animate-pulse rounded-full bg-black/40" />}
           </button>
           <div className="flex flex-wrap justify-center gap-1.5">
             <button type="button" onClick={() => input.current?.click()} disabled={busy !== null} className="btn btn-sm btn-soft">
-              <IconUpload size={13} /> {account.avatarUrl ? "Changer" : "Ajouter une photo"}
+              <IconUpload size={13} /> {busy === "photo" ? "Envoi…" : account.avatarUrl ? "Changer" : "Ajouter une photo"}
             </button>
             {account.avatarUrl && (
-              <button type="button" onClick={() => void onRemove()} disabled={busy !== null} className="btn btn-sm btn-danger" aria-label="Retirer la photo">
+              <button type="button" onClick={() => void onRemove()} disabled={busy !== null} className="btn btn-sm btn-danger" aria-label="Retirer la photo" title="Retirer la photo">
                 <IconTrash size={13} />
               </button>
             )}
           </div>
+          <p className="text-center text-[11px] leading-snug text-faint">Recadrée au carré, centrée. JPEG, PNG ou HEIC.</p>
           <input
             ref={input}
             type="file"
@@ -93,11 +97,11 @@ export function AccountIdentityCard({ account }: { account: Account }) {
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <label>
               <span className="field-label">Prénom</span>
-              <input className="input" value={firstName} onChange={(e) => setFirstName(e.target.value)} autoComplete="given-name" />
+              <input className="input" value={firstName} onChange={(e) => setFirstName(e.target.value)} autoComplete="given-name" maxLength={60} required />
             </label>
             <label>
               <span className="field-label">Nom</span>
-              <input className="input" value={lastName} onChange={(e) => setLastName(e.target.value)} autoComplete="family-name" />
+              <input className="input" value={lastName} onChange={(e) => setLastName(e.target.value)} autoComplete="family-name" maxLength={60} required />
             </label>
           </div>
           <label>
@@ -109,7 +113,7 @@ export function AccountIdentityCard({ account }: { account: Account }) {
               {busy === "name" ? "Enregistrement…" : "Enregistrer le nom"}
             </button>
             {msg && (
-              <p role="status" className={`flex items-center gap-1.5 text-[12.5px] ${msg.ok ? "text-ok" : "text-bad"}`}>
+              <p role={msg.ok ? "status" : "alert"} className={`flex items-center gap-1.5 text-[12.5px] ${msg.ok ? "text-ok" : "text-bad"}`}>
                 {msg.ok && <IconCheck size={14} strokeWidth={2.6} />}
                 {msg.text}
               </p>

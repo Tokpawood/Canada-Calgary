@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { canReportTo, orgChart, type ContactPerson } from "./network";
+import { canReportTo, matchesQuery, orgChart, searchKey, type ContactPerson } from "./network";
 
 const BASE = {
   dossierId: "d1",
@@ -56,5 +56,25 @@ describe("changement de responsable", () => {
     expect(canReportTo(people, "c", "a")).toBe(true);
     expect(canReportTo(people, "b", null)).toBe(true);
     expect(canReportTo(people, "a", "z")).toBe(false);
+  });
+});
+
+describe("recherche dans le reseau", () => {
+  it("ignore accents, casse et espaces", () => {
+    expect(searchKey("  École   Supérieure ")).toBe("ecole superieure");
+    expect(matchesQuery("ecole", "École de langues")).toBe(true);
+    expect(matchesQuery("AMBASSADE canada", "Ambassade du Canada", "Abidjan")).toBe(true);
+    expect(matchesQuery("ambassade france", "Ambassade du Canada")).toBe(false);
+  });
+
+  it("retrouve un numero sans ses separateurs", () => {
+    expect(matchesQuery("0708", "+225 07 08 12 34")).toBe(true);
+    expect(matchesQuery("+225-0708", "+225 07 08 12 34")).toBe(true);
+    expect(matchesQuery("0799", "+225 07 08 12 34")).toBe(false);
+  });
+
+  it("une recherche vide accepte tout et ignore les champs absents", () => {
+    expect(matchesQuery("   ", "x")).toBe(true);
+    expect(matchesQuery("abc", null, undefined, "ABC")).toBe(true);
   });
 });

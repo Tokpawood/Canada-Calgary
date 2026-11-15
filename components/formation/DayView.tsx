@@ -89,7 +89,7 @@ export function DayView({
               {count}/{total}
             </span>
           </div>
-          {past && count < total && <p className="mt-2 text-[12.5px] text-opt">Jour passé : cochez ce qui a été fait pour garder un suivi juste.</p>}
+          {canEdit && past && count < total && <p className="mt-2 text-[12.5px] text-opt">Jour passé : cochez ce qui a été fait pour garder un suivi juste.</p>}
         </div>
 
         <div className="stagger flex flex-col pb-2">
@@ -137,7 +137,7 @@ export function DayView({
         )}
       </section>
 
-      {plan.week && <WeekAside week={plan.week} done={done} toggle={toggle} />}
+      {plan.week && <WeekAside week={plan.week} done={done} toggle={toggle} canEdit={canEdit} />}
       {openKey && plan.items.some((i) => i.key === openKey) && (
         <TaskDrawer plan={plan} itemKey={openKey} done={done} toggle={toggle} onSelect={onOpen} onClose={() => onOpen(null)} canEdit={canEdit} />
       )}
@@ -145,7 +145,7 @@ export function DayView({
   );
 }
 
-function WeekAside({ week, done, toggle }: { week: Week; done: Set<string>; toggle: (key: string, v: boolean) => void }) {
+function WeekAside({ week, done, toggle, canEdit }: { week: Week; done: Set<string>; toggle: (key: string, v: boolean) => void; canEdit: boolean }) {
   const sent = week.sends.filter((_, i) => done.has(sendKey(week, i))).length;
   return (
     <div className="flex flex-col gap-5 self-start">
@@ -191,8 +191,8 @@ function WeekAside({ week, done, toggle }: { week: Week; done: Set<string>; togg
             const on = done.has(key);
             return (
               <li key={key}>
-                <label className="-mx-2 flex cursor-pointer items-start gap-2.5 rounded-lg px-2 py-2 hover:bg-surface-2">
-                  <CheckBox checked={on} onChange={(v) => toggle(key, v)} label={s.label} size={20} />
+                <label className={`-mx-2 flex items-start gap-2.5 rounded-lg px-2 py-2 ${canEdit ? "cursor-pointer hover:bg-surface-2" : ""}`}>
+                  <CheckBox checked={on} onChange={(v) => toggle(key, v)} label={s.label} size={20} disabled={!canEdit} />
                   <span className="min-w-0 flex-1">
                     <span className={`block text-[13.5px] leading-snug font-medium ${on ? "text-faint line-through" : ""}`}>{s.label}</span>
                     {s.subject && <span className="block text-[12px] text-muted">{s.subject}</span>}

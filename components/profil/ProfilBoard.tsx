@@ -141,6 +141,18 @@ export function ProfilBoard({ dossier, avatarUrl, initialIdentity, initialProfil
     window.history.replaceState(null, "", `#${id}`);
   }
 
+  // Navigation clavier des onglets (motif ARIA) : flèches, Début, Fin.
+  function onTabKey(e: React.KeyboardEvent<HTMLButtonElement>) {
+    const i = TABS.findIndex((t) => t.id === tab);
+    const last = TABS.length - 1;
+    const to = e.key === "ArrowRight" ? (i === last ? 0 : i + 1) : e.key === "ArrowLeft" ? (i === 0 ? last : i - 1) : e.key === "Home" ? 0 : e.key === "End" ? last : -1;
+    if (to < 0) return;
+    e.preventDefault();
+    const id = TABS[to].id;
+    selectTab(id);
+    document.getElementById(`tab-${id}`)?.focus();
+  }
+
   async function updateSingle<T extends object>(table: string, before: T, after: T) {
     const patch: Record<string, unknown> = changedFields(before, after);
     if (Object.keys(patch).length === 0) return;
@@ -265,7 +277,9 @@ export function ProfilBoard({ dossier, avatarUrl, initialIdentity, initialProfil
                 id={`tab-${t.id}`}
                 aria-selected={on}
                 aria-controls={`panel-${t.id}`}
+                tabIndex={on ? 0 : -1}
                 onClick={() => selectTab(t.id)}
+                onKeyDown={onTabKey}
                 className={`relative flex shrink-0 items-center gap-2 rounded-t-lg px-3 py-2.5 text-[13px] font-semibold whitespace-nowrap transition-colors ${
                   on ? "bg-white/10 text-night-ink shadow-[inset_0_-2px_0_var(--signal)]" : "text-night-muted hover:bg-white/5 hover:text-night-ink"
                 }`}
@@ -273,18 +287,23 @@ export function ProfilBoard({ dossier, avatarUrl, initialIdentity, initialProfil
                 {t.icon}
                 {t.label}
                 {badge && (
-                  <span className={`mono rounded-full px-1.5 text-[10.5px] leading-[18px] font-semibold ${on ? "bg-white/20 text-night-ink" : BADGE_CLASS[badge.tone]}`}>
+                  <span aria-hidden className={`mono rounded-full px-1.5 text-[10.5px] leading-[18px] font-semibold ${on ? "bg-white/20 text-night-ink" : BADGE_CLASS[badge.tone]}`}>
                     {badge.text}
                   </span>
                 )}
-                {editingTab[t.id] && <span className="h-1.5 w-1.5 rounded-full bg-signal" title="Modification en cours" />}
+                {badge && <span className="sr-only">{badgeSr(t.id, badge.text)}</span>}
+                {editingTab[t.id] && (
+                  <span className="h-1.5 w-1.5 rounded-full bg-signal" title="Modification en cours">
+                    <span className="sr-only">, modification en cours</span>
+                  </span>
+                )}
               </button>
             );
           })}
         </div>
       </ProfileHeader>
 
-      <div id={`panel-${tab}`} role="tabpanel" aria-labelledby={`tab-${tab}`} className="mt-5 print:hidden">
+      <div id={`panel-${tab}`} role="tabpanel" tabIndex={0} aria-labelledby={`tab-${tab}`} className="mt-5 rounded-2xl focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-act print:hidden">
         {tab === "identite" && (
           <div className="grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,1fr)_300px]">
             <Panel
@@ -408,7 +427,7 @@ export function ProfilBoard({ dossier, avatarUrl, initialIdentity, initialProfil
         )}
       </div>
 
-      {/* Fiche imprimable : identité + profil, toujours en lecture. */}
+      {/* Fiche imprimable : identité, profil, grille, historique et adresses, toujours en lecture (valeurs enregistrées). */}
       <div id="fiche-profil" className="hidden print:mt-6 print:block">
         <h2 className="mb-2 text-[16px] font-bold">Identité de référence</h2>
         <FieldGrid fields={ID_FIELDS} values={idValues(identity)} editing={false} onChange={() => {}} />
@@ -418,8 +437,72 @@ export function ProfilBoard({ dossier, avatarUrl, initialIdentity, initialProfil
             <FieldGrid fields={g.fields} values={profileValues(profile)} editing={false} onChange={() => {}} />
           </div>
         ))}
+        <div className="mt-5 break-inside-avoid">
+          <h2 className="mb-1 text-[16px] font-bold">Grille des travailleurs qualifiés</h2>
+          <p className="text-[13px]">
+            <strong>{fswResult.total} / 100</strong> · {fswResult.status} · seuil {FSW_PASS_THRESHOLD}
+          </p>
+        </div>
+        <PrintPeriods
+          title="Historique personnel"
+          gaps={historyGaps(history, identity.naissance)}
+          columns={["Du", "Au", "Type", "Activité", "Organisme · lieu"]}
+          rows={sortByStart(history).map((h) => [h.from, h.to || "en cours", h.type, `${h.activity}${h.parallel ? " (en parallèle)" : ""}`, [h.org, h.place].filter(Boolean).join(" · ")])}
+        />
+        <PrintPeriods
+          title="Adresses"
+          gaps={addressGaps(addresses, identity.naissance)}
+          columns={["Du", "Au", "Adresse", "Ville, pays", "Note"]}
+          rows={sortByStart(addresses).map((a) => [a.from, a.to || "actuelle", a.address, a.city, a.note])}
+        />
       </div>
     </>
+  );
+}
+
+function badgeSr(id: TabId, text: string): string {
+  if (id === "grille") return `, ${text} points`;
+  if (id === "historique" || id === "adresses") return `, ${text} trou(s)`;
+  if (id === "controle") return `, ${text} point(s) de contrôle`;
+  return `, ${text} champ(s) vide(s)`;
+}
+
+function sortByStart<T extends { from: string }>(rows: T[]): T[] {
+  return [...rows].sort((a, b) => a.from.localeCompare(b.from));
+}
+
+function PrintPeriods({ title, columns, rows, gaps }: { title: string; columns: string[]; rows: string[][]; gaps: string[] }) {
+  return (
+    <div className="mt-5">
+      <h2 className="mb-2 text-[16px] font-bold">{title}</h2>
+      {rows.length === 0 ? (
+        <p className="text-[12.5px]">Aucune ligne déclarée.</p>
+      ) : (
+        <table className="w-full border-collapse text-[11.5px]">
+          <thead>
+            <tr>
+              {columns.map((c) => (
+                <th key={c} className="border-b border-line px-1.5 py-1 text-left font-semibold">
+                  {c}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((r, i) => (
+              <tr key={i} className="break-inside-avoid">
+                {r.map((v, j) => (
+                  <td key={j} className={`border-b border-line px-1.5 py-1 align-top ${j < 2 ? "mono whitespace-nowrap" : ""}`}>
+                    {v}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+      <p className="mt-1.5 text-[11.5px]">{gaps.length ? `À justifier : ${gaps.join(" ; ")}` : "Aucun trou de plus de 4 jours."}</p>
+    </div>
   );
 }
 

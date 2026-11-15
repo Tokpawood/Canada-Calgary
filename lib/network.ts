@@ -156,6 +156,32 @@ export function canReportTo(persons: ContactPerson[], id: string, parentId: stri
   return !below.has(parentId);
 }
 
+/** Texte ramené à une forme comparable : minuscules, sans accents ni espaces superflus. */
+export function searchKey(text: string): string {
+  return text
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/**
+ * Vrai si chaque mot de la recherche apparaît dans l'un des textes, sans tenir compte des accents ni de la casse.
+ * Un numéro se retrouve aussi sans ses espaces ou séparateurs (« 07 08 » trouve « +225 0708… »).
+ */
+export function matchesQuery(query: string, ...texts: Array<string | null | undefined>): boolean {
+  const words = searchKey(query).split(" ").filter(Boolean);
+  if (!words.length) return true;
+  const hay = searchKey(texts.filter(Boolean).join(" "));
+  const digits = hay.replace(/[^\d]/g, "");
+  return words.every((w) => {
+    if (hay.includes(w)) return true;
+    const d = w.replace(/[^\d]/g, "");
+    return d.length >= 3 && d.length === w.replace(/[\s().+-]/g, "").length && digits.includes(d);
+  });
+}
+
 export function personLabel(p: Pick<ContactPerson, "name" | "title">): string {
   return p.title ? `${p.name} · ${p.title}` : p.name;
 }

@@ -32,6 +32,7 @@ export default async function ParcoursPage({ searchParams }: { searchParams: Pro
 
   return (
     <ParcoursBoard
+      dossierId={dossier.id}
       initialSteps={steps}
       fundsStat={fundsStat}
       profileDate={dossier.profileDate}

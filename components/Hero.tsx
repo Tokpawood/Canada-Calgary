@@ -101,7 +101,7 @@ export function Hero({ phases, overallPct, nextStep, done, counted, late, countd
             </ul>
           </div>
 
-          <svg viewBox="0 0 1000 140" className="mt-4 w-full overflow-visible" role="img" aria-label={`Trajet ABJ vers YYC, ${overallPct} % parcouru`}>
+          <svg viewBox="0 0 1000 140" className="mt-4 w-full overflow-visible" role={onPhase ? "group" : "img"} aria-label={`Trajet ABJ vers YYC, ${overallPct} % parcouru`}>
             <path d={PATH} fill="none" stroke="rgba(255,255,255,0.18)" strokeWidth="2" strokeDasharray="2 9" strokeLinecap="round" />
             <path d={PATH} fill="none" stroke="var(--signal)" strokeWidth="2.5" strokeLinecap="round" pathLength={100} strokeDasharray={`${overallPct} 100`} className="draw" style={{ ["--draw-from" as string]: overallPct, animationDuration: "1.8s" }} />
             {waypoints.map((w, i) => {
@@ -110,11 +110,23 @@ export function Hero({ phases, overallPct, nextStep, done, counted, late, countd
               return (
                 <g
                   key={w.phase}
-                  className={`hero-waypoint ${onPhase ? "cursor-pointer" : ""}`}
+                  className={`hero-waypoint ${onPhase ? "cursor-pointer outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--signal)]" : ""}`}
                   style={{ animationDelay: `${300 + i * 140}ms` }}
                   onClick={onPhase ? () => onPhase(i) : undefined}
+                  onKeyDown={
+                    onPhase
+                      ? (e) => {
+                          if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault();
+                            onPhase(i);
+                          }
+                        }
+                      : undefined
+                  }
+                  tabIndex={onPhase ? 0 : undefined}
                   role={onPhase ? "button" : undefined}
-                  aria-label={onPhase ? `Ouvrir la phase ${w.phase}` : undefined}
+                  aria-pressed={onPhase ? on : undefined}
+                  aria-label={onPhase ? `Ouvrir la phase ${w.phase}, ${w.pct} % fait` : undefined}
                 >
                   <title>{`${w.phase} — ${w.pct} %`}</title>
                   <circle cx={w.x} cy={w.y} r="20" fill="transparent" />

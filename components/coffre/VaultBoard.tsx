@@ -15,6 +15,9 @@ type Tab = (typeof TABS)[number];
 import { FilePreview, isPdf } from "./FilePreview";
 import { FileCard } from "./FileCard";
 import { FoldersView } from "./FoldersView";
+import { StatusMessage } from "./StatusMessage";
+import { joinUploadErrors, normalizeSearch } from "@/lib/documents";
+import { pendingDriveBackup } from "@/lib/vaultStats";
 
 type Kind = "all" | "pdf" | "image";
 const UNLINKED = "__divers__";
@@ -66,15 +69,15 @@ export function VaultBoard({ initialFiles, documentNames, initialFolders }: Prop
   }, [files, documentNames]);
 
   const visible = useMemo(() => {
-    const q = query.trim().toLowerCase();
+    const q = normalizeSearch(query);
     return sorted.filter((f) => {
       if (kind === "pdf" && !isPdf(f)) return false;
       if (kind === "image" && isPdf(f)) return false;
       if (docFilter !== "all" && (f.documentId ?? UNLINKED) !== docFilter) return false;
-      if (q && !`${f.name} ${documentLabel(f)}`.toLowerCase().includes(q)) return false;
+      if (q && !normalizeSearch(`${f.name} ${documentLabel(f)} ${folderName(f.folderId) ?? ""}`).includes(q)) return false;
       return true;
     });
-  }, [sorted, kind, docFilter, query, documentLabel]);
+  }, [sorted, kind, docFilter, query, documentLabel, folderName]);
 
   const totalSize = files.reduce((s, f) => s + f.size, 0);
   const pdfCount = files.filter(isPdf).length;
@@ -121,7 +124,7 @@ export function VaultBoard({ initialFiles, documentNames, initialFolders }: Prop
     setUploading(false);
     setProgress(null);
     setUploadCount(null);
-    if (failed.length) setError(failed.join(" · "));
+    if (failed.length) setError(joinUploadErrors(failed, 4));
     const parts = [`${added} fichier${added > 1 ? "s" : ""} envoyé${added > 1 ? "s" : ""}${folderId ? ` dans « ${folderName(folderId)} »` : ""}.`];
     if (swapped.length) parts.push(`${swapped.join(", ")} : nouvelle version enregistrée, l'ancienne est conservée dans « Remplacés ».`);
     if (added) setNotice(parts.join(" "));
@@ -221,6 +224,7 @@ export function VaultBoard({ initialFiles, documentNames, initialFolders }: Prop
   }
 
   const linked = files.filter((f) => f.documentId).length;
+  const pendingBackup = pendingDriveBackup(files);
   const groups = useMemo(
     () =>
       docOptions.map((o) => ({ ...o, files: sorted.filter((f) => (f.documentId ?? UNLINKED) === o.id) })).filter((g) => g.files.length > 0),
@@ -243,8 +247,16 @@ export function VaultBoard({ initialFiles, documentNames, initialFolders }: Prop
         </select>
       </label>
       <FileDropzone busy={uploading} progress={progress} progressLabel={countLabel} onFiles={(fl) => void handleUpload(fl, dropFolder || null)} title="Déposer des fichiers" />
-      {error && <p className="rounded-lg bg-bad-bg px-3 py-2 text-[12.5px] text-bad">{error}</p>}
-      {notice && <p className="rounded-lg bg-ok-bg px-3 py-2 text-[12.5px] text-ok" role="status">{notice}</p>}
+      {error && (
+        <StatusMessage tone="bad" onDismiss={() => setError(null)}>
+          {error}
+        </StatusMessage>
+      )}
+      {notice && (
+        <StatusMessage tone="ok" onDismiss={() => setNotice(null)}>
+          {notice}
+        </StatusMessage>
+      )}
       <div className="card p-4 text-[12.5px] text-muted shadow-none">
         <p className="flex items-center gap-2 font-semibold text-ink">
           <IconShield size={15} className="text-act" /> Bon à savoir
@@ -310,7 +322,14 @@ export function VaultBoard({ initialFiles, documentNames, initialFolders }: Prop
         <div className="mt-4 flex flex-wrap gap-2">
           {[
             { icon: <IconShield size={13} />, text: "Accès réservé au titulaire" },
-            { icon: <IconLock size={13} />, text: "Sauvegardé sur Google Drive" },
+            {
+              icon: <IconLock size={13} />,
+              text: pendingBackup.length
+                ? `${pendingBackup.length} sauvegarde${pendingBackup.length > 1 ? "s" : ""} Drive en cours`
+                : files.length
+                  ? "Tout est sauvegardé sur Google Drive"
+                  : "Sauvegarde sur Google Drive",
+            },
             { icon: <IconCheck size={13} />, text: "Type réel vérifié" },
           ].map((p) => (
             <span key={p.text} className="inline-flex items-center gap-1.5 rounded-full bg-white/[0.08] px-2.5 py-1 text-[12px] font-semibold">
@@ -324,8 +343,16 @@ export function VaultBoard({ initialFiles, documentNames, initialFolders }: Prop
       <div className="mt-5" role="tabpanel">
       {(error || notice) && tab !== "deposer" && (
         <div className="mb-4 flex flex-col gap-2">
-          {error && <p className="rounded-lg bg-bad-bg px-3 py-2 text-[12.5px] text-bad">{error}</p>}
-          {notice && <p className="rounded-lg bg-ok-bg px-3 py-2 text-[12.5px] text-ok" role="status">{notice}</p>}
+          {error && (
+            <StatusMessage tone="bad" onDismiss={() => setError(null)}>
+              {error}
+            </StatusMessage>
+          )}
+          {notice && (
+            <StatusMessage tone="ok" onDismiss={() => setNotice(null)}>
+              {notice}
+            </StatusMessage>
+          )}
         </div>
       )}
       {tab === "dossiers" && (
@@ -417,7 +444,7 @@ export function VaultBoard({ initialFiles, documentNames, initialFolders }: Prop
               <FilterBar
                 query={query}
                 onQuery={setQuery}
-                placeholder="Rechercher par nom de fichier ou de pièce…"
+                placeholder="Rechercher par fichier, pièce ou dossier…"
                 searchLabel="Rechercher un fichier"
                 meta={visible.length === files.length ? `${files.length} fichier${files.length > 1 ? "s" : ""} · ${formatSize(totalSize)}` : `${visible.length} sur ${files.length}`}
                 onReset={kind !== "all" || docFilter !== "all" || query ? () => {

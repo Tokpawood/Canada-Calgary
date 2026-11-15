@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { VaultFile } from "@/lib/types";
 import { ConfirmButton } from "@/components/ui";
@@ -38,6 +38,16 @@ export function FilePreview({ files, index, documentLabel, signUrl, onIndex, onD
   const file = files[index];
   const [loaded, setLoaded] = useState<{ id: string; url: string | null } | null>(null);
   const url = loaded?.id === file?.id ? loaded.url : undefined;
+  // Image illisible (fichier absent de Drive, session expirée…) : on l'affiche au lieu d'une image cassée.
+  const [broken, setBroken] = useState<string | null>(null);
+  const closeRef = useRef<HTMLButtonElement>(null);
+
+  // Focus sur « Fermer » à l'ouverture, rendu à l'élément d'origine à la fermeture.
+  useEffect(() => {
+    const previous = document.activeElement as HTMLElement | null;
+    closeRef.current?.focus();
+    return () => previous?.focus?.();
+  }, []);
 
   useEffect(() => {
     if (!file) return;
@@ -143,7 +153,7 @@ export function FilePreview({ files, index, documentLabel, signUrl, onIndex, onD
           <ConfirmButton label={`Supprimer ${file.name}`} confirmLabel="Confirmer" onConfirm={() => onDelete(file)} className="btn btn-sm btn-danger">
             <IconTrash size={15} />
           </ConfirmButton>
-          <button type="button" onClick={onClose} aria-label="Fermer l'aperçu" className="grid h-8 w-8 place-items-center rounded-lg text-white/70 hover:bg-white/10 hover:text-white">
+          <button ref={closeRef} type="button" onClick={onClose} aria-label="Fermer l'aperçu" className="grid h-8 w-8 place-items-center rounded-lg text-white/70 hover:bg-white/10 hover:text-white">
             <IconX size={18} />
           </button>
         </div>
@@ -153,13 +163,16 @@ export function FilePreview({ files, index, documentLabel, signUrl, onIndex, onD
         <div className="flex h-full w-full items-center justify-center" onClick={(e) => e.stopPropagation()}>
           {url === undefined ? (
             <p className="text-sm text-white/60">Chargement de l&apos;aperçu…</p>
-          ) : url === null ? (
-            <p className="text-sm text-white/70">Aperçu indisponible : le fichier n&apos;a pas pu être lu.</p>
+          ) : url === null || broken === file.id ? (
+            <div className="max-w-sm text-center text-sm text-white/70" role="alert">
+              <p>Aperçu indisponible : le fichier n&apos;a pas pu être lu.</p>
+              <p className="mt-1 text-[12.5px] text-white/50">Essayez « Nouvel onglet » ou « Télécharger » ; si le problème persiste, rechargez la page.</p>
+            </div>
           ) : isPdf(file) ? (
             <iframe key={file.id} src={`${url}#view=FitH`} title={file.name} className="h-full w-full max-w-5xl rounded-lg bg-white" />
           ) : (
             // eslint-disable-next-line @next/next/no-img-element -- fichier servi par l'application après contrôle d'accès, hors optimiseur d'images
-            <img key={file.id} src={url} alt={file.name} className="max-h-full max-w-full rounded-lg object-contain shadow-2xl" />
+            <img key={file.id} src={url} alt={file.name} onError={() => setBroken(file.id)} className="max-h-full max-w-full rounded-lg object-contain shadow-2xl" />
           )}
         </div>
 

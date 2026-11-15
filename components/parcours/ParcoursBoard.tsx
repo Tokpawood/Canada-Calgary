@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type KeyboardEvent, type ReactNode } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { daysUntil, isLate, isOpenStep, nextOpenStep, overallProgress, phaseProgress } from "@/lib/rules";
 import type { Step } from "@/lib/types";
 import { newId } from "@/lib/ids";
+import { nextStepPosition, sortStepsByDue, stepMatchesQuery } from "@/lib/parcours";
 import { Chip, EmptyState, STEP_TONE, dueInfo, fcfa } from "@/components/ui";
 import { IconAlert, IconArrowRight, IconCalendar, IconCheck, IconChevronDown, IconLink, IconPlus, IconRoute } from "@/components/icons";
 import { FilterBar, FilterChip, FilterGroup } from "@/components/FilterBar";
@@ -25,6 +26,8 @@ function tabToHash(t: TabKey) {
 }
 
 interface Props {
+  /** Identifiant du dossier : permet d'ajouter une étape même quand le parcours est vide. */
+  dossierId: string;
   initialSteps: Step[];
   fundsStat: Stat;
   profileDate: string | null;
@@ -33,7 +36,7 @@ interface Props {
   initialOpen?: string | null;
 }
 
-export function ParcoursBoard({ initialSteps, fundsStat, profileDate, network, initialOpen = null }: Props) {
+export function ParcoursBoard({ dossierId, initialSteps, fundsStat, profileDate, network, initialOpen = null }: Props) {
   const [contactLinks, setContactLinks] = useState(network.links);
   const [steps, setSteps] = useState<Step[]>(initialSteps);
   const [tab, setTab] = useState<TabKey>("apercu");
@@ -45,6 +48,8 @@ export function ParcoursBoard({ initialSteps, fundsStat, profileDate, network, i
   const [newPhase, setNewPhase] = useState(initialSteps[0]?.phase ?? "1. Mise en ordre");
   const [newTitle, setNewTitle] = useState("");
   const [newDue, setNewDue] = useState("");
+  const [addBusy, setAddBusy] = useState(false);
+  const [addError, setAddError] = useState<string | null>(null);
 
   const supabase = createClient();
 
@@ -78,26 +83,17 @@ export function ParcoursBoard({ initialSteps, fundsStat, profileDate, network, i
     window.history.replaceState(null, "", `#${tabToHash(t)}`);
   }
 
-  const dueSorted = useMemo(
-    () =>
-      [...steps].sort((a, b) => {
-        const da = a.due ? new Date(a.due).getTime() : Infinity;
-        const db = b.due ? new Date(b.due).getTime() : Infinity;
-        return da - db;
-      }),
-    [steps],
-  );
+  const dueSorted = useMemo(() => sortStepsByDue(steps), [steps]);
 
   const activePhase = typeof tab === "number" ? phases[tab]?.phase ?? null : null;
   const scope = useMemo(() => (activePhase ? steps.filter((s) => s.phase === activePhase) : steps), [steps, activePhase]);
 
   const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
     return scope.filter((s) => {
       if (filter === "late" && !isLate(s)) return false;
       if (filter === "done" && s.status !== "Fait") return false;
       if (filter === "upcoming" && !isOpenStep(s.status)) return false;
-      if (q && !`${s.title} ${s.org} ${s.notes}`.toLowerCase().includes(q)) return false;
+      if (!stepMatchesQuery(s, query)) return false;
       return true;
     });
   }, [scope, filter, query]);
@@ -158,25 +154,28 @@ export function ParcoursBoard({ initialSteps, fundsStat, profileDate, network, i
 
   async function addStep() {
     const title = newTitle.trim();
-    if (!title) return;
-    const dossierId = steps[0]?.dossierId;
-    if (!dossierId) return;
+    if (!title || addBusy) return;
     const id = newId("s");
-    const position = steps.length;
+    const position = nextStepPosition(steps);
     const due = newDue || null;
+    setAddBusy(true);
+    setAddError(null);
     const { error } = await supabase
       .from("step")
       .insert({ id, dossier_id: dossierId, phase: newPhase, title, due, status: "À faire", org: "", req: "", notes: "", risk: "", position });
-    if (!error) {
-      setSteps((prev) => [
-        ...prev,
-        { id, dossierId, phase: newPhase, title, due, status: "À faire", planned: null, actual: null, org: "", req: "", notes: "", risk: "", position, tasks: [], links: [] },
-      ]);
-      setNewTitle("");
-      setNewDue("");
-      setAdding(false);
-      setSelectedId(id);
+    setAddBusy(false);
+    if (error) {
+      setAddError(`L'étape n'a pas pu être ajoutée (${error.message}). Réessayez.`);
+      return;
     }
+    setSteps((prev) => [
+      ...prev,
+      { id, dossierId, phase: newPhase, title, due, status: "À faire", planned: null, actual: null, org: "", req: "", notes: "", risk: "", position, tasks: [], links: [] },
+    ]);
+    setNewTitle("");
+    setNewDue("");
+    setAdding(false);
+    setSelectedId(id);
   }
 
   const tabs: Array<{ key: TabKey; label: ReactNode; title?: string }> = [
@@ -194,6 +193,21 @@ export function ParcoursBoard({ initialSteps, fundsStat, profileDate, network, i
     { key: "toutes", label: "Toutes les étapes" },
   ];
 
+  // Flèches gauche/droite, Début/Fin : navigation clavier entre onglets (motif ARIA « tabs »).
+  function onTabKey(e: KeyboardEvent<HTMLDivElement>) {
+    const idx = tabs.findIndex((t) => t.key === tab);
+    let nextIdx: number | null = null;
+    if (e.key === "ArrowRight") nextIdx = (idx + 1) % tabs.length;
+    else if (e.key === "ArrowLeft") nextIdx = (idx - 1 + tabs.length) % tabs.length;
+    else if (e.key === "Home") nextIdx = 0;
+    else if (e.key === "End") nextIdx = tabs.length - 1;
+    if (nextIdx == null) return;
+    e.preventDefault();
+    const key = tabs[nextIdx].key;
+    selectTab(key);
+    document.getElementById(`parcours-tab-${tabToHash(key)}`)?.focus();
+  }
+
   const filterBar = (
     <FilterBar
       query={query}
@@ -201,7 +215,17 @@ export function ParcoursBoard({ initialSteps, fundsStat, profileDate, network, i
       placeholder={activePhase ? `Rechercher dans « ${shortPhase(activePhase)} »…` : "Rechercher une étape, un organisme, une note…"}
       searchLabel="Rechercher une étape"
       actions={
-        <button type="button" onClick={() => setAdding((v) => !v)} className="btn btn-sm btn-primary" aria-expanded={adding}>
+        <button
+          type="button"
+          onClick={() => {
+            setAdding((v) => !v);
+            setAddError(null);
+          }}
+          className="btn btn-sm btn-primary"
+          aria-expanded={adding}
+          aria-label="Ajouter une étape"
+          title="Ajouter une étape"
+        >
           <IconPlus size={15} />
           <span className="hidden sm:inline">Étape</span>
         </button>
@@ -231,21 +255,33 @@ export function ParcoursBoard({ initialSteps, fundsStat, profileDate, network, i
         e.preventDefault();
         void addStep();
       }}
-      className="card anim-fade mb-4 grid gap-3 p-4 sm:grid-cols-[200px_minmax(0,1fr)_160px_auto] sm:items-end"
+      onKeyDown={(e) => {
+        if (e.key === "Escape") setAdding(false);
+      }}
+      aria-label="Nouvelle étape"
+      className="card anim-fade grid gap-3 p-4 sm:grid-cols-[200px_minmax(0,1fr)_160px_auto] sm:items-end"
     >
       <label>
         <span className="field-label">Phase</span>
         <select value={newPhase} onChange={(e) => setNewPhase(e.target.value)} className="input">
-          {phases.map((p) => (
-            <option key={p.phase} value={p.phase}>
-              {p.phase}
+          {(phases.some((p) => p.phase === newPhase) ? phases.map((p) => p.phase) : [newPhase, ...phases.map((p) => p.phase)]).map((p) => (
+            <option key={p} value={p}>
+              {p}
             </option>
           ))}
         </select>
       </label>
       <label>
         <span className="field-label">Intitulé</span>
-        <input autoFocus value={newTitle} onChange={(e) => setNewTitle(e.target.value)} placeholder="Ex. Prendre rendez-vous pour la biométrie" className="input" />
+        <input
+          autoFocus
+          required
+          maxLength={200}
+          value={newTitle}
+          onChange={(e) => setNewTitle(e.target.value)}
+          placeholder="Ex. Prendre rendez-vous pour la biométrie"
+          className="input"
+        />
       </label>
       <label>
         <span className="field-label">Échéance</span>
@@ -255,16 +291,33 @@ export function ParcoursBoard({ initialSteps, fundsStat, profileDate, network, i
         <button type="button" onClick={() => setAdding(false)} className="btn btn-ghost">
           Annuler
         </button>
-        <button type="submit" disabled={!newTitle.trim()} className="btn btn-primary">
-          Ajouter
+        <button type="submit" disabled={!newTitle.trim() || addBusy} className="btn btn-primary">
+          {addBusy ? "Ajout…" : "Ajouter"}
         </button>
       </div>
+      {addError && (
+        <p role="alert" className="text-[12.5px] font-semibold text-bad sm:col-span-4">
+          {addError}
+        </p>
+      )}
     </form>
   );
 
   const emptyList = (
     <EmptyState icon={<IconRoute size={20} />} title={filter === "late" ? "Aucune étape en retard" : "Aucune étape à afficher"}>
-      {query ? "Aucun résultat pour cette recherche." : filter === "late" ? "Toutes les échéances sont tenues." : "Changez de filtre pour voir d'autres étapes."}
+      {query ? `Aucun résultat pour « ${query.trim()} ».` : filter === "late" ? "Toutes les échéances sont tenues." : scope.length === 0 ? "Ajoutez une première étape avec le bouton « + »." : "Changez de filtre pour voir d'autres étapes."}
+      {(query || filter !== "all") && scope.length > 0 && (
+        <button
+          type="button"
+          onClick={() => {
+            setQuery("");
+            setFilter("all");
+          }}
+          className="btn btn-sm btn-ghost mt-3"
+        >
+          Afficher toutes les étapes
+        </button>
+      )}
     </EmptyState>
   );
 
@@ -294,16 +347,19 @@ export function ParcoursBoard({ initialSteps, fundsStat, profileDate, network, i
             : null
         }
       >
-        <div role="tablist" aria-label="Phases du parcours" className="no-scrollbar -mb-px flex gap-1 overflow-x-auto px-3 sm:px-5">
+        <div role="tablist" aria-label="Phases du parcours" onKeyDown={onTabKey} className="no-scrollbar -mb-px flex gap-1 overflow-x-auto px-3 sm:px-5">
           {tabs.map((t) => {
             const on = tab === t.key;
             const p = typeof t.key === "number" ? phases[t.key] : null;
             return (
               <button
                 key={String(t.key)}
+                id={`parcours-tab-${tabToHash(t.key)}`}
                 type="button"
                 role="tab"
                 aria-selected={on}
+                aria-controls="parcours-panel"
+                tabIndex={on ? 0 : -1}
                 title={t.title}
                 onClick={() => selectTab(t.key)}
                 className={`flex shrink-0 items-center gap-1.5 rounded-t-lg px-3 py-2.5 text-[13px] font-semibold whitespace-nowrap transition-colors ${
@@ -329,7 +385,7 @@ export function ParcoursBoard({ initialSteps, fundsStat, profileDate, network, i
         </div>
       </Hero>
 
-      <div className="mt-5" role="tabpanel">
+      <div className="mt-5" role="tabpanel" id="parcours-panel" aria-labelledby={`parcours-tab-${tabToHash(tab)}`}>
         {tab === "apercu" && (
           <div className="flex flex-col gap-5">
             <StatsRow stats={stats} className="" />
@@ -342,6 +398,11 @@ export function ParcoursBoard({ initialSteps, fundsStat, profileDate, network, i
                 sub="Échéance dépassée, à traiter en priorité."
                 count={lateSteps.length}
                 empty="Aucune étape en retard. Bravo !"
+                onMore={() => {
+                  selectTab("toutes");
+                  setFilter("late");
+                }}
+                moreLabel="Voir toutes les étapes en retard"
               >
                 {lateSteps.slice(0, 6).map((s) => (
                   <StepRow key={s.id} step={s} onSelect={() => setSelectedId(s.id)} showPhase />
@@ -353,6 +414,8 @@ export function ParcoursBoard({ initialSteps, fundsStat, profileDate, network, i
                 sub="Les échéances qui arrivent."
                 count={soonSteps.length}
                 empty="Aucune échéance dans les 30 prochains jours."
+                onMore={() => selectTab("toutes")}
+                moreLabel="Voir toutes les étapes à venir"
               >
                 {soonSteps.slice(0, 6).map((s) => (
                   <StepRow key={s.id} step={s} onSelect={() => setSelectedId(s.id)} showPhase />
@@ -570,6 +633,8 @@ function ListCard({
   sub,
   count,
   empty,
+  onMore,
+  moreLabel,
   children,
 }: {
   icon: ReactNode;
@@ -578,6 +643,8 @@ function ListCard({
   sub: string;
   count: number;
   empty: string;
+  onMore?: () => void;
+  moreLabel?: string;
   children: ReactNode;
 }) {
   return (
@@ -591,7 +658,20 @@ function ListCard({
         <span className="mono text-[13px] font-semibold text-muted">{count}</span>
       </div>
       {count === 0 ? <p className="border-t border-line px-4 py-6 text-center text-[13px] text-muted sm:px-5">{empty}</p> : <ul>{children}</ul>}
-      {count > 6 && <p className="border-t border-line px-4 py-2 text-[12px] text-muted sm:px-5">et {count - 6} autre(s)…</p>}
+      {count > 6 &&
+        (onMore ? (
+          <button
+            type="button"
+            onClick={onMore}
+            aria-label={moreLabel}
+            className="flex w-full items-center justify-between gap-2 border-t border-line px-4 py-2.5 text-left text-[12.5px] font-semibold text-act hover:bg-surface-2/70 sm:px-5"
+          >
+            et {count - 6} autre(s)
+            <IconArrowRight size={14} />
+          </button>
+        ) : (
+          <p className="border-t border-line px-4 py-2 text-[12px] text-muted sm:px-5">et {count - 6} autre(s)…</p>
+        ))}
     </section>
   );
 }

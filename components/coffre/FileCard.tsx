@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import type { VaultFile } from "@/lib/types";
 import { formatSize } from "@/components/FileDropzone";
 import { IconFile, IconFolder, IconImage } from "@/components/icons";
@@ -7,6 +8,8 @@ import { fileKind, isPdf } from "./FilePreview";
 
 export function FileCard({ file, thumb, doc, folder, onOpen }: { file: VaultFile; thumb?: string; doc: string; folder?: string | null; onOpen: () => void }) {
   const pdf = isPdf(file);
+  // Vignette illisible : on retombe sur l'icône plutôt qu'une image cassée.
+  const [thumbFailed, setThumbFailed] = useState(false);
   return (
     <li>
       <button type="button" onClick={onOpen} className="card group flex w-full flex-col overflow-hidden text-left transition-shadow hover:ring-2 hover:ring-act/30" title={`Aperçu de ${file.name}`}>
@@ -23,9 +26,9 @@ export function FileCard({ file, thumb, doc, folder, onOpen }: { file: VaultFile
                 <span className="mono absolute bottom-[14%] rounded bg-bad px-1.5 py-0.5 text-[10px] font-bold text-white">PDF</span>
               </span>
             </span>
-          ) : thumb ? (
+          ) : thumb && !thumbFailed ? (
             // eslint-disable-next-line @next/next/no-img-element -- vignette servie par lien signé temporaire
-            <img src={thumb} alt="" className="absolute inset-0 h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]" />
+            <img src={thumb} alt="" loading="lazy" decoding="async" onError={() => setThumbFailed(true)} className="absolute inset-0 h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]" />
           ) : (
             <span className="absolute inset-0 grid place-items-center text-faint">
               <IconImage size={26} />

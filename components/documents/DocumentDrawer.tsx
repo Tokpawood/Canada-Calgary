@@ -1,6 +1,8 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { joinUploadErrors } from "@/lib/documents";
+import { StatusMessage } from "@/components/coffre/StatusMessage";
 import { createPortal } from "react-dom";
 import { FilePreview } from "@/components/coffre/FilePreview";
 import { createClient } from "@/lib/supabase/client";
@@ -33,6 +35,17 @@ export function DocumentDrawer({ doc, onChange, onDelete, onClose }: Props) {
   const [uploading, setUploading] = useState(false);
   const [uploadPct, setUploadPct] = useState<number | null>(null);
   const [uploadCount, setUploadCount] = useState<string | undefined>(undefined);
+  const [actionError, setActionError] = useState<string | null>(null);
+  // Dernière version de la fiche : les envois longs ne doivent pas écraser un contrôle coché entre-temps.
+  const docRef = useRef(doc);
+  useEffect(() => {
+    docRef.current = doc;
+  }, [doc]);
+  const patchDoc = (patch: (d: DocumentRecord) => DocumentRecord) => {
+    const next = patch(docRef.current);
+    docRef.current = next;
+    onChange(next);
+  };
 
   const [warn, setWarn] = useState(false);
   const [tab, setTab] = useState<"controles" | "scans" | "infos" | "liens">("controles");
@@ -109,15 +122,21 @@ export function DocumentDrawer({ doc, onChange, onDelete, onClose }: Props) {
   }
 
   async function toggleCheck(checkId: string, done: boolean) {
-    onChange({ ...doc, checks: doc.checks.map((c) => (c.id === checkId ? { ...c, done } : c)) });
-    await supabase.from("document_check").update({ done }).eq("id", checkId);
+    setActionError(null);
+    patchDoc((d) => ({ ...d, checks: d.checks.map((c) => (c.id === checkId ? { ...c, done } : c)) }));
+    const { error } = await supabase.from("document_check").update({ done }).eq("id", checkId);
+    if (error) {
+      patchDoc((d) => ({ ...d, checks: d.checks.map((c) => (c.id === checkId ? { ...c, done: !done } : c)) }));
+      setActionError(`Le contrôle n'a pas pu être enregistré : ${error.message}`);
+    }
   }
 
   async function handleUpload(fileList: FileList) {
     setUploading(true);
     setUploadNotice(null);
     setUploadError(null);
-    let files = doc.files;
+    const errors: string[] = [];
+    const swapped: string[] = [];
     const list = Array.from(fileList);
     const progress = new Map<File, number>();
     setUploadPct(0);
@@ -130,13 +149,17 @@ export function DocumentDrawer({ doc, onChange, onDelete, onClose }: Props) {
         finished += 1;
         setUploadCount(`${finished} fichier${finished > 1 ? "s" : ""} sur ${list.length} terminé${finished > 1 ? "s" : ""}`);
         if (res.error || !res.file) {
-          setUploadError(`${file.name} : ${res.error ?? "fichier refusé."}`);
+          errors.push(`${file.name} : ${res.error ?? "fichier refusé."}`);
+          setUploadError(joinUploadErrors(errors));
           return;
         }
+        const saved = res.file;
         const oldId = res.replaced?.id;
-        files = [...files.filter((f) => f.id !== oldId), res.file];
-        onChange({ ...doc, files });
-        if (res.replaced) setUploadNotice(`${res.file.name} : nouvelle version enregistrée, l'ancienne est conservée dans Coffre › Remplacés.`);
+        patchDoc((d) => ({ ...d, files: [...d.files.filter((f) => f.id !== oldId && f.id !== saved.id), saved] }));
+        if (res.replaced) {
+          swapped.push(saved.name);
+          setUploadNotice(`${swapped.join(", ")} : nouvelle version enregistrée, l'ancienne est conservée dans Coffre › Remplacés.`);
+        }
       },
       (file, p) => {
         progress.set(file, p);
@@ -153,24 +176,31 @@ export function DocumentDrawer({ doc, onChange, onDelete, onClose }: Props) {
   const signUrl = signFileUrl;
 
   async function deleteFile(fileId: string) {
-    const before = doc.files;
-    onChange({ ...doc, files: before.filter((f) => f.id !== fileId) });
+    const removed = docRef.current.files.find((f) => f.id === fileId);
+    setUploadError(null);
+    patchDoc((d) => ({ ...d, files: d.files.filter((f) => f.id !== fileId) }));
     const err = await deleteVaultFile(fileId);
     if (err) {
-      setUploadError(err);
-      onChange({ ...doc, files: before });
+      setUploadError(`${removed?.name ?? "Fichier"} : ${err}`);
+      if (removed) patchDoc((d) => ({ ...d, files: [...d.files, removed] }));
     }
   }
 
   async function handleDeleteDoc() {
-    for (const f of doc.files) {
+    setActionError(null);
+    for (const f of docRef.current.files) {
       const err = await deleteVaultFile(f.id);
       if (err) {
-        setUploadError(`Suppression interrompue (${f.name}) : ${err}`);
+        setActionError(`Suppression interrompue (${f.name}) : ${err}`);
         return;
       }
+      patchDoc((d) => ({ ...d, files: d.files.filter((x) => x.id !== f.id) }));
     }
-    await supabase.from("document").delete().eq("id", doc.id);
+    const { error } = await supabase.from("document").delete().eq("id", doc.id);
+    if (error) {
+      setActionError(`Les scans ont été supprimés, mais pas la fiche : ${error.message}`);
+      return;
+    }
     onDelete();
   }
 
@@ -229,6 +259,11 @@ export function DocumentDrawer({ doc, onChange, onDelete, onClose }: Props) {
         </div>
       }
     >
+      {actionError && (
+        <StatusMessage tone="bad" onDismiss={() => setActionError(null)} className="mb-4">
+          {actionError}
+        </StatusMessage>
+      )}
       {v.status === "Obtenu" && incompleteChecks && tab !== "controles" && (
         <button
           type="button"
@@ -332,8 +367,19 @@ export function DocumentDrawer({ doc, onChange, onDelete, onClose }: Props) {
           </ul>
         )}
         <FileDropzone compact busy={uploading} progress={uploadPct} progressLabel={uploadCount} onFiles={handleUpload} title="Ajouter des scans" />
-        {uploadError && <p className="mt-1.5 text-[12px] text-bad">{uploadError}</p>}
-        {uploadNotice && <p className="mt-1.5 text-[12px] text-ok" role="status">{uploadNotice}</p>}
+        {uploadError && (
+          <StatusMessage tone="bad" onDismiss={() => setUploadError(null)} className="mt-2">
+            {uploadError}
+          </StatusMessage>
+        )}
+        {uploadNotice && (
+          <StatusMessage tone="ok" onDismiss={() => setUploadNotice(null)} className="mt-2">
+            {uploadNotice}
+          </StatusMessage>
+        )}
+        {doc.files.length === 0 && doc.status === "Obtenu" && !uploading && (
+          <p className="mt-2 text-[12px] text-muted">Pièce obtenue : déposez son scan pour l&apos;avoir sous la main au moment du dépôt.</p>
+        )}
       </DrawerCard>
       )}
         {previewIndex >= 0 &&

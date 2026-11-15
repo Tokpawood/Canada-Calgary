@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactElement } from "react";
 import { createClient } from "@/lib/supabase/client";
 import type { Contact } from "@/lib/types";
 import { PERSON_FIELDS, canReportTo, personLabel, type ContactPerson, type ContactStepLink, type PersonField, type StepLite } from "@/lib/network";
@@ -9,7 +9,7 @@ import { ConfirmButton, Drawer, Field, STEP_TONE, TONE_DOT, fmtShortDate } from 
 import { EditBar, useEditable } from "@/components/editable";
 import { HeaderTabs } from "@/components/DarkHeader";
 import { DrawerCard, DrawerFacts, DrawerTitle, ReadRow } from "@/components/DrawerParts";
-import { IconChevronLeft, IconLink, IconTrash, IconX } from "@/components/icons";
+import { IconChevronLeft, IconLink, IconMail, IconPhone, IconTrash, IconX } from "@/components/icons";
 import { CopyButton } from "@/components/profil/FieldGrid";
 import { contactLink, initials } from "./contactLink";
 import { PhotoBadge, PhotoPicker } from "./PhotoPicker";
@@ -43,6 +43,7 @@ export function PersonDrawer(props: Props) {
   const { dossierId, person: p, contacts, persons, links, steps, initialTab = "identite", backLabel, onBack, onChange, onMoved, onDeleted, onLinkAdd, onLinkRemove, onOpenStep, onOpenOrg, onClose } = props;
   const [tab, setTab] = useState<Tab>(initialTab);
   const [warn, setWarn] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const org = p.contactId ? contacts.find((c) => c.id === p.contactId) : undefined;
   const boss = p.parentId ? persons.find((x) => x.id === p.parentId) : undefined;
 
@@ -78,6 +79,14 @@ export function PersonDrawer(props: Props) {
     if (ed.dirty) return setWarn(true);
     onClose();
   }
+
+  const tel = p.phone.replace(/[^\d+]/g, "");
+  const wa = p.whatsapp.replace(/[^\d]/g, "");
+  const quick = [
+    tel && { key: "tel", href: `tel:${tel}`, label: "Appeler", icon: <IconPhone size={14} />, external: false },
+    wa && { key: "wa", href: `https://wa.me/${wa}`, label: "WhatsApp", icon: <IconChat />, external: true },
+    p.email && { key: "mail", href: `mailto:${p.email}`, label: "Écrire", icon: <IconMail size={14} />, external: false },
+  ].filter((x): x is { key: string; href: string; label: string; icon: ReactElement; external: boolean } => !!x);
 
   const sub = [p.title, org ? org.org : p.relation || "Personne indépendante"].filter(Boolean).join(" · ");
 
@@ -115,6 +124,22 @@ export function PersonDrawer(props: Props) {
               )}
             </div>
           </div>
+          {!ed.editing && quick.length > 0 && (
+            <div className="mt-3 flex flex-wrap gap-2" aria-label="Contacter">
+              {quick.map((x) => (
+                <a
+                  key={x.key}
+                  href={x.href}
+                  target={x.external ? "_blank" : undefined}
+                  rel="noopener noreferrer"
+                  aria-label={`${x.label} ${p.name}`}
+                  className="inline-flex min-h-9 items-center gap-1.5 rounded-full bg-white/10 px-3.5 py-1.5 text-[12.5px] font-semibold text-night-ink hover:bg-white/20 focus-visible:ring-2 focus-visible:ring-signal focus-visible:outline-none"
+                >
+                  {x.icon} {x.label}
+                </a>
+              ))}
+            </div>
+          )}
           <DrawerFacts
             items={[
               { label: "Téléphone", value: p.phone || p.whatsapp || "—" },
@@ -138,6 +163,11 @@ export function PersonDrawer(props: Props) {
       footer={
         <div>
           {warn && <p className="mb-2 text-[12.5px] font-semibold text-bad">Modifications non enregistrées : enregistrez-les ou annulez avant de fermer.</p>}
+          {deleteError && (
+            <p role="alert" className="mb-2 text-[12.5px] font-semibold text-bad">
+              {deleteError}
+            </p>
+          )}
           <div className="flex items-center justify-between gap-2">
             {ed.editing ? (
               <span className="text-[12.5px] font-semibold text-opt">Modification en cours</span>
@@ -145,12 +175,13 @@ export function PersonDrawer(props: Props) {
               <ConfirmButton
                 label="Supprimer la personne"
                 confirmLabel="Supprimer la fiche"
-                onConfirm={() =>
+                onConfirm={() => {
+                  setDeleteError(null);
                   void deletePerson(p).then(
                     () => onDeleted(p),
-                    () => undefined,
-                  )
-                }
+                    (e: unknown) => setDeleteError(e instanceof Error ? e.message : "Suppression impossible."),
+                  );
+                }}
               >
                 <IconTrash size={14} />
                 <span className="hidden sm:inline">Supprimer</span>
@@ -326,6 +357,15 @@ export function PersonDrawer(props: Props) {
         </DrawerCard>
       )}
     </Drawer>
+  );
+}
+
+/** Bulle de discussion (WhatsApp), définie ici faute d'icône partagée. */
+function IconChat() {
+  return (
+    <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M21 11.5a8.4 8.4 0 0 1-12.3 7.5L3 21l2-5.4A8.5 8.5 0 1 1 21 11.5Z" />
+    </svg>
   );
 }
 

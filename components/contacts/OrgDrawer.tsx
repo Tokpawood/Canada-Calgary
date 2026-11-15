@@ -50,6 +50,8 @@ interface Props {
 export function OrgDrawer({ dossierId, onOpenPerson, onPhoto, contact: c, persons, links, steps, initialTab = "equipe", onSave, onDelete, onPersons, onLinkAdd, onLinkRemove, onOpenStep, onClose }: Props) {
   const [tab, setTab] = useState<OrgTab>(initialTab);
   const [warn, setWarn] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [stageBusy, setStageBusy] = useState(false);
   const saved: OrgDraft = useMemo(() => ({ org: c.org, role: c.role, contact: c.contact, next: c.next, notes: c.notes, stage: c.stage }), [c]);
   const ed = useEditable(saved, async (d) => {
     const patch: Partial<Contact> = {};
@@ -67,7 +69,24 @@ export function OrgDrawer({ dossierId, onOpenPerson, onPhoto, contact: c, person
   }
 
   async function quickStage(label: string) {
-    await onSave({ stage: stageOf(label) });
+    setStageBusy(true);
+    setActionError(null);
+    try {
+      await onSave({ stage: stageOf(label) });
+    } catch (e) {
+      setActionError(e instanceof Error ? e.message : "Changement d'étape impossible.");
+    } finally {
+      setStageBusy(false);
+    }
+  }
+
+  async function remove() {
+    setActionError(null);
+    try {
+      await onDelete();
+    } catch (e) {
+      setActionError(e instanceof Error ? e.message : "Suppression impossible.");
+    }
   }
 
   return (
@@ -97,8 +116,9 @@ export function OrgDrawer({ dossierId, onOpenPerson, onPhoto, contact: c, person
               <select
                 value={stageLabel(c.stage)}
                 onChange={(e) => void quickStage(e.target.value)}
+                disabled={stageBusy}
                 aria-label="Étape de la relation"
-                className="rounded-full border-0 bg-white/10 px-3 py-1 text-[12px] font-semibold text-night-ink outline-none focus:ring-2 focus:ring-signal"
+                className="rounded-full disabled:opacity-60 border-0 bg-white/10 px-3 py-1 text-[12px] font-semibold text-night-ink outline-none focus:ring-2 focus:ring-signal"
               >
                 {CONTACT_STAGES.map((s) => (
                   <option key={s.id} value={s.label} className="text-ink">
@@ -143,11 +163,16 @@ export function OrgDrawer({ dossierId, onOpenPerson, onPhoto, contact: c, person
       footer={
         <div>
           {warn && <p className="mb-2 text-[12.5px] font-semibold text-bad">Modifications non enregistrées : enregistrez-les ou annulez avant de fermer.</p>}
+          {actionError && (
+            <p role="alert" className="mb-2 text-[12.5px] font-semibold text-bad">
+              {actionError}
+            </p>
+          )}
           <div className="flex items-center justify-between gap-2">
             {ed.editing ? (
               <span className="text-[12.5px] font-semibold text-opt">Modification en cours</span>
             ) : (
-              <ConfirmButton label="Supprimer l'organisme" confirmLabel="Supprimer avec son équipe" onConfirm={() => void onDelete()}>
+              <ConfirmButton label="Supprimer l'organisme" confirmLabel={persons.length ? `Supprimer avec ${persons.length} personne${persons.length > 1 ? "s" : ""}` : "Supprimer l'organisme"} onConfirm={() => void remove()}>
                 <IconTrash size={14} />
                 <span className="hidden sm:inline">Supprimer</span>
               </ConfirmButton>

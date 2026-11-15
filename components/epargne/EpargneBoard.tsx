@@ -6,6 +6,7 @@ import { fundsProgress } from "@/lib/rules";
 import type { Dossier, Saving } from "@/lib/types";
 import type { Rates } from "@/lib/currency";
 import { newId } from "@/lib/ids";
+import { fundsError, monthsFromNow, savingsError, suggestNextLabel } from "@/lib/epargne";
 import { EmptyState, PageHeader, fcfa } from "@/components/ui";
 import { EditBar, useEditable } from "@/components/editable";
 import { syncRows } from "@/lib/syncRows";
@@ -23,12 +24,16 @@ export function EpargneBoard({ dossier, initialSavings, rates }: { dossier: Doss
   const supabase = createClient();
 
   const fundsEd = useEditable(funds, async (d) => {
+    const invalid = fundsError(d.fundsMin, d.fundsTarget);
+    if (invalid) throw new Error(invalid);
     const { error } = await supabase.from("dossier").update({ funds_min: d.fundsMin, funds_target: d.fundsTarget }).eq("id", dossier.id);
     if (error) throw error;
     setFunds(d);
   });
 
   const rowsEd = useEditable(savedRows, async (d) => {
+    const invalid = savingsError(d);
+    if (invalid) throw new Error(invalid);
     await syncRows(supabase, "saving", savedRows, d, (s) => ({ label: s.label, planned: s.planned, actual: s.actual, notes: s.notes }), { dossier_id: dossier.id });
     setSavedRows(d);
   });
@@ -57,12 +62,21 @@ export function EpargneBoard({ dossier, initialSavings, rates }: { dossier: Doss
   // IRCC fixe les fonds en dollars canadiens : équivalent au taux du jour, sinon au taux enregistré.
   const cadRate = rates?.perXof.CAD ?? (dossier.cadRate > 0 ? dossier.cadRate : null);
   const inCad = (n: number) => (cadRate ? `≈ ${new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 0 }).format(n / cadRate)} $ CA` : null);
+  const toCad = (n: number) => (cadRate ? Math.round(n / cadRate) : 0);
+  const fundsInvalid = fundsEd.editing ? fundsError(fundsMin, fundsTarget) : null;
+  const rowsInvalid = rowsEd.editing ? savingsError(savings) : null;
+  const totalActual = progress.saved;
+  const totalGap = savings.reduce((s, r) => s + (r.actual != null && r.planned != null ? r.actual - r.planned : 0), 0);
   const rateNote = rates ? `au taux du jour (1 $ CA = ${new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 2 }).format(rates.perXof.CAD)} F)` : "au taux enregistré";
 
   function addRow() {
     setTab("versements");
     if (!rowsEd.editing) rowsEd.start();
-    rowsEd.update((d) => [...d, { id: newId("e"), dossierId: dossier.id, label: "", planned: null, actual: null, notes: "" }]);
+    // Mois suivant le dernier versement et même montant prévu : il ne reste qu'à saisir le versé.
+    rowsEd.update((d) => {
+      const last = d[d.length - 1];
+      return [...d, { id: newId("e"), dossierId: dossier.id, label: suggestNextLabel(d.map((s) => s.label)), planned: last?.planned ?? null, actual: null, notes: "" }];
+    });
   }
 
   function updateRow(id: string, patch: Partial<Saving>) {
@@ -97,7 +111,7 @@ export function EpargneBoard({ dossier, initialSavings, rates }: { dossier: Doss
                 label: "Minimum exigé",
                 value: progress.minReached ? "Atteint" : fcfa(toMin),
                 unit: progress.minReached ? undefined : "F",
-                sub: progress.minReached ? `${fcfa(fundsMin)} F` : monthsToMin != null ? `≈ ${monthsToMin} mois au rythme actuel` : "restant à épargner",
+                sub: progress.minReached ? `${fcfa(fundsMin)} F` : monthsToMin != null ? `≈ ${monthsToMin} mois · ${monthsFromNow(monthsToMin)}` : "restant à épargner",
                 pct: fundsMin ? (progress.saved / fundsMin) * 100 : 0,
                 tone: progress.minReached ? "ok" : "signal",
               },
@@ -105,7 +119,7 @@ export function EpargneBoard({ dossier, initialSavings, rates }: { dossier: Doss
                 label: "Cible",
                 value: progress.targetReached ? "Atteinte" : fcfa(toTarget),
                 unit: progress.targetReached ? undefined : "F",
-                sub: progress.targetReached ? `${fcfa(fundsTarget)} F` : monthsToTarget != null ? `≈ ${monthsToTarget} mois au rythme actuel` : "restant à épargner",
+                sub: progress.targetReached ? `${fcfa(fundsTarget)} F` : monthsToTarget != null ? `≈ ${monthsToTarget} mois · ${monthsFromNow(monthsToTarget)}` : "restant à épargner",
                 pct: progress.pctOfTarget,
                 tone: progress.targetReached ? "ok" : "signal",
               },
@@ -131,7 +145,15 @@ export function EpargneBoard({ dossier, initialSavings, rates }: { dossier: Doss
           <span className="ml-1.5 text-[22px] text-signal">F</span>
         </p>
         <p className="mt-2 text-[13px] text-night-muted">
-          soit <span className="mono font-semibold text-night-ink">{Math.round(progress.pctOfTarget)} %</span> de la cible de {fcfa(fundsTarget)} F
+          {inCad(progress.saved) && <span className="mono text-night-ink">{inCad(progress.saved)}</span>}
+          {inCad(progress.saved) && " · "}
+          {fundsTarget > 0 ? (
+            <>
+              soit <span className="mono font-semibold text-night-ink">{Math.round(progress.pctOfTarget)} %</span> de la cible de {fcfa(fundsTarget)} F
+            </>
+          ) : (
+            "aucune cible définie (onglet Objectifs)"
+          )}
         </p>
         <div className="relative mt-5">
           <div className="h-2.5 overflow-hidden rounded-full bg-white/10">
@@ -222,6 +244,11 @@ export function EpargneBoard({ dossier, initialSavings, rates }: { dossier: Doss
             </div>
             <EditBar edit={rowsEd} />
           </div>
+          {rowsInvalid && (
+            <p role="alert" className="mx-4 mt-3 text-[12.5px] font-semibold text-bad sm:mx-5">
+              {rowsInvalid}
+            </p>
+          )}
           {savings.length === 0 && (
             <p className="px-4 py-8 text-center text-[13px] text-muted">Aucun versement. Utilisez le bouton « Versement » pour en ajouter un.</p>
           )}
@@ -245,24 +272,24 @@ export function EpargneBoard({ dossier, initialSavings, rates }: { dossier: Doss
                   return (
                     <tr key={s.id} className="group border-b border-line last:border-0">
                       <td className="py-1 pr-1 pl-3 sm:pl-4">
-                        <input disabled={off} value={s.label} placeholder="Ex. Décembre 2026" aria-label="Mois" onChange={(e) => updateRow(s.id, { label: e.target.value })} className={`input-ghost font-semibold ${cellEdit}`} />
+                        <input disabled={off} value={s.label} placeholder="Ex. Décembre 2026" aria-label={`Mois, ligne ${i + 1}`} onChange={(e) => updateRow(s.id, { label: e.target.value })} className={`input-ghost font-semibold ${cellEdit}`} />
                       </td>
                       <td className="px-1 py-1">
-                        <input disabled={off} type="number" inputMode="numeric" value={s.planned ?? ""} aria-label="Montant prévu" onChange={(e) => updateRow(s.id, { planned: num(e.target.value) })} className={`input-ghost mono w-28 text-right ${cellEdit}`} />
+                        <input disabled={off} type="number" inputMode="numeric" value={s.planned ?? ""} aria-label={`Montant prévu, ${s.label || `ligne ${i + 1}`}`} min={0} onChange={(e) => updateRow(s.id, { planned: num(e.target.value) })} className={`input-ghost mono w-28 text-right ${cellEdit}`} />
                       </td>
                       <td className="px-1 py-1">
-                        <input disabled={off} type="number" inputMode="numeric" value={s.actual ?? ""} aria-label="Montant versé" onChange={(e) => updateRow(s.id, { actual: num(e.target.value) })} className={`input-ghost mono w-28 text-right ${cellEdit}`} />
+                        <input disabled={off} type="number" inputMode="numeric" value={s.actual ?? ""} aria-label={`Montant versé, ${s.label || `ligne ${i + 1}`}`} min={0} onChange={(e) => updateRow(s.id, { actual: num(e.target.value) })} className={`input-ghost mono w-28 text-right ${cellEdit}`} />
                       </td>
                       <td className={`mono px-2 py-1 text-right text-[12.5px] ${diff == null ? "text-faint" : diff < 0 ? "text-bad" : "text-ok"}`}>
                         {diff == null ? "—" : `${diff > 0 ? "+" : diff < 0 ? "−" : ""}${fcfa(Math.abs(diff))}`}
                       </td>
                       <td className="mono px-2 py-1 text-right text-[12.5px] text-muted">{s.actual == null ? <span className="text-faint">—</span> : fcfa(cumul[i])}</td>
                       <td className="px-1 py-1">
-                        <input disabled={off} value={s.notes} aria-label="Notes" onChange={(e) => updateRow(s.id, { notes: e.target.value })} className={`input-ghost ${cellEdit}`} />
+                        <input disabled={off} value={s.notes} aria-label={`Notes, ${s.label || `ligne ${i + 1}`}`} onChange={(e) => updateRow(s.id, { notes: e.target.value })} className={`input-ghost ${cellEdit}`} />
                       </td>
                       {!off && (
                         <td className="py-1 pr-3 text-right">
-                          <button type="button" onClick={() => deleteRow(s.id)} aria-label="Retirer le versement" title="Retirer le versement" className="btn btn-sm btn-danger">
+                          <button type="button" onClick={() => deleteRow(s.id)} aria-label={`Retirer le versement ${s.label || `ligne ${i + 1}`}`} title="Retirer le versement" className="btn btn-sm btn-danger">
                             <IconTrash size={13} />
                           </button>
                         </td>
@@ -271,6 +298,18 @@ export function EpargneBoard({ dossier, initialSavings, rates }: { dossier: Doss
                   );
                 })}
               </tbody>
+              <tfoot>
+                <tr className="border-t-2 border-line bg-surface-2/60 font-bold">
+                  <td className="px-4 py-2.5 sm:px-5">Total</td>
+                  <td className="mono px-2 py-2.5 text-right">{fcfa(totalPlanned)}</td>
+                  <td className="mono px-2 py-2.5 text-right">{fcfa(totalActual)}</td>
+                  <td className={`mono px-2 py-2.5 text-right text-[12.5px] ${totalGap < 0 ? "text-bad" : "text-ok"}`}>
+                    {`${totalGap > 0 ? "+" : totalGap < 0 ? "−" : ""}${fcfa(Math.abs(totalGap))}`}
+                  </td>
+                  <td className="mono px-2 py-2.5 text-right text-[12.5px] text-muted">{inCad(totalActual) ?? ""}</td>
+                  <td colSpan={off ? 1 : 2} />
+                </tr>
+              </tfoot>
             </table>
           </div>
           )}
@@ -298,7 +337,22 @@ export function EpargneBoard({ dossier, initialSavings, rates }: { dossier: Doss
                   onChange={(e) => fundsEd.set({ fundsMin: Number(e.target.value) || 0 })}
                   className="input mono text-right text-[16px] font-semibold"
                 />
-                {inCad(fundsMin) && <span className="mono mt-1 block text-right text-[12px] text-muted">{inCad(fundsMin)}</span>}
+                {fundsEd.editing && cadRate ? (
+                  <span className="mt-1.5 flex items-center justify-end gap-1.5 text-[12px] text-muted">
+                    ou en $ CA
+                    <input
+                      type="number"
+                      inputMode="numeric"
+                      min={0}
+                      value={toCad(fundsMin) || ""}
+                      onChange={(e) => fundsEd.set({ fundsMin: Math.round((Number(e.target.value) || 0) * cadRate) })}
+                      aria-label="Minimum exigé, en dollars canadiens"
+                      className="input mono w-28 py-1 text-right text-[13px]"
+                    />
+                  </span>
+                ) : (
+                  inCad(fundsMin) && <span className="mono mt-1 block text-right text-[12px] text-muted">{inCad(fundsMin)}</span>
+                )}
               </label>
               <label>
                 <span className="field-label">Cible personnelle (FCFA)</span>
@@ -310,9 +364,30 @@ export function EpargneBoard({ dossier, initialSavings, rates }: { dossier: Doss
                   onChange={(e) => fundsEd.set({ fundsTarget: Number(e.target.value) || 0 })}
                   className="input mono text-right text-[16px] font-semibold"
                 />
-                {inCad(fundsTarget) && <span className="mono mt-1 block text-right text-[12px] text-muted">{inCad(fundsTarget)}</span>}
+                {fundsEd.editing && cadRate ? (
+                  <span className="mt-1.5 flex items-center justify-end gap-1.5 text-[12px] text-muted">
+                    ou en $ CA
+                    <input
+                      type="number"
+                      inputMode="numeric"
+                      min={0}
+                      value={toCad(fundsTarget) || ""}
+                      onChange={(e) => fundsEd.set({ fundsTarget: Math.round((Number(e.target.value) || 0) * cadRate) })}
+                      aria-label="Cible personnelle, en dollars canadiens"
+                      className="input mono w-28 py-1 text-right text-[13px]"
+                    />
+                  </span>
+                ) : (
+                  inCad(fundsTarget) && <span className="mono mt-1 block text-right text-[12px] text-muted">{inCad(fundsTarget)}</span>
+                )}
               </label>
             </div>
+            {fundsInvalid && (
+              <p role="alert" className="mt-3 text-[12.5px] font-semibold text-bad">
+                {fundsInvalid}
+              </p>
+            )}
+            {fundsEd.editing && cadRate && <p className="mt-2 text-[11.5px] text-faint">Le barème IRCC est publié en dollars canadiens : saisissez-le en $ CA, la conversion en FCFA se fait {rateNote}.</p>}
             <div className="mt-5 grid gap-2 sm:grid-cols-2">
               <Goal reached={progress.minReached} label="Minimum exigé" rest={toMin} months={monthsToMin} />
               <Goal reached={progress.targetReached} label="Cible" rest={toTarget} months={monthsToTarget} />
@@ -353,7 +428,7 @@ function Goal({ reached, label, rest, months }: { reached: boolean; label: strin
       </span>
       <span className="text-[13px]">
         <span className="block font-semibold">{label}</span>
-        <span className={reached ? "text-ok" : "text-muted"}>{reached ? "atteint" : <>encore <span className="mono">{fcfa(rest)} F</span>{months != null && <> · ≈ {months} mois</>}</>}</span>
+        <span className={reached ? "text-ok" : "text-muted"}>{reached ? "atteint" : <>encore <span className="mono">{fcfa(rest)} F</span>{months != null && <> · ≈ {months} mois, vers {monthsFromNow(months)}</>}</>}</span>
       </span>
     </div>
   );

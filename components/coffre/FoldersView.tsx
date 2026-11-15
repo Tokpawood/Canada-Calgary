@@ -7,6 +7,7 @@ import { ConfirmButton, EmptyState } from "@/components/ui";
 import { FileDropzone, formatSize } from "@/components/FileDropzone";
 import { IconArrowRight, IconChevronLeft, IconChevronRight, IconCopy, IconFolder, IconFolderPlus, IconPaperclip, IconPencil, IconPlus, IconTrash } from "@/components/icons";
 import { FileCard } from "./FileCard";
+import { StatusMessage } from "./StatusMessage";
 
 export const UNSORTED = "__non-classe__";
 
@@ -170,7 +171,11 @@ export function FoldersView(p: Props) {
           </button>
         </form>
       )}
-      {err && <p className="rounded-lg bg-bad-bg px-3 py-2 text-[12.5px] text-bad">{err}</p>}
+      {err && (
+        <StatusMessage tone="bad" onDismiss={() => setErr(null)}>
+          {err}
+        </StatusMessage>
+      )}
 
       {!unsortedOpen && <NewFolder key={current ?? "racine"} label={folder ? "Nouveau sous-dossier" : "Nouveau dossier"} onCreate={(n) => create(n, current)} />}
 

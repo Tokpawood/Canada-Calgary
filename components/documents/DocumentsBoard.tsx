@@ -10,6 +10,8 @@ import { FilterBar, FilterChip, FilterDivider, FilterGroup, FilterSelect } from 
 import { DarkHeader, DarkTiles, HeaderTabs, useHashTab } from "@/components/DarkHeader";
 import { DocumentDrawer } from "./DocumentDrawer";
 import { DocumentsSidePanel } from "./DocumentsSidePanel";
+import { StatusMessage } from "@/components/coffre/StatusMessage";
+import { matchesDocQuery, obtainedWithPendingChecks, obtainedWithoutScan } from "@/lib/documents";
 
 type FilterKey = "all" | DocumentStatus;
 const STATUSES: DocumentStatus[] = ["Obtenu", "Demandé", "À obtenir"];
@@ -34,15 +36,15 @@ export function DocumentsBoard({ initialDocuments, dossierId, identity, initialG
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
   const [newName, setNewName] = useState("");
+  const [savingNew, setSavingNew] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const supabase = createClient();
 
   const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
     return documents.filter((d) => {
       if (filter !== "all" && d.status !== filter) return false;
       if (reqFilter !== "all" && d.req !== reqFilter) return false;
-      if (q && !`${d.name} ${d.use} ${d.from}`.toLowerCase().includes(q)) return false;
-      return true;
+      return matchesDocQuery(d, query);
     });
   }, [documents, filter, reqFilter, query]);
   const withScans = documents.filter((d) => d.files.length > 0).length;
@@ -60,27 +62,37 @@ export function DocumentsBoard({ initialDocuments, dossierId, identity, initialG
 
   async function addDocument() {
     const name = newName.trim();
-    if (!name) return;
+    if (!name || savingNew) return;
+    setSavingNew(true);
+    setError(null);
     const id = newId("d");
-    const { error } = await supabase.from("document").insert({ id, dossier_id: dossierId, name, position: documents.length });
-    if (!error) {
-      setDocuments((prev) => [
-        ...prev,
-        { id, dossierId, name, status: "À obtenir", use: "", from: "", date: "", notes: "", req: "Obligatoire", format: "", validity: "", checks: [], links: [], files: [] },
-      ]);
-      setNewName("");
-      setAdding(false);
-      setSelectedId(id);
+    const { error: insertError } = await supabase.from("document").insert({ id, dossier_id: dossierId, name, position: documents.length });
+    setSavingNew(false);
+    if (insertError) {
+      setError(`Le document « ${name} » n'a pas pu être ajouté : ${insertError.message}`);
+      return;
     }
+    setDocuments((prev) => [
+      ...prev,
+      { id, dossierId, name, status: "À obtenir", use: "", from: "", date: "", notes: "", req: "Obligatoire", format: "", validity: "", checks: [], links: [], files: [] },
+    ]);
+    setNewName("");
+    setAdding(false);
+    setSelectedId(id);
   }
 
   const obtained = count("Obtenu");
-  const toCheck = documents.filter((d) => d.status === "Obtenu" && d.checks.some((c) => !c.done));
+  const toCheck = obtainedWithPendingChecks(documents);
+  const toScan = obtainedWithoutScan(documents);
   const openGaps = gaps.filter((g) => !g.done).length;
 
   async function toggleGap(id: string, done: boolean) {
     setGaps((prev) => prev.map((g) => (g.id === id ? { ...g, done } : g)));
-    await supabase.from("gap").update({ done }).eq("id", id);
+    const { error: gapError } = await supabase.from("gap").update({ done }).eq("id", id);
+    if (gapError) {
+      setGaps((prev) => prev.map((g) => (g.id === id ? { ...g, done: !done } : g)));
+      setError(`L'écart n'a pas pu être mis à jour : ${gapError.message}`);
+    }
   }
 
   return (
@@ -123,7 +135,7 @@ export function DocumentsBoard({ initialDocuments, dossierId, identity, initialG
             onSelect={setTab}
             tabs={[
               { id: "pieces", label: "Pièces", icon: <IconFile size={15} />, badge: { text: String(documents.length) } },
-              { id: "controles", label: "À contrôler", icon: <IconCheck size={15} />, badge: incompleteChecks ? { text: String(incompleteChecks), tone: "signal" } : null },
+              { id: "controles", label: "À contrôler", icon: <IconCheck size={15} />, badge: incompleteChecks + toScan.length ? { text: String(incompleteChecks + toScan.length), tone: "signal" } : null },
               { id: "identite", label: "Identité & écarts", icon: <IconShield size={15} />, badge: openGaps ? { text: String(openGaps), tone: "bad" } : null },
             ]}
           />
@@ -158,6 +170,11 @@ export function DocumentsBoard({ initialDocuments, dossierId, identity, initialG
       </DarkHeader>
 
       <div className="mt-5" role="tabpanel">
+      {error && (
+        <StatusMessage tone="bad" onDismiss={() => setError(null)} className="mb-4">
+          {error}
+        </StatusMessage>
+      )}
       {tab === "controles" && (
         <section className="card overflow-hidden">
           <div className="px-4 pt-4 pb-3 sm:px-5">
@@ -165,7 +182,9 @@ export function DocumentsBoard({ initialDocuments, dossierId, identity, initialG
             <p className="text-[12.5px] text-muted">Pièces obtenues dont certains contrôles ne sont pas encore cochés. Ouvrez une pièce pour les cocher.</p>
           </div>
           {toCheck.length === 0 ? (
-            <p className="border-t border-line px-4 py-8 text-center text-[13px] text-muted">Toutes les pièces obtenues sont contrôlées.</p>
+            <p className="border-t border-line px-4 py-8 text-center text-[13px] text-muted">
+              {obtained > 0 ? "Toutes les pièces obtenues sont contrôlées." : "Aucune pièce obtenue pour l'instant : les contrôles à faire apparaîtront ici."}
+            </p>
           ) : (
             <ul>
               {toCheck.map((d) => {
@@ -195,6 +214,31 @@ export function DocumentsBoard({ initialDocuments, dossierId, identity, initialG
               })}
             </ul>
           )}
+        </section>
+      )}
+
+      {tab === "controles" && toScan.length > 0 && (
+        <section className="card mt-4 overflow-hidden">
+          <div className="px-4 pt-4 pb-3 sm:px-5">
+            <h2 className="text-[16px] font-bold">Obtenues mais pas encore numérisées</h2>
+            <p className="text-[12.5px] text-muted">Ces pièces n&apos;ont aucun scan au coffre. Ouvrez-en une pour déposer son scan (onglet Scans).</p>
+          </div>
+          <ul>
+            {toScan.map((d) => (
+              <li key={d.id} className="border-t border-line">
+                <button type="button" onClick={() => setSelectedId(d.id)} className="flex w-full items-center gap-3 px-4 py-3 text-left hover:bg-surface-2/70 sm:px-5">
+                  <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-surface-2 text-muted" aria-hidden>
+                    <IconPaperclip size={15} />
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-[14px] font-semibold">{d.name}</span>
+                    {d.from && <span className="block truncate text-[12px] text-muted">{d.from}</span>}
+                  </span>
+                  {d.req === "Obligatoire" && <span className="shrink-0 text-[11px] font-semibold text-bad">Obligatoire</span>}
+                </button>
+              </li>
+            ))}
+          </ul>
         </section>
       )}
 
@@ -247,20 +291,41 @@ export function DocumentsBoard({ initialDocuments, dossierId, identity, initialG
         >
           <label className="min-w-[220px] flex-1">
             <span className="field-label">Nom du document</span>
-            <input autoFocus value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="Ex. Relevé de notes du Bachelor" className="input" />
+            <input
+              autoFocus
+              value={newName}
+              onChange={(e) => setNewName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Escape") setAdding(false);
+              }}
+              maxLength={160}
+              placeholder="Ex. Relevé de notes du Bachelor"
+              className="input"
+            />
           </label>
-          <button type="button" onClick={() => setAdding(false)} className="btn btn-ghost">
+          <button
+            type="button"
+            onClick={() => {
+              setAdding(false);
+              setNewName("");
+            }}
+            className="btn btn-ghost"
+          >
             Annuler
           </button>
-          <button type="submit" disabled={!newName.trim()} className="btn btn-primary">
-            Ajouter
+          <button type="submit" disabled={!newName.trim() || savingNew} className="btn btn-primary">
+            {savingNew ? "Ajout…" : "Ajouter"}
           </button>
         </form>
       )}
 
       {filtered.length === 0 ? (
         <EmptyState icon={<IconFile size={20} />} title="Aucun document">
-          {query ? "Aucun résultat pour cette recherche." : "Aucun document dans cette catégorie."}
+          {documents.length === 0
+            ? "Ajoutez votre première pièce avec le bouton « Document » (passeport, diplômes, relevés…)."
+            : query
+              ? "Aucun résultat pour cette recherche."
+              : "Aucun document dans cette catégorie."}
         </EmptyState>
       ) : (
         <ul className="card overflow-hidden">

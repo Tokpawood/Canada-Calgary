@@ -1,10 +1,15 @@
+import Link from "next/link";
 import type { ReactNode } from "react";
 import { IconCheck, IconLock } from "./icons";
 import { Logo } from "./Logo";
+import { APP_NAME } from "./PublicFrame";
 
 const POINTS = ["Étapes, échéances et rappels", "Documents contrôlés et coffre privé", "Budget, épargne et grille de points"];
 
-/** Cadre des écrans d'accès : panneau sombre (trajet ABJ → YYC) et carte de formulaire. */
+/**
+ * Cadre des écrans d'accès : panneau sombre (trajet vers YYC) et carte de formulaire.
+ * Écran public : aucun nom ni aucune information personnelle du titulaire (ni sa ville de départ).
+ */
 export function AuthFrame({ children }: { children: ReactNode }) {
   return (
     <div className="grid min-h-screen bg-bg lg:grid-cols-[minmax(0,1.05fr)_minmax(0,1fr)]">
@@ -19,10 +24,8 @@ export function AuthFrame({ children }: { children: ReactNode }) {
         <div className="anim-rise relative flex items-center gap-3">
           <Logo size={46} />
           <span>
-            <span className="flex items-baseline gap-2 font-mono text-[20px] font-semibold tracking-wide">
-              ABJ <span className="text-signal">→</span> YYC
-            </span>
-            <span className="block text-[12px] text-night-muted">Entrée express · Calgary</span>
+            <span className="block font-display text-[20px] font-extrabold">{APP_NAME}</span>
+            <span className="block text-[12px] text-night-muted">Suivi de dossier Entrée express</span>
           </span>
         </div>
 
@@ -33,11 +36,11 @@ export function AuthFrame({ children }: { children: ReactNode }) {
             <circle cx="12" cy="112" r="5" fill="var(--signal)" />
             <circle cx="12" cy="112" r="5" fill="none" stroke="var(--signal)" strokeWidth="2" className="pulse-ring" />
             <circle cx="408" cy="112" r="5" fill="none" stroke="rgba(255,255,255,0.6)" strokeWidth="2" />
-            <text x="12" y="130" fill="var(--night-muted)" fontSize="13" fontFamily="var(--font-mono)" textAnchor="middle">ABJ</text>
+            <text x="12" y="130" fill="var(--night-muted)" fontSize="13" fontFamily="var(--font-mono)" textAnchor="start">Départ</text>
             <text x="408" y="130" fill="var(--night-muted)" fontSize="13" fontFamily="var(--font-mono)" textAnchor="middle">YYC</text>
           </svg>
           <h1 className="anim-rise [animation-delay:120ms] max-w-lg font-display text-[40px] leading-[1.05] font-extrabold tracking-tight">
-            Votre dossier Entrée express, d&apos;Abidjan à <span className="text-signal">Calgary</span>.
+            Votre dossier Entrée express, étape par étape jusqu&apos;à <span className="text-signal">Calgary</span>.
           </h1>
           <ul className="stagger mt-7 flex flex-col gap-3 text-[14.5px] text-night-muted">
             {POINTS.map((p) => (
@@ -55,14 +58,29 @@ export function AuthFrame({ children }: { children: ReactNode }) {
         </div>
       </div>
 
-      <div className="flex flex-col items-center justify-center px-5 py-10 sm:px-10">
-        <div className="mb-8 flex items-center gap-2.5 lg:hidden">
+      <div
+        className="flex flex-col items-center justify-center px-4 py-10 sm:px-10"
+        style={{ paddingTop: "max(2.5rem, env(safe-area-inset-top, 0px))", paddingBottom: "max(2.5rem, env(safe-area-inset-bottom, 0px))" }}
+      >
+        <Link href="/" className="mb-8 flex items-center gap-2.5 lg:hidden">
           <Logo size={42} />
-          <span className="font-mono text-[20px] font-semibold">
-            ABJ <span className="text-signal">→</span> YYC
+          <span>
+            <span className="block font-display text-[18px] font-extrabold">{APP_NAME}</span>
+            <span className="block text-[12px] text-muted">Suivi de dossier Entrée express</span>
           </span>
-        </div>
-        <div className="anim-pop card w-full max-w-[440px] p-6 sm:p-8">{children}</div>
+        </Link>
+        <main className="anim-pop card w-full max-w-[440px] p-6 sm:p-8">{children}</main>
+        <nav aria-label="Informations" className="mt-6 flex flex-wrap justify-center gap-x-5 gap-y-2 text-[12.5px] text-muted">
+          <Link href="/" className="hover:text-ink">
+            Accueil
+          </Link>
+          <Link href="/confidentialite" className="hover:text-ink">
+            Règles de confidentialité
+          </Link>
+          <Link href="/conditions" className="hover:text-ink">
+            Conditions d&apos;utilisation
+          </Link>
+        </nav>
       </div>
     </div>
   );
