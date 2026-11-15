@@ -51,6 +51,9 @@ export function FileCard({ file, thumb, doc, folder, onOpen }: { file: VaultFile
               ? ` · remplacé le ${new Date(file.replacedAt).toLocaleDateString("fr-FR", { day: "numeric", month: "short" })}`
               : file.uploadedAt && ` · ${new Date(file.uploadedAt).toLocaleDateString("fr-FR", { day: "numeric", month: "short" })}`}
           </span>
+          {!file.replacedAt && (
+            <span className={`mt-0.5 block text-[11px] ${file.onDrive ? "text-ok" : "text-faint"}`}>{file.onDrive ? "✓ Sauvegardé sur Drive" : "Sauvegarde Drive en cours"}</span>
+          )}
         </span>
       </button>
     </li>

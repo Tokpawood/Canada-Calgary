@@ -14,7 +14,7 @@ export async function PATCH(request: NextRequest, { params }: Ctx) {
     const clean = cleanFolderName(name);
     if (!clean) return NextResponse.json({ error: "Donnez un nom au dossier (80 caractères au plus)." }, { status: 400 });
     const { data, error } = await supabase.from("vault_folder").update({ name: clean }).eq("id", id).eq("dossier_id", dossierId).select("*").maybeSingle();
-    if (error?.code === "23505") return NextResponse.json({ error: `Un dossier « ${clean} » existe déjà.` }, { status: 409 });
+    if (error?.code === "23505") return NextResponse.json({ error: `Un dossier « ${clean} » existe déjà ici.` }, { status: 409 });
     if (error || !data) return NextResponse.json({ error: "Dossier introuvable." }, { status: 404 });
     const conn = await getConnection(dossierId);
     const driveId = conn?.folders[`folder:${id}`];
@@ -33,7 +33,11 @@ export async function DELETE(_request: NextRequest, { params }: Ctx) {
   try {
     const { id } = await params;
     const { supabase, dossierId } = await requireOwner();
-    const { count } = await supabase.from("file").select("id", { count: "exact", head: true }).eq("folder_id", id).is("replaced_at", null);
+    const [{ count }, { count: subCount }] = await Promise.all([
+      supabase.from("file").select("id", { count: "exact", head: true }).eq("folder_id", id).is("replaced_at", null),
+      supabase.from("vault_folder").select("id", { count: "exact", head: true }).eq("parent_id", id),
+    ]);
+    if (subCount) return NextResponse.json({ error: "Le dossier contient des sous-dossiers : supprimez-les d'abord." }, { status: 409 });
     if (count) return NextResponse.json({ error: "Le dossier contient encore des fichiers : déplacez-les ou supprimez-les d'abord." }, { status: 409 });
     const { error } = await supabase.from("vault_folder").delete().eq("id", id).eq("dossier_id", dossierId);
     if (error) return NextResponse.json({ error: "Suppression impossible." }, { status: 500 });

@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useState } from "react";
 import type { VaultFile } from "@/lib/types";
 import { ConfirmButton } from "./ui";
 import { IconFile, IconImage, IconTrash, IconUpload } from "./icons";
@@ -42,25 +42,29 @@ export function FileDropzone({
   hint = "PDF, JPEG, PNG ou WEBP · 20 Mo maximum",
   compact = false,
   progress = null,
+  progressLabel,
 }: {
   onFiles: (files: FileList) => void;
   busy?: boolean;
   /** Avancement de l'envoi en cours (0 à 1). */
   progress?: number | null;
+  /** Ex. « 2 fichiers sur 5 envoyés ». */
+  progressLabel?: string;
   accept?: string;
   multiple?: boolean;
   title?: string;
   hint?: string;
   compact?: boolean;
 }) {
-  const input = useRef<HTMLInputElement>(null);
   const [over, setOver] = useState(false);
+  const pct = progress != null ? Math.round(progress * 100) : null;
 
+  // Toute la zone est un <label> : un toucher n'importe où ouvre le choix des fichiers.
   return (
-    <div
+    <label
       onDragOver={(e) => {
         e.preventDefault();
-        setOver(true);
+        if (!busy) setOver(true);
       }}
       onDragLeave={() => setOver(false)}
       onDrop={(e) => {
@@ -68,29 +72,37 @@ export function FileDropzone({
         setOver(false);
         if (!busy && e.dataTransfer.files.length) onFiles(e.dataTransfer.files);
       }}
-      className={`relative flex items-center gap-3 rounded-2xl border-2 border-dashed transition-colors ${
-        over ? "border-act bg-act-soft" : "border-line bg-surface-2/50 hover:border-act/50"
+      aria-busy={busy || undefined}
+      className={`relative flex items-center gap-3 rounded-2xl border-2 border-dashed transition-colors focus-within:border-act ${
+        busy ? "cursor-progress border-act/40 bg-act-soft/40" : over ? "cursor-copy border-act bg-act-soft" : "cursor-pointer border-line bg-surface-2/50 hover:border-act/50 hover:bg-act-soft/40"
       } ${compact ? "px-4 py-3" : "flex-col px-6 py-8 text-center"}`}
     >
       <span className={`grid shrink-0 place-items-center rounded-full bg-act-soft text-act ${compact ? "h-9 w-9" : "h-12 w-12"}`}>
         <IconUpload size={compact ? 17 : 21} />
       </span>
-      <div className={compact ? "min-w-0 flex-1" : ""}>
-        <p className="text-[14px] font-semibold">{busy ? `Envoi en cours${progress != null ? ` · ${Math.round(progress * 100)} %` : "…"}` : title}</p>
-        {busy && progress != null && (
-          <span className="mt-1.5 block h-1.5 w-full min-w-[140px] overflow-hidden rounded-full bg-line" aria-hidden>
-            <span className="block h-full rounded-full bg-act transition-[width] duration-200" style={{ width: `${Math.max(3, progress * 100)}%` }} />
+      <span className={`block ${compact ? "min-w-0 flex-1" : "w-full max-w-sm"}`}>
+        <span className="block text-[14px] font-semibold">{busy ? `Envoi en cours${pct != null ? ` · ${pct} %` : "…"}` : title}</span>
+        {busy ? (
+          <>
+            <span
+              role="progressbar"
+              aria-label="Avancement de l'envoi"
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-valuenow={pct ?? undefined}
+              className="mt-2 block h-2 w-full min-w-[140px] overflow-hidden rounded-full bg-line"
+            >
+              <span className="block h-full rounded-full bg-act transition-[width] duration-200 ease-out" style={{ width: `${Math.max(3, pct ?? 3)}%` }} />
+            </span>
+            {progressLabel && <span className="mt-1 block text-[12px] text-muted">{progressLabel}</span>}
+          </>
+        ) : (
+          <span className="block text-[12px] text-muted">
+            {hint} · touchez ici ou glissez vos fichiers{multiple ? " (plusieurs à la fois)" : ""}
           </span>
         )}
-        <p className="text-[12px] text-muted">
-          {hint} — ou{" "}
-          <button type="button" disabled={busy} onClick={() => input.current?.click()} className="font-semibold text-act underline-offset-2 hover:underline">
-            parcourir
-          </button>
-        </p>
-      </div>
+      </span>
       <input
-        ref={input}
         type="file"
         accept={accept}
         multiple={multiple}
@@ -102,6 +114,6 @@ export function FileDropzone({
         }}
         className="sr-only"
       />
-    </div>
+    </label>
   );
 }

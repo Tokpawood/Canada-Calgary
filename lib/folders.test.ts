@@ -22,3 +22,26 @@ describe("type réel d'après les premiers octets", () => {
     expect(sniffBytes(new Uint8Array())).toBeNull();
   });
 });
+
+describe("sous-dossiers", () => {
+  const F = (id: string, name: string, parentId: string | null) => ({ id, name, parentId, createdAt: "" });
+  const folders = [F("a", "Bulletins", null), F("b", "2023", "a"), F("c", "Trimestre 1", "b"), F("d", "Reçus de loyer", null)];
+
+  it("chemin complet et options triées avec profondeur", async () => {
+    const { folderPath, folderOptions, folderChain } = await import("./folders");
+    expect(folderPath(folders, "c")).toBe("Bulletins › 2023 › Trimestre 1");
+    expect(folderChain(folders, "b").map((f) => f.id)).toEqual(["a", "b"]);
+    expect(folderPath(folders, null)).toBeNull();
+    expect(folderOptions(folders).map((o) => [o.label, o.depth])).toEqual([
+      ["Bulletins", 0],
+      ["Bulletins › 2023", 1],
+      ["Bulletins › 2023 › Trimestre 1", 2],
+      ["Reçus de loyer", 0],
+    ]);
+  });
+
+  it("résiste à une boucle", async () => {
+    const { folderChain } = await import("./folders");
+    expect(folderChain([F("x", "X", "y"), F("y", "Y", "x")], "x").length).toBe(2);
+  });
+});

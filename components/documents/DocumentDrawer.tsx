@@ -32,6 +32,7 @@ export function DocumentDrawer({ doc, onChange, onDelete, onClose }: Props) {
   const [uploadNotice, setUploadNotice] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [uploadPct, setUploadPct] = useState<number | null>(null);
+  const [uploadCount, setUploadCount] = useState<string | undefined>(undefined);
 
   const [warn, setWarn] = useState(false);
   const [tab, setTab] = useState<"controles" | "scans" | "infos" | "liens">("controles");
@@ -120,10 +121,14 @@ export function DocumentDrawer({ doc, onChange, onDelete, onClose }: Props) {
     const list = Array.from(fileList);
     const progress = new Map<File, number>();
     setUploadPct(0);
+    let finished = 0;
+    setUploadCount(`0 fichier sur ${list.length} terminé`);
     await uploadMany(
       list,
       { documentId: doc.id },
       (file, res) => {
+        finished += 1;
+        setUploadCount(`${finished} fichier${finished > 1 ? "s" : ""} sur ${list.length} terminé${finished > 1 ? "s" : ""}`);
         if (res.error || !res.file) {
           setUploadError(`${file.name} : ${res.error ?? "fichier refusé."}`);
           return;
@@ -139,6 +144,7 @@ export function DocumentDrawer({ doc, onChange, onDelete, onClose }: Props) {
       },
     );
     setUploadPct(null);
+    setUploadCount(undefined);
     setUploading(false);
   }
 
@@ -325,7 +331,7 @@ export function DocumentDrawer({ doc, onChange, onDelete, onClose }: Props) {
             ))}
           </ul>
         )}
-        <FileDropzone compact busy={uploading} progress={uploadPct} onFiles={handleUpload} title="Ajouter un scan" />
+        <FileDropzone compact busy={uploading} progress={uploadPct} progressLabel={uploadCount} onFiles={handleUpload} title="Ajouter des scans" />
         {uploadError && <p className="mt-1.5 text-[12px] text-bad">{uploadError}</p>}
         {uploadNotice && <p className="mt-1.5 text-[12px] text-ok" role="status">{uploadNotice}</p>}
       </DrawerCard>

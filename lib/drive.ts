@@ -180,7 +180,7 @@ async function createFolder(token: string, name: string, parent?: string): Promi
   return json.id;
 }
 
-async function folderUsable(token: string, id: string): Promise<boolean> {
+export async function folderUsable(token: string, id: string): Promise<boolean> {
   const res = await driveFetch(token, `https://www.googleapis.com/drive/v3/files/${id}?fields=id,trashed`);
   if (!res.ok) return false;
   const json = (await res.json()) as { trashed?: boolean };
@@ -193,14 +193,16 @@ export async function ensureRootFolder(token: string, current: string | null): P
 }
 
 /** Sous-dossier par pièce (« Passeport », « Divers »…), créé à la demande et mémorisé. */
-export async function ensureSubfolder(conn: DriveConnection, token: string, folderKey: string, name: string): Promise<string> {
+/**
+ * Sous-dossier Drive (« Passeport », « Divers », « Bulletins »…), créé à la demande et mémorisé.
+ * `parentId` : dossier Drive parent pour un sous-dossier du Coffre ; sinon la racine de l'application.
+ */
+export async function ensureSubfolder(conn: DriveConnection, token: string, folderKey: string, name: string, parentId?: string): Promise<string> {
   // Chemin rapide : un seul contrôle. Un dossier dont le parent est à la corbeille est lui-même « trashed ».
   const cached = conn.folders[folderKey];
   if (conn.rootFolderId && cached && (await folderUsable(token, cached))) return cached;
   const root = await ensureRootFolder(token, conn.rootFolderId);
-  const known = conn.folders[folderKey];
-  if (root === conn.rootFolderId && known && known !== cached && (await folderUsable(token, known))) return known;
-  const id = await createFolder(token, name.replace(/[\\/]/g, "-").slice(0, 120) || "Divers", root);
+  const id = await createFolder(token, name.replace(/[\\/]/g, "-").slice(0, 120) || "Divers", parentId ?? root);
   const folders = root === conn.rootFolderId ? { ...conn.folders, [folderKey]: id } : { [folderKey]: id };
   await saveConnection(conn.dossierId, { root_folder_id: root, folders });
   conn.rootFolderId = root;

@@ -54,6 +54,8 @@ export interface VaultFile {
   size: number;
   mime: string;
   uploadedAt: string;
+  /** Copie présente sur Google Drive (sauvegarde, ou fichier stocké directement sur Drive). */
+  onDrive: boolean;
   /** Renseigné quand une nouvelle version (même nom, même pièce) a remplacé ce fichier. */
   replacedAt: string | null;
 }

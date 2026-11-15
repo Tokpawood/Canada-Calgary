@@ -27,9 +27,6 @@ export interface UploadOptions {
 /** Au-delà, une photo est réduite avant l'envoi (scan lisible, envoi bien plus rapide). */
 const COMPRESS_ABOVE = 2.5 * 1024 * 1024;
 const MAX_SIDE = 2800;
-/** Taille de requête acceptée par le serveur pour l'envoi relais (de secours). */
-const RELAY_LIMIT = 4 * 1024 * 1024;
-
 /** Réduit une grande photo JPEG/PNG (appareil photo) en JPEG ; renvoie le fichier d'origine sinon. */
 export async function shrinkImage(file: File, mime: string): Promise<File> {
   if ((mime !== "image/jpeg" && mime !== "image/png") || file.size <= COMPRESS_ABOVE || typeof createImageBitmap !== "function") return file;
@@ -62,43 +59,28 @@ async function postJson<T>(url: string, body: unknown): Promise<{ ok: boolean; j
   return { ok: res.ok, json: (await res.json().catch(() => ({}))) as T & { error?: string } };
 }
 
-/** Envoi du fichier directement à Google Drive (adresse de session ouverte par le serveur). */
-function putToDrive(url: string, file: Blob, mime: string, onProgress?: (p: number) => void): Promise<{ id?: string; status: number }> {
+/** Envoi du fichier vers le stockage de l'application (adresse à usage unique), avec avancement. */
+function putToStorage(url: string, file: Blob, mime: string, onProgress?: (p: number) => void): Promise<number> {
   return new Promise((resolve) => {
     const xhr = new XMLHttpRequest();
     xhr.open("PUT", url);
     xhr.setRequestHeader("Content-Type", mime);
+    xhr.setRequestHeader("x-upsert", "false");
+    const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    if (anon) xhr.setRequestHeader("apikey", anon);
     xhr.upload.onprogress = (e) => e.lengthComputable && onProgress?.(e.loaded / e.total);
-    xhr.onload = () => {
-      let id: string | undefined;
-      try {
-        id = (JSON.parse(xhr.responseText) as { id?: string }).id;
-      } catch {
-        id = undefined;
-      }
-      resolve({ id, status: xhr.status });
-    };
-    xhr.onerror = () => resolve({ status: 0 });
+    xhr.onload = () => resolve(xhr.status);
+    xhr.onerror = () => resolve(0);
     xhr.send(file);
   });
 }
 
-async function relayUpload(file: File, opts: UploadOptions): Promise<UploadResult> {
-  const body = new FormData();
-  body.append("file", file);
-  if (opts.documentId) body.append("documentId", opts.documentId);
-  if (opts.folderId) body.append("folderId", opts.folderId);
-  const res = await fetch("/api/files", { method: "POST", body }).catch(() => null);
-  if (!res) return { error: "Serveur injoignable." };
-  const json = (await res.json().catch(() => ({}))) as UploadResult;
-  if (!res.ok || !json.file) return { error: json.error ?? "Envoi refusé." };
-  opts.onProgress?.(1);
-  return { file: json.file, replaced: json.replaced ?? null };
-}
-
-/** Dépose un fichier sur Google Drive : envoi direct depuis le navigateur, relais par le serveur en secours. */
+/**
+ * Dépose un fichier : envoi vers le stockage de l'application (rapide, avec avancement),
+ * puis le serveur l'enregistre et en fait une copie de sauvegarde sur Google Drive.
+ */
 export async function uploadVaultFile(original: File, opts: UploadOptions = {}): Promise<UploadResult> {
-  // Contrôle immédiat côté navigateur ; le serveur refait le contrôle sur le fichier arrivé.
+  // Contrôle immédiat côté navigateur ; le serveur refait le contrôle sur le fichier reçu.
   const first = await validateVaultFile(original);
   if (!first.ok || !first.mime) return { error: first.reason ?? "Fichier refusé." };
   const file = await shrinkImage(original, first.mime);
@@ -106,26 +88,20 @@ export async function uploadVaultFile(original: File, opts: UploadOptions = {}):
   opts.onProgress?.(0.02);
 
   const target = { documentId: opts.documentId ?? null, folderId: opts.folderId ?? null };
-  const session = await postJson<{ uploadUrl?: string }>("/api/files/session", { name: file.name, size: file.size, mime, ...target });
-  if (!session.ok || !session.json.uploadUrl) {
-    // Erreur métier (Drive non connecté, quota…) : inutile de réessayer autrement.
-    return { error: session.json.error ?? "Envoi refusé." };
-  }
+  const session = await postJson<{ uploadUrl?: string; path?: string }>("/api/files/session", { size: file.size, mime, ...target });
+  if (!session.ok || !session.json.uploadUrl || !session.json.path) return { error: session.json.error ?? "Envoi refusé." };
 
-  const put = await putToDrive(session.json.uploadUrl, file, mime, (p) => opts.onProgress?.(0.02 + p * 0.9));
-  if (!put.id) {
-    // Envoi direct bloqué (réseau, navigateur) : on passe par le serveur si la taille le permet.
-    if (file.size <= RELAY_LIMIT) return relayUpload(file, opts);
-    return { error: put.status === 0 ? "Connexion interrompue pendant l'envoi : réessayez." : "Google Drive a refusé l'envoi du fichier." };
-  }
+  let status = await putToStorage(session.json.uploadUrl, file, mime, (p) => opts.onProgress?.(0.03 + p * 0.92));
+  if (status === 0) status = await putToStorage(session.json.uploadUrl, file, mime, (p) => opts.onProgress?.(0.03 + p * 0.92)); // une reprise si le réseau a coupé
+  if (status < 200 || status >= 300) return { error: status === 0 ? "Connexion interrompue pendant l'envoi : réessayez." : "Le serveur a refusé le fichier." };
 
-  const commit = await postJson<UploadResult>("/api/files/commit", { driveFileId: put.id, ...target });
+  const commit = await postJson<UploadResult>("/api/files/commit", { path: session.json.path, name: file.name, ...target });
   if (!commit.ok || !commit.json.file) return { error: commit.json.error ?? "Enregistrement refusé." };
   opts.onProgress?.(1);
   return { file: commit.json.file, replaced: commit.json.replaced ?? null };
 }
 
-/** Envoie plusieurs fichiers en parallèle (3 à la fois) ; `onDone` est appelé pour chacun dès qu'il est fini. */
+/** Envoie plusieurs fichiers en parallèle (4 à la fois) ; `onDone` est appelé pour chacun dès qu'il est fini. */
 export async function uploadMany(
   files: File[],
   opts: Omit<UploadOptions, "onProgress">,
@@ -140,7 +116,7 @@ export async function uploadMany(
       onDone(f, res);
     }
   };
-  await Promise.all(Array.from({ length: Math.min(3, files.length) }, worker));
+  await Promise.all(Array.from({ length: Math.min(4, files.length) }, worker));
 }
 
 export async function deleteVaultFile(id: string): Promise<string | null> {
@@ -158,8 +134,8 @@ export async function moveVaultFile(id: string, folderId: string | null): Promis
   return res.ok && json.file ? { file: json.file } : { error: json.error ?? "Classement refusé." };
 }
 
-export async function createFolder(name: string): Promise<{ folder?: VaultFolder; error?: string }> {
-  const { ok, json } = await postJson<{ folder?: VaultFolder }>("/api/folders", { name });
+export async function createFolder(name: string, parentId: string | null = null): Promise<{ folder?: VaultFolder; error?: string }> {
+  const { ok, json } = await postJson<{ folder?: VaultFolder }>("/api/folders", { name, parentId });
   return ok && json.folder ? { folder: json.folder } : { error: json.error ?? "Création impossible." };
 }
 

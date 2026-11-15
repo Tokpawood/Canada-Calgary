@@ -17,7 +17,7 @@ export default async function ComptePage({ searchParams }: { searchParams: Promi
   let drive: DriveStatus | null = null;
   if (dossier) {
     const conn = await getConnection(dossier.id as string).catch(() => null);
-    const { count } = await supabase.from("file").select("id", { count: "exact", head: true }).eq("dossier_id", dossier.id).eq("provider", "supabase");
+    const { count } = await supabase.from("file").select("id", { count: "exact", head: true }).eq("dossier_id", dossier.id).eq("provider", "supabase").is("drive_file_id", null).is("replaced_at", null);
     drive = {
       configured: driveConfigured(),
       connected: Boolean(conn?.refreshToken),

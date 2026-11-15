@@ -185,6 +185,7 @@ export function mapVaultFile(row: Record<string, unknown>): VaultFile {
     id: row.id as string,
     documentId: (row.document_id as string | null) ?? null,
     folderId: (row.folder_id as string | null) ?? null,
+    onDrive: Boolean(row.drive_file_id),
     storagePath: (row.storage_path as string | null) ?? null,
     provider: row.provider === "gdrive" ? "gdrive" : "supabase",
     name: row.name as string,

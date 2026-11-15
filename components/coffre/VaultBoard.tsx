@@ -2,7 +2,7 @@
 
 import { useCallback, useMemo, useState } from "react";
 import { createFolder, deleteFolder, deleteVaultFile, fileUrl, moveVaultFile, renameFolder, signFileUrl, uploadMany } from "@/lib/vaultClient";
-import type { VaultFolder } from "@/lib/folders";
+import { folderOptions, folderPath, type VaultFolder } from "@/lib/folders";
 import type { VaultFile } from "@/lib/types";
 import { EmptyState, PageHeader } from "@/components/ui";
 import { FileDropzone, formatSize } from "@/components/FileDropzone";
@@ -44,7 +44,10 @@ export function VaultBoard({ initialFiles, documentNames, initialFolders }: Prop
   const [dropFolder, setDropFolder] = useState<string>("");
   // Liste parcourue par l'aperçu quand il est ouvert depuis un dossier.
   const [previewScope, setPreviewScope] = useState<VaultFile[] | null>(null);
-  const folderName = useCallback((id: string | null) => (id ? (folders.find((f) => f.id === id)?.name ?? null) : null), [folders]);
+  const [uploadCount, setUploadCount] = useState<{ done: number; total: number } | null>(null);
+  // « Bulletins › 2023 » : chemin complet d'un dossier.
+  const folderName = useCallback((id: string | null) => folderPath(folders, id), [folders]);
+  const choices = useMemo(() => folderOptions(folders), [folders]);
 
   const documentLabel = useCallback((f: VaultFile) => (f.documentId ? (documentNames[f.documentId] ?? "Document") : "Non rattaché"), [documentNames]);
 
@@ -91,11 +94,15 @@ export function VaultBoard({ initialFiles, documentNames, initialFolders }: Prop
     const failed: string[] = [];
     const swapped: string[] = [];
     let added = 0;
+    let finished = 0;
     setProgress(0);
+    setUploadCount({ done: 0, total: list.length });
     await uploadMany(
       list,
       { folderId },
       (file, res) => {
+        finished += 1;
+        setUploadCount({ done: finished, total: list.length });
         if (res.error || !res.file) {
           failed.push(`${file.name} : ${res.error ?? "fichier refusé."}`);
           return;
@@ -113,6 +120,7 @@ export function VaultBoard({ initialFiles, documentNames, initialFolders }: Prop
     );
     setUploading(false);
     setProgress(null);
+    setUploadCount(null);
     if (failed.length) setError(failed.join(" · "));
     const parts = [`${added} fichier${added > 1 ? "s" : ""} envoyé${added > 1 ? "s" : ""}${folderId ? ` dans « ${folderName(folderId)} »` : ""}.`];
     if (swapped.length) parts.push(`${swapped.join(", ")} : nouvelle version enregistrée, l'ancienne est conservée dans « Remplacés ».`);
@@ -135,8 +143,8 @@ export function VaultBoard({ initialFiles, documentNames, initialFolders }: Prop
     } else setNotice(`${f.name} classé ${folderId ? `dans « ${folderName(folderId)} »` : "hors dossier"}.`);
   }
 
-  async function addFolder(name: string): Promise<string | null> {
-    const res = await createFolder(name);
+  async function addFolder(name: string, parentId: string | null): Promise<string | null> {
+    const res = await createFolder(name, parentId);
     if (!res.folder) return res.error ?? "Création impossible.";
     const created = res.folder;
     setFolders((prev) => [...prev, created]);
@@ -154,8 +162,9 @@ export function VaultBoard({ initialFiles, documentNames, initialFolders }: Prop
   async function removeFolder(id: string): Promise<string | null> {
     const err = await deleteFolder(id);
     if (err) return err;
+    // Retour au dossier parent après la suppression.
+    setOpenFolder(folders.find((f) => f.id === id)?.parentId ?? null);
     setFolders((prev) => prev.filter((f) => f.id !== id));
-    setOpenFolder(null);
     return null;
   }
 
@@ -185,6 +194,7 @@ export function VaultBoard({ initialFiles, documentNames, initialFolders }: Prop
     [docOptions, sorted],
   );
   const lastUpload = sorted[0]?.uploadedAt;
+  const countLabel = uploadCount ? `${uploadCount.done} fichier${uploadCount.done > 1 ? "s" : ""} sur ${uploadCount.total} terminé${uploadCount.done > 1 ? "s" : ""}` : undefined;
 
   const dropAside = (
     <aside className="flex flex-col gap-4">
@@ -192,21 +202,21 @@ export function VaultBoard({ initialFiles, documentNames, initialFolders }: Prop
         Ranger dans
         <select value={dropFolder} onChange={(e) => setDropFolder(e.target.value)} className="input h-10 text-[14px] text-ink">
           <option value="">Aucun dossier (non classé)</option>
-          {folders.map((f) => (
+          {choices.map((f) => (
             <option key={f.id} value={f.id}>
-              {f.name}
+              {f.label}
             </option>
           ))}
         </select>
       </label>
-      <FileDropzone busy={uploading} progress={progress} onFiles={(fl) => void handleUpload(fl, dropFolder || null)} title="Déposer un fichier" />
+      <FileDropzone busy={uploading} progress={progress} progressLabel={countLabel} onFiles={(fl) => void handleUpload(fl, dropFolder || null)} title="Déposer des fichiers" />
       {error && <p className="rounded-lg bg-bad-bg px-3 py-2 text-[12.5px] text-bad">{error}</p>}
       {notice && <p className="rounded-lg bg-ok-bg px-3 py-2 text-[12.5px] text-ok" role="status">{notice}</p>}
       <div className="card p-4 text-[12.5px] text-muted shadow-none">
         <p className="flex items-center gap-2 font-semibold text-ink">
           <IconShield size={15} className="text-act" /> Bon à savoir
         </p>
-        <p className="mt-1.5">Les fichiers partent directement vers Google Drive, plusieurs à la fois. Les photos de plus de 2,5 Mo sont réduites avant l&apos;envoi (toujours lisibles) ; les PDF sont envoyés tels quels.</p>
+        <p className="mt-1.5">Les fichiers sont d&apos;abord enregistrés dans l&apos;application (plusieurs à la fois, avec barre d&apos;avancement), puis copiés automatiquement sur Google Drive en sauvegarde. Les photos de plus de 2,5 Mo sont réduites avant l&apos;envoi (toujours lisibles) ; les PDF sont envoyés tels quels.</p>
         <p className="mt-1.5">Un fichier déposé ici n&apos;est rattaché à aucune pièce. Pour le lier au passeport, au diplôme, etc., déposez-le depuis sa fiche dans Documents.</p>
         <p className="mt-1.5">Même nom sur la même pièce : la nouvelle version remplace l&apos;ancienne, qui reste conservée dans « Remplacés » (dossier Drive « Fichiers remplacés »).</p>
         <p className="mt-1.5">Le type réel est vérifié avant l&apos;envoi : un fichier renommé en .pdf est refusé.</p>      </div>
@@ -217,7 +227,7 @@ export function VaultBoard({ initialFiles, documentNames, initialFolders }: Prop
     <>
       <PageHeader
         title="Coffre"
-        description="Vos scans sont enregistrés dans votre Google Drive. Chaque aperçu ou téléchargement passe par l'application, réservée au titulaire."
+        description="Vos scans sont enregistrés dans l'application et sauvegardés automatiquement dans votre Google Drive. Accès réservé au titulaire."
         actions={
           <button type="button" onClick={() => setTab("deposer")} className="btn btn-primary">
             <IconUpload size={16} /> Déposer
@@ -266,7 +276,7 @@ export function VaultBoard({ initialFiles, documentNames, initialFolders }: Prop
         <div className="mt-4 flex flex-wrap gap-2">
           {[
             { icon: <IconShield size={13} />, text: "Accès réservé au titulaire" },
-            { icon: <IconLock size={13} />, text: "Stocké sur Google Drive" },
+            { icon: <IconLock size={13} />, text: "Sauvegardé sur Google Drive" },
             { icon: <IconCheck size={13} />, text: "Type réel vérifié" },
           ].map((p) => (
             <span key={p.text} className="inline-flex items-center gap-1.5 rounded-full bg-white/[0.08] px-2.5 py-1 text-[12px] font-semibold">
@@ -299,6 +309,7 @@ export function VaultBoard({ initialFiles, documentNames, initialFolders }: Prop
           onUpload={(fl, id) => void handleUpload(fl, id)}
           uploading={uploading}
           progress={progress}
+          progressLabel={countLabel}
           onCreate={addFolder}
           onRename={editFolder}
           onDelete={removeFolder}
@@ -429,7 +440,7 @@ export function VaultBoard({ initialFiles, documentNames, initialFolders }: Prop
             setPreviewId(null);
             setPreviewScope(null);
           }}
-          folders={folders}
+          folders={choices.map((c) => ({ id: c.id, name: c.label }))}
           onMove={(f, id) => void moveFile(f, id)}
         />
       )}

@@ -34,12 +34,12 @@ export function DriveCard({ status }: { status: DriveStatus }) {
     const res = await fetch("/api/drive/migrate", { method: "POST" }).catch(() => null);
     const json = (await res?.json().catch(() => ({}))) as { moved?: number; failed?: string[]; error?: string } | undefined;
     setBusy(null);
-    if (!res?.ok) return setMessage({ tone: "bad", text: json?.error ?? "Transfert impossible." });
+    if (!res?.ok) return setMessage({ tone: "bad", text: json?.error ?? "Sauvegarde impossible." });
     const failed = json?.failed ?? [];
     setMessage(
       failed.length
-        ? { tone: "bad", text: `${json?.moved ?? 0} fichier(s) transféré(s), ${failed.length} en échec : ${failed.join(", ")}.` }
-        : { tone: "ok", text: `${json?.moved ?? 0} fichier(s) transféré(s) vers Google Drive.` },
+        ? { tone: "bad", text: `${json?.moved ?? 0} fichier(s) sauvegardé(s), ${failed.length} en échec : ${failed.join(", ")}.` }
+        : { tone: "ok", text: `${json?.moved ?? 0} fichier(s) sauvegardé(s) sur Google Drive.` },
     );
     router.refresh();
   }
@@ -58,7 +58,7 @@ export function DriveCard({ status }: { status: DriveStatus }) {
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h2 className="text-[16px] font-bold">Google Drive</h2>
-          <p className="mt-0.5 text-[12.5px] text-muted">Tous les fichiers déposés (Coffre et scans des documents) sont enregistrés dans votre Google Drive.</p>
+          <p className="mt-0.5 text-[12.5px] text-muted">Les fichiers déposés (Coffre et scans des documents) sont stockés dans l&apos;application, puis copiés automatiquement dans votre Google Drive en sauvegarde.</p>
         </div>
         <span
           className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[12px] font-semibold ${
@@ -91,17 +91,17 @@ export function DriveCard({ status }: { status: DriveStatus }) {
         </dl>
       ) : (
         <p className="mt-4 rounded-xl bg-surface-2 px-3 py-2.5 text-[13px]">
-          Tant que Google Drive n&apos;est pas connecté, <strong>aucun fichier ne peut être déposé</strong>.
+          Google Drive n&apos;est pas connecté : les fichiers restent déposés dans l&apos;application, <strong>sans copie de sauvegarde</strong>. Connectez-le pour les sauvegarder.
         </p>
       )}
 
       {status.connected && status.pendingMigration > 0 && (
         <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-dashed border-line px-3 py-2.5">
           <p className="text-[13px]">
-            <span className="mono font-semibold">{status.pendingMigration}</span> fichier(s) encore dans l&apos;ancien stockage de l&apos;application.
+            <span className="mono font-semibold">{status.pendingMigration}</span> fichier(s) pas encore sauvegardé(s) sur Google Drive.
           </p>
           <button type="button" onClick={migrate} disabled={busy !== null} className="btn btn-primary">
-            <IconUpload size={15} /> {busy === "migrate" ? "Transfert…" : "Transférer vers Drive"}
+            <IconUpload size={15} /> {busy === "migrate" ? "Sauvegarde…" : "Sauvegarder maintenant"}
           </button>
         </div>
       )}
