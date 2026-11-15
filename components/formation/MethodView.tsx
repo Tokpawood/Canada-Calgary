@@ -66,17 +66,17 @@ const LISTEN_FR: Array<[string, string, string]> = [
 
 const RES_IELTS: Array<[string, string, string | null, string]> = [
   ["IELTS.org · sujets d'entraînement officiels", "Format et exemples du General Training · semaine 1", "https://ielts.org", "Gratuit"],
-  ["British Council · IELTS Ready", "Tests d'entraînement en ligne · phases 2 et 3", "https://takeielts.britishcouncil.org", "Gratuit (base)"],
-  ["Cambridge IELTS General Training", "Examens blancs complets · samedis IELTS", null, "Livre"],
-  ["IELTS Liz", "Méthode par épreuve, lettres et essais · mardis et jeudis", "https://ieltsliz.com", "Gratuit"],
-  ["Anki", "Vocabulaire et collocations · trajets des mardis et jeudis", "https://ankiweb.net", "Gratuit"],
+  ["British Council · IELTS Ready", "Tests d'entraînement en ligne · toutes les semaines", "https://takeielts.britishcouncil.org", "Gratuit (base)"],
+  ["Cambridge IELTS General Training", "Examens blancs complets · samedis", null, "Livre"],
+  ["IELTS Liz", "Méthode par épreuve, lettres et essais · semaines 1 à 4", "https://ieltsliz.com", "Gratuit"],
+  ["Anki ou AnkiWeb", "Vocabulaire et collocations · trajets", "https://ankiweb.net", "Gratuit (Android, web)"],
 ];
 
 const LISTEN_EN: Array<[string, string, string]> = [
-  ["BBC Learning English · 6 Minute English", "B2", "Semaines 1 à 4"],
+  ["BBC Learning English · 6 Minute English", "B2", "Du 16/11 au 15/02"],
   ["BBC Global News Podcast", "C1", "Trajets"],
   ["TED Talks (avec transcription)", "C1", "Trajets"],
-  ["BBC Radio 4 · podcasts de débat", "C1-C2", "Phase 2"],
+  ["BBC Radio 4 · podcasts de débat", "C1-C2", "Semaines 3 à 6"],
 ];
 
 function Resources({ items }: { items: Array<[string, string, string | null, string]> }) {
@@ -181,16 +181,37 @@ export function MethodView() {
         <Table
           head={["Épreuve", "Format", "Cible", "Technique clé"]}
           rows={[
-            ["Listening", "4 parts, 40 questions, 30 min", "8,0", "Anticiper le type de réponse (nombre, nom, date), vérifier l'orthographe"],
-            ["Reading", "3 sections, 40 questions, 60 min", "7,0", "Skimming puis scanning ; maîtriser True / False / Not Given"],
-            ["Writing", "Task 1 : lettre 150 mots (20 min) ; Task 2 : essai 250 mots (40 min)", "7,0", "Toujours commencer par la Task 2, qui compte double"],
-            ["Speaking", "3 parts, 11 à 14 min", "7,0", "Part 2 : 2 minutes selon qui, quoi, quand, pourquoi, mon avis"],
+            ["Listening", "4 parts, 40 questions, 30 min", "8,0 (≈ 35/40)", "Lire les questions avant l'écoute, anticiper le type de réponse, vérifier l'orthographe et les pluriels"],
+            ["Reading", "3 sections, 40 questions, 60 min", "7,0 (≈ 34/40)", "Skimming puis scanning ; jamais plus de 90 secondes bloqué sur une question"],
+            ["Writing", "Task 1 : lettre de 150 mots (20 min) ; Task 2 : essai de 250 mots (40 min)", "7,0", "Commencer par la Task 2, qui compte double ; dépasser légèrement le minimum de mots"],
+            ["Speaking", "3 parts, 11 à 14 min", "7,0", "Ne jamais répondre en une phrase ; Part 2 : qui, quoi, quand, pourquoi, mon avis"],
           ]}
         />
-        <p className="mt-3 text-muted">Writing et Speaking : réponse à la consigne, cohérence, variété du vocabulaire, précision grammaticale.</p>
-        <p className="mt-2">
+        <p className="mt-3 text-muted">
+          Writing et Speaking : réponse à la consigne, cohérence, variété du vocabulaire, précision grammaticale. Pour 7,0 : phrases complexes avec peu d&apos;erreurs,
+          vocabulaire moins courant employé correctement.
+        </p>
+      </Card>
+
+      <Card title="Task 2 et lettres de la Task 1" aside={<LangTag lang="ielts" />}>
+        <p className="font-semibold">Plan type de la Task 2</p>
+        <ol className="mt-1 list-decimal pl-5">
+          <li>Introduction : reformuler le sujet et annoncer votre position.</li>
+          <li>Deux paragraphes, chacun avec une idée, une explication et un exemple.</li>
+          <li>Conclusion : reprendre la position, sans idée nouvelle.</li>
+        </ol>
+        <p className="mt-3 font-semibold">Les trois registres de lettre</p>
+        <Table
+          head={["Registre", "Ouverture", "Clôture"]}
+          rows={[
+            ["Formel (destinataire inconnu)", "« Dear Sir or Madam, »", "« Yours faithfully, »"],
+            ["Semi-formel (connu par son nom)", "« Dear Mr Kouassi, »", "« Yours sincerely, »"],
+            ["Amical", "« Dear Paul, »", "« Best wishes, » ou « Take care, »"],
+          ]}
+        />
+        <p className="mt-3">
           <span className="font-semibold">Phrases clés : </span>« I am writing to enquire about… », « I would be grateful if you could… », « While some argue that…, others
-          believe… », « On balance, I am convinced that… », « This is largely because… ».
+          believe… », « On balance, I am convinced that… », « This is largely because… », « A case in point is… ».
         </p>
       </Card>
 
@@ -202,7 +223,7 @@ export function MethodView() {
           <li>Relire le carnet chaque dimanche ; une erreur qui revient 3 fois devient un exercice ciblé.</li>
           <li>Une semaine chargée ne s&apos;annule pas : envoyer au moins la tâche 3 écrite.</li>
           <li>Écoute : un extrait de 3 minutes écouté 3 fois (sens global, détails, 5 expressions pour Anki).</li>
-          <li>Avant l&apos;IELTS : au moins 30 minutes de shadowing par semaine.</li>
+          <li>Jusqu&apos;au 15/02, l&apos;anglais se limite à 15 minutes d&apos;écoute par jour ; puis 30 minutes de shadowing par semaine.</li>
         </ul>
         <p className="mt-3 font-semibold">Ce qu&apos;on envoie à Claude</p>
         <Table
@@ -211,7 +232,9 @@ export function MethodView() {
             ["Expression écrite", "Sujet, texte tapé sans correcteur, nombre de mots, temps mis", "Note /20 et NCLC, 5 erreurs principales, version C2"],
             ["Expression orale", "Sujet et transcription (ou séance vocale)", "Note /20, erreurs, structure et vocabulaire"],
             ["Compréhension", "Score, questions ratées, type de document", "Pièges récurrents et exercices ciblés"],
-            ["IELTS", "Sujet, texte ou transcription, temps mis", "Band par critère et corrections"],
+            ["IELTS Writing", "Sujet, texte tapé sans correcteur, nombre de mots, temps mis", "Band par critère, erreurs principales, version à 7,5"],
+            ["IELTS Speaking", "Question et transcription (ou séance vocale)", "Band estimé, erreurs, expressions à ajouter"],
+            ["IELTS Listening et Reading", "Score sur 40 et questions ratées", "Analyse des pièges récurrents"],
           ]}
         />
       </Card>

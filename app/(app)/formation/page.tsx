@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getDossierForUser } from "@/lib/queries";
 import { FormationBoard } from "@/components/formation/FormationBoard";
-import type { Lang, TrainingScore } from "@/lib/formation";
+import type { ErrorEntry, Lang, TrainingScore } from "@/lib/formation";
 
 export const metadata = { title: "Formation TCF · IELTS — Projet Canada Calgary" };
 
@@ -12,10 +12,23 @@ export default async function FormationPage() {
   const dossier = await getDossierForUser(supabase);
   if (!dossier) redirect("/import");
 
-  const [{ data: checks }, { data: scoreRows }] = await Promise.all([
+  const [{ data: checks }, { data: scoreRows }, { data: errorRows }] = await Promise.all([
     supabase.from("training_check").select("item_key").eq("dossier_id", dossier.id),
     supabase.from("training_score").select("*").eq("dossier_id", dossier.id).order("taken_on", { ascending: true }),
+    supabase.from("training_error").select("*").eq("dossier_id", dossier.id).order("created_at", { ascending: false }),
   ]);
+
+  const errors: ErrorEntry[] = (errorRows ?? []).map((r) => ({
+    id: r.id as string,
+    exam: r.exam as Lang,
+    skill: (r.skill as string) ?? "",
+    wrong: r.wrong as string,
+    correct: (r.correct as string) ?? "",
+    rule: (r.rule as string) ?? "",
+    count: Number(r.count ?? 1),
+    mastered: Boolean(r.mastered),
+    createdAt: r.created_at as string,
+  }));
 
   const num = (v: unknown) => (v == null ? null : Number(v));
   const scores: TrainingScore[] = (scoreRows ?? []).map((r) => ({
@@ -36,6 +49,7 @@ export default async function FormationPage() {
       today={today}
       initialDone={(checks ?? []).map((c) => c.item_key as string)}
       initialScores={scores}
+      initialErrors={errors}
       canEdit={dossier.ownerId === userData.user?.id}
     />
   );

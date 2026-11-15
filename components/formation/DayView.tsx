@@ -58,12 +58,12 @@ export function DayView({
           <div className="min-w-0 flex-1">
             <p className="flex flex-wrap items-center gap-2 text-[17px] font-bold capitalize">
               {fmtDay(date)}
-              {plan.lang && <LangTag lang={plan.lang} />}
+              <LangTag lang={plan.program.id} />
               {isToday && <span className="rounded-full bg-signal px-2 py-px text-[11px] font-bold text-black normal-case">Aujourd&apos;hui</span>}
             </p>
             <p className="text-[12.5px] text-muted">
               {plan.title}
-              {plan.week && ` · semaine ${plan.week.n}`}
+              {plan.week && ` · ${plan.program.name}, semaine ${plan.week.n}`}
               {minutes > 0 && ` · ${minutesLabel(minutes)} au total`}
             </p>
           </div>
@@ -129,24 +129,30 @@ export function DayView({
 }
 
 function WeekAside({ week, done, toggle }: { week: Week; done: Set<string>; toggle: (key: string, v: boolean) => void }) {
-  const sent = week.sends.filter((_, i) => done.has(sendKey(week.n, i))).length;
+  const sent = week.sends.filter((_, i) => done.has(sendKey(week, i))).length;
   return (
     <div className="flex flex-col gap-5 self-start">
       <section className="card p-5">
-        <p className="eyebrow">Semaine {week.n}</p>
+        <p className="eyebrow">
+          {week.prog === "tcf" ? "TCF" : "IELTS"} · semaine {week.n}
+        </p>
         <dl className="mt-3 flex flex-col gap-3 text-[13.5px]">
           <div>
-            <dt className="text-[11.5px] font-semibold text-muted">Vocabulaire (TCF)</dt>
+            <dt className="text-[11.5px] font-semibold text-muted">Thème de vocabulaire</dt>
             <dd className="font-semibold">{week.theme}</dd>
           </div>
-          <div>
-            <dt className="text-[11.5px] font-semibold text-muted">Grammaire</dt>
-            <dd>{week.grammar}</dd>
-          </div>
-          <div>
-            <dt className="text-[11.5px] font-semibold text-muted">Objectif IELTS</dt>
-            <dd>{week.ielts}</dd>
-          </div>
+          {week.grammar && (
+            <div>
+              <dt className="text-[11.5px] font-semibold text-muted">Grammaire</dt>
+              <dd>{week.grammar}</dd>
+            </div>
+          )}
+          {week.focus.map((f) => (
+            <div key={f.label}>
+              <dt className="text-[11.5px] font-semibold text-muted">{f.label}</dt>
+              <dd>{f.value}</dd>
+            </div>
+          ))}
           <div>
             <dt className="text-[11.5px] font-semibold text-muted">Objectif de la semaine</dt>
             <dd>{week.goal}</dd>
@@ -164,7 +170,7 @@ function WeekAside({ week, done, toggle }: { week: Week; done: Set<string>; togg
         </div>
         <ul className="mt-2 flex flex-col">
           {week.sends.map((s, i) => {
-            const key = sendKey(week.n, i);
+            const key = sendKey(week, i);
             const on = done.has(key);
             return (
               <li key={key}>

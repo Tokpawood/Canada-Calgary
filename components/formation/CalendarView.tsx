@@ -3,16 +3,18 @@
 import { IELTS_DATE, PROGRAM_END, PROGRAM_START, TCF_DATE, addDays, dayPlan, weekday } from "@/lib/formation";
 import { fmtDay } from "./shared";
 
-const MONTHS = ["2026-11", "2026-12", "2027-01", "2027-02"];
+const MONTHS = ["2026-11", "2026-12", "2027-01", "2027-02", "2027-03"];
 const MILESTONES: Record<string, string> = {
   "2026-11-16": "Début du programme",
-  "2026-12-14": "Phase 2 · achat du pack Gold",
+  "2026-12-14": "TCF phase 2 · achat du pack Gold",
   "2027-01-05": "Inscription au TCF",
-  "2027-01-19": "Sprint IELTS",
-  [IELTS_DATE]: "IELTS General Training",
-  "2027-01-31": "Sprint TCF",
-  "2027-02-12": "Plus rien de nouveau",
+  "2027-01-25": "TCF phase 3 · réserver l'IELTS",
+  "2027-02-12": "Plus rien de nouveau (TCF)",
   [TCF_DATE]: "TCF Canada",
+  "2027-02-16": "Début du programme IELTS",
+  "2027-03-01": "IELTS phase 2 · intensif",
+  "2027-03-25": "Plus rien de nouveau (IELTS)",
+  [IELTS_DATE]: "IELTS General Training",
 };
 
 export function CalendarView({ today, done, onOpenDay }: { today: string; done: Set<string>; onOpenDay: (d: string) => void }) {
@@ -25,7 +27,7 @@ export function CalendarView({ today, done, onOpenDay }: { today: string; done: 
         <span className="flex items-center gap-1.5">
           <span className="mono rounded bg-opt-bg px-1 text-[10px] font-semibold text-opt">TCF</span>
           <span className="mono rounded bg-act px-1 text-[10px] font-semibold text-act-ink">IELTS</span>
-          production du jour
+          programme du jour
         </span>
         <span className="flex items-center gap-1.5">
           <span className="h-2.5 w-2.5 rounded-full ring-2 ring-bad" /> examen officiel
@@ -95,16 +97,16 @@ function Month({ month, today, done, onOpenDay }: { month: string; today: string
               } ${d === today ? "ring-2 ring-ink ring-offset-2 ring-offset-surface" : ""} ${exam ? "ring-2 ring-bad" : ""}`}
             >
               {Number(d.slice(8))}
-              {plan.lang && !exam && (
+              {plan.kind === "semaine" && (
                 <span
                   className={`mono mt-0.5 rounded px-0.5 text-[8.5px] leading-[12px] font-bold ${
-                    full || started ? "bg-black/15" : plan.lang === "tcf" ? "bg-opt-bg text-opt" : "bg-act text-act-ink"
+                    full || started ? "bg-black/15" : plan.program.id === "tcf" ? "bg-opt-bg text-opt" : "bg-act text-act-ink"
                   }`}
                 >
-                  {plan.lang === "tcf" ? "TCF" : "IELTS"}
+                  {plan.program.id === "tcf" ? "TCF" : "IELTS"}
                 </span>
               )}
-              {exam && <span className="mt-0.5 text-[8.5px] font-bold text-bad">{plan.lang === "tcf" ? "TCF" : "IELTS"}</span>}
+              {exam && <span className="mt-0.5 text-[8.5px] font-bold text-bad">{plan.program.id === "tcf" ? "TCF" : "IELTS"}</span>}
               {milestone && !exam && <span className="absolute top-1 right-1 h-1.5 w-1.5 rounded-full bg-bad" aria-hidden />}
               {late && c === 0 && <span className="sr-only">en retard</span>}
             </button>

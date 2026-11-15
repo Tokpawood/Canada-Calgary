@@ -1,38 +1,26 @@
 /**
- * Programme TCF Canada et IELTS General Training (16 novembre 2026 au 15 février 2027).
- * Données du programme et calcul du plan de chaque journée. Aucune entrée/sortie : tout est testable.
+ * Deux programmes à la suite :
+ *  - TCF Canada du 16 novembre 2026 au 15 février 2027 (examen le 15/02) ;
+ *  - IELTS General Training du 16 février au 27 mars 2027 (examen le 27/03).
+ * Données des programmes et calcul du plan de chaque journée. Aucune entrée/sortie : tout est testable.
  */
 
 export type Lang = "tcf" | "ielts";
 
 export const PROGRAM_START = "2026-11-16";
-export const PROGRAM_END = "2027-02-15";
-export const IELTS_DATE = "2027-01-30";
+export const PROGRAM_END = "2027-03-27";
 export const TCF_DATE = "2027-02-15";
-const SPRINT_IELTS = { from: "2027-01-19", to: "2027-01-29" };
-const ALL_TCF_FROM = "2027-01-31";
-export const NOTHING_NEW_AFTER = "2027-02-12";
-
-export const TARGETS = {
-  tcf: { label: "NCLC 10 dans les 4 compétences", comprehension: 549, expression: 16, training: { comprehension: 600, expression: 18 } },
-  ielts: { label: "CLB 9", listening: 8, reading: 7, writing: 7, speaking: 7 },
-};
+export const IELTS_DATE = "2027-03-27";
 
 export interface Phase {
+  prog: Lang;
   n: number;
   name: string;
   from: string;
   to: string;
   goal: string;
-  change: string;
+  change?: string;
 }
-
-export const PHASES: Phase[] = [
-  { n: 1, name: "Fondations", from: "2026-11-16", to: "2026-12-13", goal: "Diagnostic, structure des tâches, premières banques de phrases", change: "Ressources gratuites uniquement ; une copie corrigée tous les 2 jours" },
-  { n: 2, name: "Intensif", from: "2026-12-14", to: "2027-01-18", goal: "16/20 en expression TCF, 6,5 à 7 en Writing IELTS", change: "Achat du pack Gold ; un examen blanc chaque samedi, TCF et IELTS en alternance" },
-  { n: 3, name: "Sprint IELTS", from: "2027-01-19", to: "2027-01-30", goal: "CLB 9 le 30/01", change: "Toute la production en anglais ; le TCF reste en écoute pendant les trajets" },
-  { n: 4, name: "Sprint TCF", from: "2027-01-31", to: "2027-02-15", goal: "18/20 en expression, 600 en compréhension", change: "Deux examens blancs complets ; rien de nouveau après le 12/02" },
-];
 
 export interface Send {
   label: string;
@@ -40,153 +28,151 @@ export interface Send {
 }
 
 export interface Week {
+  prog: Lang;
   n: number;
   from: string;
   to: string;
   theme: string;
-  grammar: string;
-  ielts: string;
+  /** TCF : grammaire de la semaine. */
+  grammar?: string;
+  /** Épreuve à renforcer (TCF) ou détail par épreuve (IELTS). */
+  focus: Array<{ label: string; value: string }>;
   goal: string;
   sends: Send[];
-  saturday: { label: string; lang: Lang | null };
+  /** Samedi : examen blanc complet ou entraînement. */
+  saturday: { label: string; mock: boolean } | null;
   note?: string;
 }
 
+export interface Program {
+  id: Lang;
+  name: string;
+  from: string;
+  to: string;
+  exam: string;
+  target: string;
+  phases: Phase[];
+  weeks: Week[];
+}
+
 const PACK = "Sujets du pack";
+const TCF_SAT_TRAINING = "Une épreuve de compréhension et une tâche 3, chronométrées";
+const IELTS_SAT_TRAINING = "Un Listening et un Reading complets";
 
-export const WEEKS: Week[] = [
-  {
-    n: 1, from: "2026-11-16", to: "2026-11-22", theme: "Travail et emploi", grammar: "Subjonctif après la volonté et le sentiment",
-    ielts: "Format de l'IELTS General Training, types de lettres", goal: "Diagnostic écrit et oral",
-    sends: [
-      { label: "EE tâche 3", subject: "Télétravail" },
-      { label: "Lettre IELTS", subject: "Lettre à M. Kouassi" },
-      { label: "EO tâche 1", subject: "Votre présentation (parcours, métier, projets)" },
-    ],
-    saturday: { label: "Test diagnostic TCF (exemples officiels)", lang: "tcf" },
-  },
-  {
-    n: 2, from: "2026-11-23", to: "2026-11-29", theme: "Technologie et numérique", grammar: "Subjonctif après « bien que », « pour que », « à moins que »",
-    ielts: "Task 1 : lettre formelle", goal: "Identifier la compétence la plus faible",
-    sends: [
-      { label: "Scores du test diagnostic", subject: "Exemples officiels" },
-      { label: "EE tâche 1", subject: "Message à un ami pour l'inviter" },
-      { label: "EE tâche 2", subject: "Article sur une expérience marquante" },
-      { label: "EO tâche 3", subject: "« Les réseaux sociaux rendent-ils les jeunes plus isolés ? »" },
-    ],
-    saturday: { label: "Test diagnostic IELTS (sujets officiels)", lang: "ielts" },
-  },
-  {
-    n: 3, from: "2026-11-30", to: "2026-12-06", theme: "Environnement et climat", grammar: "Connecteurs d'opposition et de concession",
-    ielts: "Task 1 : lettres semi-formelle et amicale", goal: "Maîtriser la structure de la tâche 3",
-    sends: [
-      { label: "EE tâche 3", subject: "Semaine de 4 jours" },
-      { label: "EO tâche 2", subject: "Liste de 10 questions pour se renseigner sur un appartement" },
-      { label: "Scores CO et CE" },
-    ],
-    saturday: { label: "Entraînement TCF : séries de CO et CE", lang: "tcf" },
-  },
-  {
-    n: 4, from: "2026-12-07", to: "2026-12-13", theme: "Santé et alimentation", grammar: "Pronoms relatifs composés (dont, lequel, auquel)",
-    ielts: "Task 2 : essai d'opinion", goal: "Registres et temps du passé sans faute",
-    sends: [
-      { label: "EE tâche 1", subject: "Réclamation à un service client" },
-      { label: "EE tâche 2", subject: "Récit d'un voyage" },
-      { label: "EO tâche 3", subject: "« L'IA va-t-elle remplacer les recruteurs ? »" },
-    ],
-    saturday: { label: "Entraînement IELTS : Listening et Reading", lang: "ielts" },
-  },
-  {
-    n: 5, from: "2026-12-14", to: "2026-12-20", theme: "Éducation et formation", grammar: "Hypothèse : si + imparfait ou plus-que-parfait, conditionnel passé",
-    ielts: "Reading : sections 1 et 2", goal: "Premier score de référence en conditions réelles",
-    sends: [
-      { label: "Achat du pack Gold (49,99 $ US)", subject: "formation-tcfcanada.com" },
-      { label: "Examen blanc n° 1 (CO, CE et EE) : scores et copies", subject: PACK },
-    ],
-    saturday: { label: "Examen blanc TCF n° 1 (CO, CE et EE)", lang: "tcf" },
-  },
-  {
-    n: 6, from: "2026-12-21", to: "2026-12-27", theme: "Famille et société", grammar: "Accords du participe passé",
-    ielts: "Listening : parts 1 et 2", goal: "Garder le rythme",
-    sends: [{ label: "EE tâche 3 uniquement", subject: "Gratuité des transports publics" }],
-    saturday: { label: "Examen blanc IELTS n° 1", lang: "ielts" },
-    note: "Semaine de la cérémonie et des fêtes : seule la tâche 3 écrite est à envoyer.",
-  },
-  {
-    n: 7, from: "2026-12-28", to: "2027-01-03", theme: "Ville, transports, logement", grammar: "Nominalisation et voix passive",
-    ielts: "Task 2 : essais discussion et problème-solution", goal: "Vocabulaire de la nuance et connecteurs",
-    sends: [
-      { label: "EE tâche 1", subject: PACK },
-      { label: "EE tâche 2", subject: PACK },
-      { label: "EO tâche 3", subject: "« Faut-il interdire la voiture en centre-ville ? »" },
-    ],
-    saturday: { label: "Entraînement IELTS : Writing Task 1 et Task 2", lang: "ielts" },
-  },
-  {
-    n: 8, from: "2027-01-04", to: "2027-01-10", theme: "Consommation et économie", grammar: "Gérondif et participe présent",
-    ielts: "Speaking Part 2 (cue cards)", goal: "16/20 en EE",
-    sends: [
-      { label: "Inscription au TCF Canada (le 05/01)", subject: "Examen du 15/02/2027" },
-      { label: "Examen blanc n° 2 : scores et copies", subject: PACK },
-      { label: "Essai IELTS (Task 2)", subject: "Sujet IELTS au choix" },
-    ],
-    saturday: { label: "Examen blanc TCF n° 2", lang: "tcf" },
-  },
-  {
-    n: 9, from: "2027-01-11", to: "2027-01-17", theme: "Immigration et diversité", grammar: "Discours rapporté et concordance des temps",
-    ielts: "Listening parts 3 et 4, Reading section 3", goal: "16/20 en EO",
-    sends: [
-      { label: "EO : les 3 tâches en conditions réelles", subject: PACK },
-      { label: "EE tâche 3", subject: "Immigration et pénurie de main-d'œuvre" },
-      { label: "Lettre IELTS (Task 1)" },
-    ],
-    saturday: { label: "Examen blanc TCF n° 3", lang: "tcf" },
-  },
-  {
-    n: 10, from: "2027-01-18", to: "2027-01-24", theme: "Médias et information", grammar: "Mise en relief, négations complexes",
-    ielts: "Sprint IELTS : examens blancs complets", goal: "Stabiliser 549 ou plus en CO et CE",
-    sends: [
-      { label: "Examen blanc n° 3 : scores", subject: PACK },
-      { label: "IELTS Speaking Part 2 (transcription)", subject: "Sujet IELTS" },
-    ],
-    saturday: { label: "Examen blanc IELTS n° 2 (complet)", lang: "ielts" },
-  },
-  {
-    n: 11, from: "2027-01-25", to: "2027-01-31", theme: "Culture, loisirs, tourisme", grammar: "Révision des registres (formel, courant, familier)",
-    ielts: "IELTS le 30/01", goal: "Réussir l'IELTS sans perdre le fil du TCF",
-    sends: [
-      { label: "Un essai IELTS avant le 30/01", subject: "Sujet IELTS" },
-      { label: "Un oral IELTS avant le 30/01", subject: "Sujet IELTS" },
-      { label: "Reprise du TCF après l'IELTS" },
-    ],
-    saturday: { label: "Reprise TCF : séries de CO et CE", lang: "tcf" },
-  },
-  {
-    n: 12, from: "2027-02-01", to: "2027-02-07", theme: "Sport et bien-être", grammar: "Révision générale et erreurs fréquentes",
-    ielts: "—", goal: "Simulation finale à 18/20 et 600",
-    sends: [
-      { label: "Examen blanc n° 4 complet", subject: "Idéalement à l'Institut français" },
-      { label: "EE complète", subject: "Sujets de l'examen blanc" },
-      { label: "EO complète", subject: "Sujets de l'examen blanc" },
-    ],
-    saturday: { label: "Examen blanc TCF n° 4 complet (idéalement à l'Institut français)", lang: "tcf" },
-  },
-  {
-    n: 13, from: "2027-02-08", to: "2027-02-14", theme: "Révision de tous les thèmes", grammar: "Carnet d'erreurs uniquement",
-    ielts: "—", goal: "Repos actif, rien de nouveau après le 12/02",
-    sends: [
-      { label: "EE tâche 3 le mardi", subject: PACK },
-      { label: "Relecture du carnet d'erreurs" },
-    ],
-    saturday: { label: "Repos actif : relecture du carnet d'erreurs", lang: null },
-    note: "Rien de nouveau après le 12/02.",
-  },
-];
+const tcfWeek = (n: number, from: string, to: string, theme: string, grammar: string, focus: string, goal: string, sends: Send[], saturday: Week["saturday"], note?: string): Week => ({
+  prog: "tcf", n, from, to, theme, grammar, focus: [{ label: "Épreuve à renforcer", value: focus }], goal, sends, saturday, note,
+});
 
-/** Tâches datées rattachées à un envoi de la semaine (même clé : cocher l'un coche l'autre). */
-const DATED_SENDS: Record<string, string> = { "2026-12-14": "s5:e0", "2027-01-05": "s8:e0", "2027-02-09": "s13:e0" };
+export const TCF: Program = {
+  id: "tcf",
+  name: "TCF Canada",
+  from: "2026-11-16",
+  to: TCF_DATE,
+  exam: TCF_DATE,
+  target: "NCLC 10 : 549 en compréhension, 16/20 en expression (entraînement : 600 et 18/20)",
+  phases: [
+    { prog: "tcf", n: 1, name: "Fondations", from: "2026-11-16", to: "2026-12-13", goal: "Diagnostic, structure des tâches, premières banques de phrases", change: "Ressources gratuites uniquement ; une copie corrigée chaque jour de semaine" },
+    { prog: "tcf", n: 2, name: "Intensif", from: "2026-12-14", to: "2027-01-24", goal: "16/20 en expression, 549 en compréhension", change: "Achat du pack Gold ; examen blanc un samedi sur deux" },
+    { prog: "tcf", n: 3, name: "Simulation", from: "2027-01-25", to: "2027-02-15", goal: "18/20 en expression, 600 en compréhension", change: "Un examen blanc chaque samedi ; rien de nouveau après le 12/02" },
+  ],
+  weeks: [
+    tcfWeek(1, "2026-11-16", "2026-11-22", "Travail et emploi", "Subjonctif après la volonté et le sentiment", "Diagnostic des quatre épreuves", "Diagnostic écrit et oral",
+      [{ label: "EE tâche 3", subject: "Télétravail" }, { label: "EO tâche 1", subject: "Votre présentation (parcours, métier, projets)" }, { label: "Scores du diagnostic", subject: "Exemples officiels" }],
+      { label: "Diagnostic des 4 épreuves (exemples officiels)", mock: true }),
+    tcfWeek(2, "2026-11-23", "2026-11-29", "Technologie et numérique", "Subjonctif après « bien que », « pour que », « à moins que »", "EE tâche 3 : structure", "Identifier la compétence la plus faible",
+      [{ label: "EE tâche 1", subject: "Inviter un ami" }, { label: "EE tâche 2", subject: "Une expérience marquante" }, { label: "EE tâche 3", subject: "Semaine de 4 jours" }, { label: "EO tâche 3", subject: "« Les réseaux sociaux rendent-ils les jeunes plus isolés ? »" }],
+      { label: TCF_SAT_TRAINING, mock: false }),
+    tcfWeek(3, "2026-11-30", "2026-12-06", "Environnement et climat", "Connecteurs d'opposition et de concession", "EO tâche 3 : structure", "Maîtriser la structure de la tâche 3",
+      [{ label: "EE tâche 3 (1/2)", subject: "Faut-il taxer davantage les produits sucrés ?" }, { label: "EE tâche 3 (2/2)", subject: "Sujet au choix" }, { label: "EO tâche 2", subject: "10 questions pour se renseigner sur un appartement" }, { label: "EO tâche 3", subject: "« Le diplôme est-il encore la clé de l'emploi ? »" }, { label: "Scores CO et CE" }],
+      { label: TCF_SAT_TRAINING, mock: false }),
+    tcfWeek(4, "2026-12-07", "2026-12-13", "Santé et alimentation", "Pronoms relatifs composés (dont, lequel, auquel)", "EE tâches 1 et 2 : registres", "Registres et temps du passé sans faute",
+      [{ label: "EE tâche 1", subject: "Réclamation à un service client" }, { label: "EE tâche 2", subject: "Récit d'un voyage" }, { label: "EO tâche 3", subject: "« L'IA va-t-elle remplacer les recruteurs ? »" }],
+      { label: TCF_SAT_TRAINING, mock: false }),
+    tcfWeek(5, "2026-12-14", "2026-12-20", "Éducation et formation", "Hypothèse : si + imparfait ou plus-que-parfait, conditionnel passé", "Examen blanc n° 1", "Premier score de référence en conditions réelles",
+      [{ label: "Achat du pack Gold (49,99 $ US)", subject: "formation-tcfcanada.com" }, { label: "Examen blanc n° 1 : scores et copies", subject: PACK }],
+      { label: "Examen blanc n° 1 complet", mock: true }),
+    tcfWeek(6, "2026-12-21", "2026-12-27", "Famille et société", "Accords du participe passé", "Semaine allégée (cérémonie et fêtes)", "Garder le rythme",
+      [{ label: "Une EE tâche 3", subject: "Gratuité des transports publics" }],
+      { label: TCF_SAT_TRAINING, mock: false }, "Semaine allégée : cérémonie et fêtes."),
+    tcfWeek(7, "2026-12-28", "2027-01-03", "Ville, transports, logement", "Nominalisation et voix passive", "Examen blanc n° 2", "Vocabulaire de la nuance et connecteurs",
+      [{ label: "Examen blanc n° 2 : scores et copies", subject: PACK }, { label: "EO tâche 3", subject: "« Faut-il interdire la voiture en centre-ville ? »" }],
+      { label: "Examen blanc n° 2 complet", mock: true }),
+    tcfWeek(8, "2027-01-04", "2027-01-10", "Consommation et économie", "Gérondif et participe présent", "EO tâche 2 : questions variées", "16/20 en EE",
+      [{ label: "Inscription au TCF Canada (le 05/01)", subject: "Examen du 15/02/2027" }, { label: "EE tâche 1", subject: PACK }, { label: "EE tâche 3", subject: PACK }, { label: "EO tâche 2", subject: PACK }],
+      { label: TCF_SAT_TRAINING, mock: false }),
+    tcfWeek(9, "2027-01-11", "2027-01-17", "Immigration et diversité", "Discours rapporté et concordance des temps", "Examen blanc n° 3", "16/20 en EO",
+      [{ label: "Examen blanc n° 3 : scores et copies", subject: PACK }, { label: "EO : les 3 tâches en conditions réelles", subject: "Immigration et pénurie de main-d'œuvre" }],
+      { label: "Examen blanc n° 3 complet", mock: true }),
+    tcfWeek(10, "2027-01-18", "2027-01-24", "Médias et information", "Mise en relief, négations complexes", "Compréhension : dernières questions (C1-C2)", "549 ou plus en CO et CE",
+      [{ label: "EE tâche 3 (1/2)", subject: PACK }, { label: "EE tâche 3 (2/2)", subject: PACK }, { label: "Scores CO et CE des séries difficiles" }],
+      { label: TCF_SAT_TRAINING, mock: false }),
+    tcfWeek(11, "2027-01-25", "2027-01-31", "Culture, loisirs, tourisme", "Révision des registres (formel, courant, familier)", "Examen blanc n° 4", "17/20 en expression",
+      [{ label: "Examen blanc n° 4 : scores et copies", subject: PACK }, { label: "EO tâche 3", subject: PACK }, { label: "Réserver l'IELTS du 27/03", subject: "British Council ou IDP ; sinon la date la plus proche entre le 20/03 et le 10/04" }],
+      { label: "Examen blanc n° 4 complet", mock: true }),
+    tcfWeek(12, "2027-02-01", "2027-02-07", "Sport et bien-être", "Révision générale et erreurs fréquentes", "Examen blanc n° 5, idéalement à l'Institut français", "Simulation finale à 18/20 et 600",
+      [{ label: "Examen blanc n° 5 complet", subject: "Idéalement à l'Institut français" }],
+      { label: "Examen blanc n° 5 complet (idéalement à l'Institut français)", mock: true }),
+    tcfWeek(13, "2027-02-08", "2027-02-14", "Révision de tous les thèmes", "Carnet d'erreurs uniquement", "Repos actif, rien de nouveau après le 12/02", "Arriver reposé le 15/02",
+      [{ label: "Une EE tâche 3 le mardi", subject: PACK }, { label: "Relecture du carnet d'erreurs" }],
+      null, "Rien de nouveau après le 12/02 ; le week-end des 13 et 14/02 est un repos."),
+  ],
+};
 
-export const sendKey = (week: number, i: number) => `s${week}:e${i}`;
+const ieltsWeek = (n: number, from: string, to: string, theme: string, writing: string, rl: string, speaking: string, goal: string, sends: Send[], saturday: Week["saturday"], note?: string): Week => ({
+  prog: "ielts", n, from, to, theme,
+  focus: [{ label: "Writing", value: writing }, { label: "Reading et Listening", value: rl }, { label: "Speaking", value: speaking }],
+  goal, sends, saturday, note,
+});
+
+export const IELTS: Program = {
+  id: "ielts",
+  name: "IELTS General Training",
+  from: "2027-02-16",
+  to: IELTS_DATE,
+  exam: IELTS_DATE,
+  target: "CLB 9 : Listening 8,0 ; Reading 7,0 ; Writing 7,0 ; Speaking 7,0",
+  phases: [
+    { prog: "ielts", n: 1, name: "Diagnostic et méthode", from: "2027-02-16", to: "2027-02-28", goal: "Connaître le format, mesurer le niveau de départ, maîtriser les lettres de la Task 1" },
+    { prog: "ielts", n: 2, name: "Intensif", from: "2027-03-01", to: "2027-03-21", goal: "Task 2 à 7,0, Reading à 7,0 ; deux examens blancs complets" },
+    { prog: "ielts", n: 3, name: "Finition", from: "2027-03-22", to: IELTS_DATE, goal: "Révision légère, gestion du stress ; rien de nouveau après le 25/03" },
+  ],
+  weeks: [
+    ieltsWeek(1, "2027-02-16", "2027-02-21", "Travail et carrière", "Diagnostic ; les 3 types de lettres", "Diagnostic complet ; Listening parts 1 et 2", "Diagnostic ; Part 1", "Niveau de départ",
+      [{ label: "Lettre de la Task 1", subject: "Lettre à M. Kouassi" }, { label: "Task 2 de diagnostic", subject: "« Some people think remote work will replace offices. Do you agree? »" }, { label: "Transcription d'une Part 2", subject: "« Describe a skill you learned recently »" }, { label: "Scores du diagnostic" }],
+      { label: "Diagnostic : Listening et Reading complets", mock: false }),
+    ieltsWeek(2, "2027-02-22", "2027-02-28", "Technologie et médias", "Task 1 : lettres formelle, semi-formelle et amicale", "Reading sections 1 et 2", "Part 2 : méthode des 2 minutes", "7,0 en Task 1",
+      [{ label: "Lettre formelle (Task 1)", subject: "Une plainte à un hôtel" }, { label: "Lettre semi-formelle (Task 1)", subject: "Une demande à un collègue" }, { label: "Lettre amicale (Task 1)", subject: "Une invitation à un ami" }, { label: "Une Part 2", subject: "« Describe a person who helped you »" }],
+      { label: IELTS_SAT_TRAINING, mock: false }),
+    ieltsWeek(3, "2027-03-01", "2027-03-07", "Environnement", "Task 2 : essai d'opinion", "Listening parts 3 et 4 ; examen blanc n° 1 le 6/03", "Part 2 et Part 3", "6,5 à 7,0 en Task 2",
+      [{ label: "Task 2 (1/2)", subject: "« Should governments tax plastic packaging? »" }, { label: "Task 2 (2/2)", subject: "Sujet au choix" }, { label: "Examen blanc n° 1 : scores", subject: "Sujets de l'examen blanc" }],
+      { label: "Examen blanc n° 1 complet", mock: true }),
+    ieltsWeek(4, "2027-03-08", "2027-03-14", "Santé et éducation", "Task 2 : essais discussion, problème-solution et à double question", "Reading section 3 ; True / False / Not Given", "Part 3 : développer et justifier", "7,0 en Task 2",
+      [{ label: "Task 2 (1/2)", subject: "« Why do young people leave rural areas, and how can it be stopped? »" }, { label: "Task 2 (2/2)", subject: "« Discuss both views: university or vocational training? »" }, { label: "Une Part 3" }],
+      { label: IELTS_SAT_TRAINING, mock: false }),
+    ieltsWeek(5, "2027-03-15", "2027-03-21", "Villes, transports, société", "Tasks 1 et 2 en 60 min d'affilée", "Examen blanc n° 2 le 20/03", "Les 3 parts en conditions réelles", "CLB 9 atteint en simulation",
+      [{ label: "Examen blanc n° 2 complet : scores", subject: "Sujets de l'examen blanc" }, { label: "Speaking : les 3 parts", subject: "Sujets de l'examen blanc" }],
+      { label: "Examen blanc n° 2 complet", mock: true }),
+    ieltsWeek(6, "2027-03-22", IELTS_DATE, "Révision de tous les thèmes", "Une Task 2 le mardi, puis relecture", "Un Listening léger le mercredi", "Une simulation complète le mardi", "Arriver reposé le 27/03",
+      [{ label: "Une Task 2 le mardi", subject: "Sujet au choix" }],
+      null, "Rien de nouveau après le 25/03. Examen le samedi 27/03."),
+  ],
+};
+
+export const PROGRAMS: Program[] = [TCF, IELTS];
+export const ALL_WEEKS: Week[] = [...TCF.weeks, ...IELTS.weeks];
+export const ALL_PHASES: Phase[] = [...TCF.phases, ...IELTS.phases];
+
+/** Clé d'un envoi : « t5:e0 » (TCF, semaine 5, 1er envoi), « i3:e1 » (IELTS). */
+export const sendKey = (w: Pick<Week, "prog" | "n">, i: number) => `${w.prog === "tcf" ? "t" : "i"}${w.n}:e${i}`;
+
+/** Envois rattachés à un jour précis : cocher dans la journée ou dans la semaine revient au même. */
+const DATED_SENDS: Record<string, string> = {
+  "2026-12-14": "t5:e0", // achat du pack Gold
+  "2027-01-05": "t8:e0", // inscription au TCF
+  "2027-01-25": "t11:e2", // réservation de l'IELTS
+  "2027-02-09": "t13:e0", // EE tâche 3 le mardi
+  "2027-03-23": "i6:e0", // Task 2 le mardi
+};
 
 // ---------------------------------------------------------------- dates
 
@@ -209,15 +195,18 @@ export function daysBetween(a: string, b: string): number {
 export const inProgram = (iso: string) => iso >= PROGRAM_START && iso <= PROGRAM_END;
 export const clampToProgram = (iso: string) => (iso < PROGRAM_START ? PROGRAM_START : iso > PROGRAM_END ? PROGRAM_END : iso);
 
+export function programOf(iso: string): Program | null {
+  return PROGRAMS.find((p) => iso >= p.from && iso <= p.to) ?? null;
+}
+
 export function weekOf(iso: string): Week | null {
-  return WEEKS.find((w) => iso >= w.from && iso <= w.to) ?? null;
+  return ALL_WEEKS.find((w) => iso >= w.from && iso <= w.to) ?? null;
 }
 
 export function phaseOf(iso: string): Phase | null {
-  return PHASES.find((p) => iso >= p.from && iso <= p.to) ?? null;
+  return ALL_PHASES.find((p) => iso >= p.from && iso <= p.to) ?? null;
 }
 
-/** Toutes les dates du programme, du premier au dernier jour. */
 export function programDays(): string[] {
   const out: string[] = [];
   for (let d = PROGRAM_START; d <= PROGRAM_END; d = addDays(d, 1)) out.push(d);
@@ -240,137 +229,177 @@ export interface DayItem {
 
 export interface DayPlan {
   date: string;
+  program: Program;
   week: Week | null;
   phase: Phase | null;
-  /** Langue dominante de la journée (production) ; null le week-end. */
-  lang: Lang | null;
-  kind: "semaine" | "samedi" | "dimanche" | "examen";
+  kind: "semaine" | "samedi" | "dimanche" | "examen" | "repos";
   title: string;
   items: DayItem[];
   tip?: string;
 }
 
-interface SlotDef {
-  id: string;
-  time: string;
-  minutes: number;
-  group: SlotGroup;
-  /** Créneau de trajet (écoute) : reste en TCF pendant le sprint IELTS. */
-  commute: boolean;
-  tcf: (w: Week) => string;
-  ielts: (w: Week) => string;
-}
-
-const WEEKDAY_SLOTS: SlotDef[] = [
-  { id: "am", time: "05:15", minutes: 45, group: "matin", commute: false, tcf: () => "Expression écrite TCF chronométrée (tâche du jour)", ielts: () => "Writing IELTS chronométré (Task 1 ou Task 2)" },
-  { id: "t1", time: "Trajet aller", minutes: 30, group: "trajet", commute: true, tcf: () => "Exercices de compréhension orale TCF sur téléphone", ielts: () => "IELTS Listening (une section)" },
-  { id: "t2", time: "Trajet aller", minutes: 60, group: "trajet", commute: true, tcf: () => "Podcast français de niveau C2", ielts: () => "Podcast anglais" },
-  { id: "t3", time: "Trajet aller", minutes: 20, group: "trajet", commute: true, tcf: (w) => `Anki : vocabulaire français « ${w.theme} »`, ielts: () => "Anki : vocabulaire anglais" },
-  { id: "midi", time: "Pause déjeuner", minutes: 20, group: "midi", commute: false, tcf: () => "Un texte de compréhension écrite TCF", ielts: () => "Un passage de Reading IELTS" },
-  { id: "t4", time: "Trajet retour", minutes: 90, group: "trajet", commute: true, tcf: () => "Podcast français et relecture mentale du carnet d'erreurs", ielts: () => "Podcast anglais" },
-  { id: "pm", time: "20:30", minutes: 45, group: "soir", commute: false, tcf: () => "Expression orale TCF : s'enregistrer, transcrire, corriger", ielts: () => "IELTS Speaking : s'enregistrer sur une Part 2 ou 3" },
-  { id: "fin", time: "21:15", minutes: 15, group: "soir", commute: false, tcf: () => "Carnet d'erreurs, puis lecture du sujet du lendemain", ielts: () => "Carnet d'erreurs, puis lecture du sujet du lendemain" },
-];
-
-/** Langue d'un créneau de semaine selon la date (règles de phase incluses). */
-export function slotLang(iso: string, commute: boolean): Lang {
-  if (iso >= ALL_TCF_FROM) return "tcf";
-  if (iso >= SPRINT_IELTS.from && iso <= SPRINT_IELTS.to) return commute ? "tcf" : "ielts";
-  const d = weekday(iso);
-  return d === 2 || d === 4 ? "ielts" : "tcf";
-}
-
 const DAY_NAMES = ["", "Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"];
+export const dayName = (iso: string) => DAY_NAMES[weekday(iso)];
+
+type Slot = Omit<DayItem, "key"> & { id: string };
+
+function tcfWeekday(iso: string, w: Week): Slot[] {
+  const d = weekday(iso);
+  const writing = d === 2 ? "tâches 1 et 2" : d === 4 ? "exercices de grammaire de la semaine et réécriture d'une copie corrigée" : "tâche 3";
+  const oral = d === 2 ? "tâche 2" : d === 4 ? "tâche 1" : "tâche 3";
+  return [
+    { id: "am", time: "05:15", minutes: 45, group: "matin", lang: "tcf", label: d === 4 ? "Grammaire et réécriture d'une copie corrigée" : `Expression écrite chronométrée : ${writing}`, detail: d === 4 ? w.grammar : undefined },
+    { id: "t1", time: "Trajet aller", minutes: 30, group: "trajet", lang: "tcf", label: "Compréhension orale", detail: iso >= "2026-12-14" ? "Séries du pack Gold" : "Exercices TCF sur téléphone (RFI, TV5Monde)" },
+    { id: "t2", time: "Trajet aller", minutes: 60, group: "trajet", lang: "tcf", label: "Podcast français de niveau C1-C2" },
+    { id: "t3", time: "Trajet aller", minutes: 20, group: "trajet", lang: "tcf", label: `Anki : 20 mots du thème « ${w.theme} »` },
+    { id: "midi", time: "Pause déjeuner", minutes: 20, group: "midi", lang: "tcf", label: "Compréhension écrite : un texte et ses questions, chronométré" },
+    { id: "t4", time: "Trajet retour", minutes: 75, group: "trajet", lang: "tcf", label: "Podcast français et relecture mentale du carnet d'erreurs" },
+    { id: "en", time: "Trajet retour", minutes: 15, group: "trajet", lang: "ielts", label: "Maintien de l'anglais", detail: "BBC 6 Minute English ou BBC Global News Podcast" },
+    { id: "pm", time: "20:30", minutes: 45, group: "soir", lang: "tcf", label: `Expression orale : ${oral}`, detail: "S'enregistrer, transcrire, corriger" },
+    { id: "fin", time: "21:15", minutes: 15, group: "soir", lang: "tcf", label: "Carnet d'erreurs, puis lecture du sujet du lendemain" },
+  ];
+}
+
+function ieltsWeekday(iso: string, w: Week): Slot[] {
+  const d = weekday(iso);
+  const writing = d === 2 || d === 4 ? "Writing Task 1 (20 min) et réécriture d'une copie corrigée" : "Writing Task 2 chronométrée (40 min)";
+  const speaking = d === 1 || d === 3 ? "Speaking Part 2 (2 min) et Part 3" : d === 5 ? "Speaking : les 3 parts d'affilée" : "Speaking Part 1";
+  return [
+    { id: "am", time: "05:15", minutes: 45, group: "matin", lang: "ielts", label: writing },
+    { id: "t1", time: "Trajet aller", minutes: 30, group: "trajet", lang: "ielts", label: "Listening : une section d'un test officiel" },
+    { id: "t2", time: "Trajet aller", minutes: 60, group: "trajet", lang: "ielts", label: "Podcast anglais" },
+    { id: "t3", time: "Trajet aller", minutes: 20, group: "trajet", lang: "ielts", label: `Anki : 20 collocations du thème « ${w.theme} »` },
+    { id: "midi", time: "Pause déjeuner", minutes: 20, group: "midi", lang: "ielts", label: "Reading : un passage et ses questions, chronométré" },
+    { id: "t4", time: "Trajet retour", minutes: 90, group: "trajet", lang: "ielts", label: "Podcast anglais, idées notées pour la Task 2" },
+    { id: "pm", time: "20:30", minutes: 45, group: "soir", lang: "ielts", label: speaking, detail: "S'enregistrer, transcrire, corriger" },
+    { id: "fin", time: "21:15", minutes: 15, group: "soir", lang: "ielts", label: "Carnet d'erreurs, puis lecture du sujet du lendemain" },
+  ];
+}
+
+/** Semaine de finition IELTS (22 au 26/03) : programme allégé jour par jour. */
+const IELTS_FINISH: Record<string, Slot[]> = {
+  "2027-03-22": [
+    { id: "t2", time: "Trajets", minutes: 60, group: "trajet", lang: "ielts", label: "Podcast anglais" },
+    { id: "t3", time: "Trajet aller", minutes: 20, group: "trajet", lang: "ielts", label: "Anki : révision des collocations" },
+    { id: "fin", time: "21:00", minutes: 30, group: "soir", lang: "ielts", label: "Relecture du carnet d'erreurs" },
+  ],
+  "2027-03-23": [
+    { id: "pm", time: "20:30", minutes: 15, group: "soir", lang: "ielts", label: "Simulation complète du Speaking (3 parts)" },
+    { id: "t2", time: "Trajets", minutes: 60, group: "trajet", lang: "ielts", label: "Podcast anglais" },
+  ],
+  "2027-03-24": [
+    { id: "t1", time: "Trajet aller", minutes: 30, group: "trajet", lang: "ielts", label: "Listening léger : une section" },
+    { id: "fin", time: "21:00", minutes: 30, group: "soir", lang: "ielts", label: "Relecture du carnet d'erreurs" },
+  ],
+  "2027-03-25": [
+    { id: "rev", time: "Soir", minutes: 30, group: "soir", lang: "ielts", label: "Révision légère : phrases clés et registres des lettres", detail: "Dernier jour de révision : rien de nouveau ensuite" },
+  ],
+  "2027-03-26": [
+    { id: "prep", time: "Soir", minutes: null, group: "soir", lang: null, label: "Préparer la convocation, la pièce d'identité et le trajet ; se coucher tôt" },
+  ],
+};
 
 export function dayPlan(iso: string): DayPlan | null {
-  if (!inProgram(iso)) return null;
+  const program = programOf(iso);
+  if (!program) return null;
   const week = weekOf(iso);
   const phase = phaseOf(iso);
   const d = weekday(iso);
   const k = (id: string) => `${iso}:${id}`;
+  const base = { date: iso, program, week, phase };
 
-  if (iso === IELTS_DATE) {
-    return {
-      date: iso, week, phase, lang: "ielts", kind: "examen", title: "Jour de l'IELTS General Training",
-      items: [{ key: k("examen"), time: "Journée", minutes: null, label: "Passer l'IELTS General Training", detail: "Objectif CLB 9 : Listening 8,0 ; Reading 7,0 ; Writing 7,0 ; Speaking 7,0", lang: "ielts", group: "examen" }],
-      tip: "Writing : commencez par la Task 2, qui compte double.",
-    };
-  }
   if (iso === TCF_DATE) {
     return {
-      date: iso, week, phase, lang: "tcf", kind: "examen", title: "Jour du TCF Canada",
+      ...base, kind: "examen", title: "Jour du TCF Canada",
       items: [{ key: k("examen"), time: "Journée", minutes: null, label: "Passer le TCF Canada", detail: "Objectif NCLC 10 : 549 en compréhension, 16/20 en expression", lang: "tcf", group: "examen" }],
       tip: "Lisez les réponses proposées avant d'écouter ou de lire le document.",
+    };
+  }
+  if (iso === IELTS_DATE) {
+    return {
+      ...base, kind: "examen", title: "Jour de l'IELTS General Training",
+      items: [{ key: k("examen"), time: "Journée", minutes: null, label: "Passer l'IELTS General Training", detail: "Objectif CLB 9 : Listening 8,0 ; Reading 7,0 ; Writing 7,0 ; Speaking 7,0", lang: "ielts", group: "examen" }],
+      tip: "Writing : commencez par la Task 2, qui compte double.",
     };
   }
   if (!week) return null;
 
   const dated: DayItem[] = [];
-  const sendRef = DATED_SENDS[iso];
-  if (sendRef) {
-    const [, e] = sendRef.split(":");
-    const s = week.sends[Number(e.slice(1))];
-    if (s) dated.push({ key: sendRef, time: "À faire", minutes: null, label: s.label, detail: s.subject, lang: null, group: "jalon" });
+  const ref = DATED_SENDS[iso];
+  if (ref) {
+    const s = week.sends[Number(ref.split(":e")[1])];
+    if (s) dated.push({ key: ref, time: "À faire", minutes: null, label: s.label, detail: s.subject, lang: program.id, group: "jalon" });
+  }
+  const withKeys = (slots: Slot[]): DayItem[] => slots.map(({ id, ...s }) => ({ ...s, key: k(id) }));
+
+  // Fin de programme allégée.
+  if (IELTS_FINISH[iso]) {
+    return { ...base, kind: "repos", title: `${DAY_NAMES[d]} · finition`, items: [...dated, ...withKeys(IELTS_FINISH[iso])], tip: "Révision légère et gestion du stress : rien de nouveau après le 25/03." };
+  }
+  if (program.id === "tcf" && iso >= "2027-02-13") {
+    return {
+      ...base, kind: "repos", title: `${DAY_NAMES[d]} · repos avant le TCF`,
+      items: [{ key: k("repos"), time: "Journée", minutes: null, label: "Repos : relecture légère du carnet d'erreurs", lang: "tcf", group: "weekend" }],
+      tip: "Arrivez reposé le 15/02 : rien de nouveau.",
+    };
   }
 
   if (d === 6) {
     const items: DayItem[] = [...dated];
-    if (week.saturday.lang) {
-      items.push({ key: k("blanc"), time: "08:00", minutes: 180, label: week.saturday.label, detail: "En conditions réelles, chronomètre lancé", lang: week.saturday.lang, group: "weekend" });
-      items.push({ key: k("correction"), time: "15:00", minutes: 60, label: "Correction de l'examen blanc et carnet d'erreurs", lang: week.saturday.lang, group: "weekend" });
-    } else {
-      items.push({ key: k("carnet"), time: "Matin", minutes: 60, label: week.saturday.label, lang: "tcf", group: "weekend" });
+    if (week.saturday) {
+      items.push({ key: k("matin"), time: "08:00", minutes: 180, label: week.saturday.label, detail: week.saturday.mock ? "En conditions réelles, chronomètre lancé" : "Chronométré", lang: program.id, group: "weekend" });
+      items.push({ key: k("correction"), time: "15:00", minutes: 60, label: "Correction et carnet d'erreurs", lang: program.id, group: "weekend" });
     }
-    return { date: iso, week, phase, lang: null, kind: "samedi", title: `Samedi · ${week.saturday.lang ? "examen blanc" : "repos actif"}`, items };
+    return { ...base, kind: "samedi", title: `Samedi · ${week.saturday?.mock ? "examen blanc" : "entraînement"}`, items };
   }
 
   if (d === 7) {
+    const study: DayItem[] =
+      program.id === "tcf"
+        ? [
+            { key: k("grammaire"), time: "15:00", minutes: 60, label: `Grammaire de la semaine : ${week.grammar}`, lang: "tcf", group: "weekend" },
+            { key: k("shadowing"), time: "16:00", minutes: 30, label: "Shadowing en français : répéter à voix haute un extrait audio", lang: "tcf", group: "weekend" },
+          ]
+        : [{ key: k("shadowing"), time: "15:00", minutes: 60, label: "30 min de shadowing et révision du vocabulaire", lang: "ielts", group: "weekend" }];
     return {
-      date: iso, week, phase, lang: null, kind: "dimanche", title: "Dimanche · grammaire et bilan",
+      ...base, kind: "dimanche", title: "Dimanche · révision et bilan",
       items: [
         ...dated,
-        { key: k("grammaire"), time: "15:00", minutes: 60, label: `Grammaire de la semaine : ${week.grammar}`, lang: "tcf", group: "weekend" },
-        { key: k("shadowing"), time: "16:00", minutes: 30, label: "Shadowing : répéter à voix haute un extrait audio", lang: null, group: "weekend" },
-        { key: k("bilan"), time: "20:00", minutes: null, label: "Envoyer le bilan de la semaine à Claude (scores et copies)", detail: "Relire aussi le carnet d'erreurs", lang: null, group: "weekend" },
+        ...study,
+        { key: k("carnet"), time: "Après-midi", minutes: 15, label: "Relire le carnet d'erreurs", detail: "Une erreur revenue 3 fois devient un exercice ciblé la semaine suivante", lang: program.id, group: "weekend" },
+        { key: k("bilan"), time: "20:00", minutes: null, label: "Envoyer le bilan de la semaine à Claude (scores et copies)", lang: null, group: "weekend" },
       ],
-      tip: "Une erreur qui revient 3 fois devient un exercice ciblé la semaine suivante.",
     };
   }
 
-  const items: DayItem[] = [
-    ...dated,
-    ...WEEKDAY_SLOTS.map((s) => {
-      const lang = slotLang(iso, s.commute);
-      return { key: k(s.id), time: s.time, minutes: s.minutes, label: lang === "tcf" ? s.tcf(week) : s.ielts(week), lang, group: s.group };
-    }),
-  ];
-  const lang = slotLang(iso, false);
+  const slots = program.id === "tcf" ? tcfWeekday(iso, week) : ieltsWeekday(iso, week);
   return {
-    date: iso, week, phase, lang, kind: "semaine", title: `${DAY_NAMES[d]} · jour ${lang === "tcf" ? "TCF" : "IELTS"}`, items,
-    tip: iso > NOTHING_NEW_AFTER ? "Rien de nouveau : relisez le carnet d'erreurs." : "Si vous partez avant 6 h, faites l'écriture du matin à 20:30 et l'oral en 15 minutes juste après.",
+    ...base, kind: "semaine", title: `${DAY_NAMES[d]} · ${program.id === "tcf" ? "TCF" : "IELTS"}`,
+    items: [...dated, ...withKeys(slots)],
+    tip: program.id === "tcf" && iso > "2027-02-12" ? "Rien de nouveau : relisez le carnet d'erreurs." : "Si vous partez avant 6 h, faites l'écriture du matin à 20:30 et l'oral en 15 minutes juste après.",
   };
 }
 
-export function dayName(iso: string): string {
-  return DAY_NAMES[weekday(iso)];
-}
-
-/** Clés de toutes les tâches d'une semaine : créneaux des 7 jours + envois. */
+/** Clés de toutes les tâches d'une semaine : créneaux des jours + envois. */
 export function weekKeys(w: Week): string[] {
   const keys = new Set<string>();
   for (let d = w.from; d <= w.to; d = addDays(d, 1)) dayPlan(d)?.items.forEach((i) => keys.add(i.key));
-  w.sends.forEach((_, i) => keys.add(sendKey(w.n, i)));
+  w.sends.forEach((_, i) => keys.add(sendKey(w, i)));
+  return [...keys];
+}
+
+export function programKeys(p: Program): string[] {
+  const keys = new Set<string>();
+  for (let d = p.from; d <= p.to; d = addDays(d, 1)) dayPlan(d)?.items.forEach((i) => keys.add(i.key));
+  p.weeks.forEach((w) => w.sends.forEach((_, i) => keys.add(sendKey(w, i))));
   return [...keys];
 }
 
 export function allKeys(): string[] {
-  const keys = new Set<string>();
-  for (const d of programDays()) dayPlan(d)?.items.forEach((i) => keys.add(i.key));
-  for (const w of WEEKS) w.sends.forEach((_, i) => keys.add(sendKey(w.n, i)));
-  return [...keys];
+  return [...new Set([...programKeys(TCF), ...programKeys(IELTS)])];
 }
 
-/** Clés des jours passés et du jour donné (pour mesurer le retard). */
+/** Clés des tâches datées jusqu'au jour donné inclus (pour mesurer le retard). */
 export function keysUntil(iso: string): string[] {
   const keys = new Set<string>();
   for (const d of programDays()) {
@@ -380,15 +409,15 @@ export function keysUntil(iso: string): string[] {
   return [...keys];
 }
 
-/** Jours consécutifs entièrement faits, en remontant depuis hier (aujourd'hui compte s'il est complet). */
+/** Jours consécutifs entièrement faits, en remontant depuis aujourd'hui (ou hier si aujourd'hui n'est pas fini). */
 export function streak(today: string, done: Set<string>): number {
-  let n = 0;
-  let d = clampToProgram(today);
   const full = (iso: string) => {
     const p = dayPlan(iso);
     return !!p && p.items.length > 0 && p.items.every((i) => done.has(i.key));
   };
+  let d = clampToProgram(today);
   if (!full(d)) d = addDays(d, -1);
+  let n = 0;
   while (d >= PROGRAM_START && full(d)) {
     n++;
     d = addDays(d, -1);
@@ -400,19 +429,19 @@ export function streak(today: string, done: Set<string>): number {
 
 type Scale = Array<[number, number]>; // [seuil minimal, niveau], du plus haut au plus bas
 
-const TCF_SCALE: Record<"co" | "ce" | "ee" | "eo", Scale> = {
-  co: [[549, 10], [523, 9], [503, 8], [458, 7], [398, 6], [369, 5], [331, 4]],
-  ce: [[549, 10], [524, 9], [499, 8], [453, 7], [406, 6], [375, 5], [342, 4]],
-  ee: [[16, 10], [14, 9], [12, 8], [10, 7], [7, 6], [6, 5], [4, 4]],
-  eo: [[16, 10], [14, 9], [12, 8], [10, 7], [7, 6], [6, 5], [4, 4]],
-};
+const TCF_SCALE: Scale[] = [
+  [[549, 10], [523, 9], [503, 8], [458, 7], [398, 6], [369, 5], [331, 4]], // CO
+  [[549, 10], [524, 9], [499, 8], [453, 7], [406, 6], [375, 5], [342, 4]], // CE
+  [[16, 10], [14, 9], [12, 8], [10, 7], [7, 6], [6, 5], [4, 4]], // EE
+  [[16, 10], [14, 9], [12, 8], [10, 7], [7, 6], [6, 5], [4, 4]], // EO
+];
 
-const IELTS_SCALE: Record<"l" | "r" | "w" | "s", Scale> = {
-  l: [[8.5, 10], [8, 9], [7.5, 8], [6, 7], [5.5, 6], [5, 5], [4.5, 4]],
-  r: [[8, 10], [7, 9], [6.5, 8], [6, 7], [5, 6], [4, 5], [3.5, 4]],
-  w: [[7.5, 10], [7, 9], [6.5, 8], [6, 7], [5.5, 6], [5, 5], [4, 4]],
-  s: [[7.5, 10], [7, 9], [6.5, 8], [6, 7], [5.5, 6], [5, 5], [4, 4]],
-};
+const IELTS_SCALE: Scale[] = [
+  [[8.5, 10], [8, 9], [7.5, 8], [6, 7], [5.5, 6], [5, 5], [4.5, 4]], // Listening
+  [[8, 10], [7, 9], [6.5, 8], [6, 7], [5, 6], [4, 5], [3.5, 4]], // Reading
+  [[7.5, 10], [7, 9], [6.5, 8], [6, 7], [5.5, 6], [5, 5], [4, 4]], // Writing
+  [[7.5, 10], [7, 9], [6.5, 8], [6, 7], [5.5, 6], [5, 5], [4, 4]], // Speaking
+];
 
 function level(scale: Scale, v: number | null | undefined): number | null {
   if (v == null || Number.isNaN(v)) return null;
@@ -422,23 +451,22 @@ function level(scale: Scale, v: number | null | undefined): number | null {
 
 export const SKILLS = {
   tcf: [
-    { id: "co", label: "CO", name: "Compréhension orale", max: 699, step: 1 },
-    { id: "ce", label: "CE", name: "Compréhension écrite", max: 699, step: 1 },
-    { id: "ee", label: "EE", name: "Expression écrite", max: 20, step: 1 },
-    { id: "eo", label: "EO", name: "Expression orale", max: 20, step: 1 },
+    { id: "co", label: "CO", name: "Compréhension orale", max: 699 },
+    { id: "ce", label: "CE", name: "Compréhension écrite", max: 699 },
+    { id: "ee", label: "EE", name: "Expression écrite", max: 20 },
+    { id: "eo", label: "EO", name: "Expression orale", max: 20 },
   ],
   ielts: [
-    { id: "l", label: "Listening", name: "Listening", max: 9, step: 0.5 },
-    { id: "r", label: "Reading", name: "Reading", max: 9, step: 0.5 },
-    { id: "w", label: "Writing", name: "Writing", max: 9, step: 0.5 },
-    { id: "s", label: "Speaking", name: "Speaking", max: 9, step: 0.5 },
+    { id: "l", label: "Listening", name: "Listening", max: 9 },
+    { id: "r", label: "Reading", name: "Reading", max: 9 },
+    { id: "w", label: "Writing", name: "Writing", max: 9 },
+    { id: "s", label: "Speaking", name: "Speaking", max: 9 },
   ],
 } as const;
 
 /** Niveau (NCLC pour le TCF, CLB pour l'IELTS) de chaque compétence. */
 export function levels(exam: Lang, scores: Array<number | null>): Array<number | null> {
-  const scales = exam === "tcf" ? [TCF_SCALE.co, TCF_SCALE.ce, TCF_SCALE.ee, TCF_SCALE.eo] : [IELTS_SCALE.l, IELTS_SCALE.r, IELTS_SCALE.w, IELTS_SCALE.s];
-  return scales.map((s, i) => level(s, scores[i]));
+  return (exam === "tcf" ? TCF_SCALE : IELTS_SCALE).map((s, i) => level(s, scores[i]));
 }
 
 /** Niveau retenu = celui de la compétence la plus faible (null si une note manque). */
@@ -450,7 +478,6 @@ export function overallLevel(exam: Lang, scores: Array<number | null>): { level:
   return { level: lv.every((l) => l != null) ? min : null, weakest: lv.flatMap((l, i) => (l === min ? [i] : [])) };
 }
 
-/** Cible de niveau : 10 au TCF, 9 à l'IELTS. */
 export const TARGET_LEVEL: Record<Lang, number> = { tcf: 10, ielts: 9 };
 
 export interface TrainingScore {
@@ -462,7 +489,32 @@ export interface TrainingScore {
   notes: string;
 }
 
-export const SCORE_PRESETS: Record<Lang, string[]> = {
-  tcf: ["Diagnostic", "Examen blanc 1", "Examen blanc 2", "Examen blanc 3", "Examen blanc 4", "TCF Canada officiel"],
-  ielts: ["Diagnostic", "Examen blanc 1", "Examen blanc 2", "IELTS officiel"],
+export const SCORE_PRESETS: Record<Lang, Array<{ label: string; date?: string }>> = {
+  tcf: [
+    { label: "Diagnostic" }, { label: "Examen blanc 1", date: "2026-12-19" }, { label: "Examen blanc 2", date: "2027-01-02" }, { label: "Examen blanc 3", date: "2027-01-16" },
+    { label: "Examen blanc 4", date: "2027-01-30" }, { label: "Examen blanc 5", date: "2027-02-06" }, { label: "TCF Canada officiel", date: TCF_DATE },
+  ],
+  ielts: [{ label: "Diagnostic" }, { label: "Examen blanc 1", date: "2027-03-06" }, { label: "Examen blanc 2", date: "2027-03-20" }, { label: "IELTS officiel", date: IELTS_DATE }],
 };
+
+// ---------------------------------------------------------------- carnet d'erreurs
+
+export interface ErrorEntry {
+  id: string;
+  exam: Lang;
+  skill: string;
+  wrong: string;
+  correct: string;
+  rule: string;
+  count: number;
+  mastered: boolean;
+  createdAt: string;
+}
+
+export const ERROR_SKILLS: Record<Lang, string[]> = {
+  tcf: ["Expression écrite", "Expression orale", "Compréhension orale", "Compréhension écrite", "Grammaire", "Vocabulaire"],
+  ielts: ["Writing", "Speaking", "Listening", "Reading", "Grammar", "Vocabulary"],
+};
+
+/** Seuil à partir duquel une erreur devient un exercice ciblé la semaine suivante. */
+export const ERROR_REPEAT_THRESHOLD = 3;

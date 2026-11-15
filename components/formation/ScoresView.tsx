@@ -28,17 +28,17 @@ function ExamScores({ exam, dossierId, rows, setScores, today }: { exam: Lang; d
   const skills = SKILLS[exam];
   const sorted = [...rows].sort((a, b) => (a.takenOn ?? "9999").localeCompare(b.takenOn ?? "9999"));
   const used = new Set(rows.map((r) => r.label));
-  const nextPreset = SCORE_PRESETS[exam].find((p) => !used.has(p)) ?? "";
+  const next = SCORE_PRESETS[exam].find((p) => !used.has(p.label));
   const [adding, setAdding] = useState(false);
-  const [label, setLabel] = useState(nextPreset);
+  const [label, setLabel] = useState(next?.label ?? "");
   const [date, setDate] = useState(today);
   const [vals, setVals] = useState<string[]>(["", "", "", ""]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   function openForm() {
-    setLabel(nextPreset);
-    setDate(today);
+    setLabel(next?.label ?? "");
+    setDate(next?.date && next.date <= today ? next.date : today);
     setVals(["", "", "", ""]);
     setError(null);
     setAdding(true);
@@ -80,7 +80,7 @@ function ExamScores({ exam, dossierId, rows, setScores, today }: { exam: Lang; d
             {exam === "tcf" ? "TCF Canada" : "IELTS General Training"} <LangTag lang={exam} />
           </h2>
           <p className="text-[12.5px] text-muted">
-            Objectif : {LEVEL_NAME[exam]} {TARGET_LEVEL[exam]} · {exam === "tcf" ? "examen le 15 février 2027" : "examen le 30 janvier 2027"}
+            Objectif : {LEVEL_NAME[exam]} {TARGET_LEVEL[exam]} · {exam === "tcf" ? "examen le 15 février 2027" : "examen le 27 mars 2027"}
           </p>
         </div>
         {!adding && (
@@ -174,7 +174,7 @@ function ExamScores({ exam, dossierId, rows, setScores, today }: { exam: Lang; d
               <input list={`presets-${exam}`} value={label} onChange={(e) => setLabel(e.target.value)} className="input" required />
               <datalist id={`presets-${exam}`}>
                 {SCORE_PRESETS[exam].map((p) => (
-                  <option key={p} value={p} />
+                  <option key={p.label} value={p.label} />
                 ))}
               </datalist>
             </label>
