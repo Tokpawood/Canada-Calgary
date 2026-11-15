@@ -317,11 +317,14 @@ export async function signPhotos(supabase: SupabaseClient, paths: Array<string |
 
 /** Personnes (des organismes ou indépendantes) et liens contacts <-> étapes du dossier. */
 export async function getNetwork(supabase: SupabaseClient, dossierId: string): Promise<{ persons: ContactPerson[]; links: ContactStepLink[] }> {
-  const [{ data: persons }, { data: links }] = await Promise.all([
+  const [{ data: persons }, { data: links }, { data: privates }] = await Promise.all([
     supabase.from("contact_person").select("*").eq("dossier_id", dossierId).order("position").order("created_at"),
     supabase.from("contact_step").select("id,step_id,contact_id,person_id").eq("dossier_id", dossierId).order("created_at"),
+    // Vide pour un lecteur invité (RLS : titulaire seul).
+    supabase.from("contact_person_private").select("person_id,birth_date,nationality,id_type,id_number").eq("dossier_id", dossierId),
   ]);
-  const list = (persons ?? []).map(mapPerson);
+  const priv = new Map((privates ?? []).map((r) => [r.person_id as string, r]));
+  const list = (persons ?? []).map((r) => mapPerson({ ...r, ...(priv.get(r.id as string) ?? {}) }));
   const urls = await signPhotos(supabase, list.map((p) => p.photoPath));
   return { persons: list.map((p) => ({ ...p, photoUrl: p.photoPath ? (urls.get(p.photoPath) ?? null) : null })), links: (links ?? []).map(mapContactStep) };
 }

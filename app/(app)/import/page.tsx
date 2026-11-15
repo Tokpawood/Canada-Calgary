@@ -90,6 +90,7 @@ export default function ImportPage() {
       () => insertIfAny(supabase, "saving", plan.savings),
       () => insertIfAny(supabase, "contact", plan.contacts),
       ...plan.peopleLevels.map((level) => () => insertIfAny(supabase, "contact_person", level)),
+      () => insertIfAny(supabase, "contact_person_private", plan.peoplePrivate),
       () => insertIfAny(supabase, "contact_step", plan.contactLinks),
       () => insertIfAny(supabase, "gap", plan.gaps),
       () => insertIfAny(supabase, "history", plan.history),

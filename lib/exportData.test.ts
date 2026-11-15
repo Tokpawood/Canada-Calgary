@@ -98,7 +98,9 @@ describe("réseau des contacts à l'export et au ré-import", () => {
     expect(parsed.contacts[0].stage).toBe("en-contact");
     const plan = buildImportPlan("dossier-2", parsed);
     const [person] = plan.peopleLevels.flat();
-    expect(person).toMatchObject({ dossier_id: "dossier-2", contact_id: null, name: "Coursier", relation: "Coursier", id_type: "CNI", id_number: "X1" });
+    expect(person).toMatchObject({ dossier_id: "dossier-2", contact_id: null, name: "Coursier", relation: "Coursier" });
+    expect(person).not.toHaveProperty("id_number");
+    expect(plan.peoplePrivate).toEqual([{ person_id: person.id, dossier_id: "dossier-2", birth_date: null, nationality: "", id_type: "CNI", id_number: "X1" }]);
     expect(plan.contactLinks).toEqual([{ step_id: "s1", contact_id: null, person_id: person.id }]);
   });
 

@@ -266,7 +266,7 @@ export function PersonDrawer(props: Props) {
             )}
           </DrawerCard>
 
-          <DrawerCard title="Identification" sub="Informations d'identité dont vous disposez (visibles seulement dans votre dossier).">
+          <DrawerCard title="Identification" sub="Visible de vous seul : jamais montrée aux lecteurs invités.">
             {ed.editing ? (
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <Field label="Date de naissance">

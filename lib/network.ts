@@ -33,6 +33,8 @@ export interface ContactPerson {
 /** Champs d'identification modifiables d'une personne. */
 export const PERSON_FIELDS = ["name", "title", "relation", "email", "phone", "whatsapp", "website", "address", "city", "country", "birthDate", "nationality", "idType", "idNumber", "notes"] as const;
 export type PersonField = (typeof PERSON_FIELDS)[number];
+/** Champs d'identité rangés à part (table contact_person_private) : visibles du seul titulaire. */
+export const PRIVATE_FIELDS: readonly PersonField[] = ["birthDate", "nationality", "idType", "idNumber"];
 export const PERSON_COLUMNS: Record<PersonField, string> = {
   name: "name",
   title: "title",

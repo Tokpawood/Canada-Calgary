@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { FilePreview } from "@/components/coffre/FilePreview";
 import { createClient } from "@/lib/supabase/client";

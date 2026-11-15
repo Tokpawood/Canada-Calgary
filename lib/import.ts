@@ -204,6 +204,8 @@ export interface ImportPlan {
   contacts: Array<Record<string, unknown>>;
   /** Personnes par niveau d'organigramme : chaque niveau s'insère après celui de ses responsables. */
   peopleLevels: Array<Array<Record<string, unknown>>>;
+  /** Identité des personnes (table réservée au titulaire), insérée après elles. */
+  peoplePrivate: Array<Record<string, unknown>>;
   contactLinks: Array<Record<string, unknown>>;
   gaps: Array<Record<string, unknown>>;
   history: Array<Record<string, unknown>>;
@@ -304,6 +306,7 @@ export function buildImportPlan(dossierId: string, raw: RawDossier): ImportPlan 
     return d;
   };
   const peopleLevels: Array<Array<Record<string, unknown>>> = [];
+  const peoplePrivate: Array<Record<string, unknown>> = [];
   raw.people.forEach((p, i) => {
     const d = depthOf(p.id);
     const parent = parentOf(p);
@@ -324,14 +327,16 @@ export function buildImportPlan(dossierId: string, raw: RawDossier): ImportPlan 
       address: p.address,
       city: p.city,
       country: p.country,
-      birth_date: p.birth && /^\d{4}-\d{2}-\d{2}$/.test(p.birth) ? p.birth : null,
-      nationality: p.nationality,
-      id_type: p.idType,
-      id_number: p.idNumber,
       notes: p.notes,
       position: i,
     });
   });
+  for (const p of raw.people) {
+    const birth = p.birth && /^\d{4}-\d{2}-\d{2}$/.test(p.birth) ? p.birth : null;
+    if (birth || p.nationality || p.idType || p.idNumber) {
+      peoplePrivate.push({ person_id: newIdOf.get(p.id), dossier_id: dossierId, birth_date: birth, nationality: p.nationality, id_type: p.idType, id_number: p.idNumber });
+    }
+  }
   const seenLinks = new Set<string>();
   const contactLinks = raw.contactLinks.flatMap((l) => {
     const person = l.person ? byOld.get(l.person) : undefined;
@@ -385,6 +390,7 @@ export function buildImportPlan(dossierId: string, raw: RawDossier): ImportPlan 
     savings,
     contacts,
     peopleLevels: peopleLevels.filter(Boolean),
+    peoplePrivate,
     contactLinks,
     gaps,
     history,

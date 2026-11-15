@@ -1,7 +1,7 @@
 "use client";
 
 import { createClient } from "@/lib/supabase/client";
-import { PERSON_COLUMNS, mapContactStep, mapPerson, type ContactPerson, type ContactStepLink, type PersonField } from "./network";
+import { PERSON_COLUMNS, PRIVATE_FIELDS, mapContactStep, mapPerson, type ContactPerson, type ContactStepLink, type PersonField } from "./network";
 import { squareJpeg } from "./avatarUpload";
 
 const PHOTO_BUCKET = "contact-photos";
@@ -39,10 +39,21 @@ export async function updatePerson(id: string, draft: PersonDraft): Promise<Cont
 /** Enregistre les champs d'identification modifiés d'une personne. */
 export async function patchPerson(id: string, patch: Partial<Pick<ContactPerson, PersonField>>): Promise<void> {
   const row: Record<string, unknown> = {};
-  for (const [k, v] of Object.entries(patch)) row[PERSON_COLUMNS[k as PersonField]] = typeof v === "string" ? (k === "notes" ? v : v.trim()) || (k === "birthDate" ? null : "") : v;
-  if (!Object.keys(row).length) return;
-  const { error } = await createClient().from("contact_person").update(row).eq("id", id);
-  if (error) fail(error, "Enregistrement impossible.");
+  const priv: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(patch)) {
+    const value = typeof v === "string" ? (k === "notes" ? v : v.trim()) || (k === "birthDate" ? null : "") : v;
+    (PRIVATE_FIELDS.includes(k as PersonField) ? priv : row)[PERSON_COLUMNS[k as PersonField]] = value;
+  }
+  const supabase = createClient();
+  if (Object.keys(row).length) {
+    const { error } = await supabase.from("contact_person").update(row).eq("id", id);
+    if (error) fail(error, "Enregistrement impossible.");
+  }
+  if (Object.keys(priv).length) {
+    // Le dossier est renseigné par la base d'après la personne.
+    const { error } = await supabase.from("contact_person_private").upsert({ person_id: id, ...priv } as never, { onConflict: "person_id" });
+    if (error) fail(error, "Enregistrement de l'identité impossible.");
+  }
 }
 
 /** Change l'organisme d'une personne (ou la rend indépendante) : elle quitte l'organigramme, ses tâches la suivent. */
