@@ -1,8 +1,10 @@
 /**
  * Dates de la page Compte, formatées dans un fuseau fixe : le rendu serveur et l'appareil
- * (iPad réglé sur Calgary) produisent exactement le même texte, sans écart d'hydratation.
+ * (quel que soit le fuseau réglé sur l'iPad) produisent exactement le même texte, sans écart d'hydratation.
  */
-export const ACCOUNT_TIME_ZONE = "America/Edmonton";
+/** Heure d'Abidjan (UTC+0), comme les rappels. Après le départ : "America/Edmonton" pour Calgary. */
+export const ACCOUNT_TIME_ZONE = "Africa/Abidjan";
+export const ACCOUNT_TIME_LABEL = "Abidjan";
 
 /** « 15 nov. » et « 14:05 » pour la dernière connexion, ou null si la date est absente ou invalide. */
 export function formatLastSignIn(iso: string | null): { day: string; time: string } | null {

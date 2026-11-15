@@ -10,7 +10,7 @@ import { PasswordInput, authErrorFr } from "@/components/PasswordInput";
 import { IconCheck, IconInfo, IconLock, IconLogout, IconShield } from "@/components/icons";
 import { Avatar } from "@/components/Avatar";
 import type { Account } from "@/lib/account";
-import { formatCreatedAt, formatLastSignIn } from "@/lib/compte";
+import { ACCOUNT_TIME_LABEL, formatCreatedAt, formatLastSignIn } from "@/lib/compte";
 
 const MIN = 7;
 
@@ -111,7 +111,7 @@ export function AccountBoard({
         aside={
           <DarkTiles
             items={[
-              { label: "Dernière connexion", value: lastSeen?.day ?? "—", sub: lastSeen ? `à ${lastSeen.time} (Calgary)` : "" },
+              { label: "Dernière connexion", value: lastSeen?.day ?? "—", sub: lastSeen ? `à ${lastSeen.time} (${ACCOUNT_TIME_LABEL})` : "" },
               { label: "Compte créé", value: formatCreatedAt(createdAt) ?? "—", sub: "compte unique" },
             ]}
           />
