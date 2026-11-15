@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { fundsError, monthIndex, monthsFromNow, parseMonthLabel, savingsError, suggestNextLabel } from "./epargne";
+import { effectiveFundsMin } from "./epargne";
 
 describe("libellés de mois", () => {
   it("reconnaît les mois complets, abrégés ou sans accents", () => {
@@ -30,5 +31,14 @@ describe("contrôles de saisie", () => {
     expect(fundsError(100, 200)).toBeNull();
     expect(fundsError(300, 200)).not.toBeNull();
     expect(fundsError(-1, 0)).not.toBeNull();
+  });
+});
+
+describe("minimum IRCC en dollars canadiens", () => {
+  it("suit le taux du jour, sinon le taux enregistré, sinon garde le montant FCFA", () => {
+    const d = { fundsMin: 6_000_000, fundsMinCad: 15_263, cadRate: 410 };
+    expect(effectiveFundsMin(d, 416.27)).toBe(Math.round(15_263 * 416.27));
+    expect(effectiveFundsMin(d, null)).toBe(15_263 * 410);
+    expect(effectiveFundsMin({ ...d, fundsMinCad: null }, 416.27)).toBe(6_000_000);
   });
 });

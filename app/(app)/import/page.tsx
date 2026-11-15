@@ -79,54 +79,36 @@ export default function ImportPage() {
     setPhase("busy");
     setError(null);
     const supabase = createClient();
-    const failWrite = (msg: string) => fail(`${msg} — l'écriture s'est interrompue, le dossier peut être incomplet : relancez l'import avec le même fichier.`);
-    let dossierId = existingId;
-    const dossierRow = {
-      owner_id: userId,
-      profile_date: data.profileDate || null,
-      funds_min: data.fundsMin,
-      funds_target: data.fundsTarget,
-    };
-
-    if (dossierId) {
-      const { error: updateError } = await supabase.from("dossier").update(dossierRow).eq("id", dossierId);
-      if (updateError) return failWrite(updateError.message);
-      for (const table of ["step", "document", "saving", "contact_person", "contact", "gap", "history", "address"]) {
-        const { error: deleteError } = await supabase.from(table).delete().eq("dossier_id", dossierId);
-        if (deleteError) return failWrite(deleteError.message);
-      }
-    } else {
-      const { data: created, error: insertError } = await supabase.from("dossier").insert(dossierRow).select("id").single();
-      if (insertError || !created) return failWrite(insertError?.message ?? "Création du dossier impossible.");
-      dossierId = created.id as string;
-    }
-
+    void userId; // le dossier est rattaché au compte connecté côté base (auth.uid()).
+    const dossierId = existingId ?? crypto.randomUUID();
     const plan = buildImportPlan(dossierId, data);
 
-    const steps = [
-      () => supabase.from("identity").upsert({ dossier_id: dossierId, ...plan.identity }, { onConflict: "dossier_id" }),
-      () => supabase.from("profile").upsert({ dossier_id: dossierId, ...plan.profile }, { onConflict: "dossier_id" }),
-      () => supabase.from("fsw").upsert({ dossier_id: dossierId, ...plan.fsw }, { onConflict: "dossier_id" }),
-      () => insertIfAny(supabase, "step", plan.steps),
-      () => insertIfAny(supabase, "step_task", plan.stepTasks),
-      () => insertIfAny(supabase, "step_link", plan.stepLinks),
-      () => insertIfAny(supabase, "document", plan.documents),
-      () => insertIfAny(supabase, "document_check", plan.documentChecks),
-      () => insertIfAny(supabase, "document_link", plan.documentLinks),
-      () => insertIfAny(supabase, "saving", plan.savings),
-      () => insertIfAny(supabase, "contact", plan.contacts),
-      ...plan.peopleLevels.map((level) => () => insertIfAny(supabase, "contact_person", level)),
-      () => insertIfAny(supabase, "contact_person_private", plan.peoplePrivate),
-      () => insertIfAny(supabase, "contact_step", plan.contactLinks),
-      () => insertIfAny(supabase, "gap", plan.gaps),
-      () => insertIfAny(supabase, "history", plan.history),
-      () => insertIfAny(supabase, "address", plan.addresses),
+    // Une seule transaction en base : en cas d'erreur, rien n'est modifié.
+    const tables: Array<[string, unknown[]]> = [
+      ["identity", [{ dossier_id: dossierId, ...plan.identity }]],
+      ["profile", [{ dossier_id: dossierId, ...plan.profile }]],
+      ["fsw", [{ dossier_id: dossierId, ...plan.fsw }]],
+      ["step", plan.steps],
+      ["step_task", plan.stepTasks],
+      ["step_link", plan.stepLinks],
+      ["document", plan.documents],
+      ["document_check", plan.documentChecks],
+      ["document_link", plan.documentLinks],
+      ["saving", plan.savings],
+      ["contact", plan.contacts],
+      ...plan.peopleLevels.map((level): [string, unknown[]] => ["contact_person", level]),
+      ["contact_person_private", plan.peoplePrivate],
+      ["contact_step", plan.contactLinks],
+      ["gap", plan.gaps],
+      ["history", plan.history],
+      ["address", plan.addresses],
     ];
-
-    for (const run of steps) {
-      const { error: stepError } = await run();
-      if (stepError) return failWrite(stepError.message);
-    }
+    const { error: rpcError } = await supabase.rpc("import_dossier", {
+      p_dossier_id: dossierId,
+      p_dossier: plan.dossier,
+      p_tables: tables.map(([table, rows]) => ({ table, rows })),
+    });
+    if (rpcError) return fail(`Import refusé : ${rpcError.message}. Aucune donnée n'a été modifiée.`);
 
     setCounts(plan.counts);
     setPending(null);
@@ -247,9 +229,4 @@ function ImportCounts({ counts }: { counts: ImportPlan["counts"] }) {
       ))}
     </dl>
   );
-}
-
-async function insertIfAny(supabase: ReturnType<typeof createClient>, table: string, rows: unknown[]) {
-  if (!rows.length) return { error: null };
-  return supabase.from(table).insert(rows);
 }

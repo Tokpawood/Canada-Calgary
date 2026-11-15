@@ -84,6 +84,7 @@ export function toRawDossierJson(bundle: FullBundle) {
     updated: new Date().toISOString().slice(0, 10),
     profileDate: bundle.dossier.profileDate,
     fundsMin: bundle.dossier.fundsMin,
+    fundsMinCad: bundle.dossier.fundsMinCad,
     fundsTarget: bundle.dossier.fundsTarget,
     steps: bundle.steps.map((s) => ({
       id: s.id,

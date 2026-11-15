@@ -60,7 +60,7 @@ describe("import JSON -> plan normalisé", () => {
     expect(plan.documentChecks).toEqual([{ document_id: "d1", text: "vérifié", done: false, position: 0 }]);
     expect(plan.gaps[0]).toMatchObject({ dossier_id: "dossier-1", text: "écart", done: false });
     expect(plan.history[0]).toMatchObject({ from_date: "2018-01-01", type: "Travail" });
-    expect(plan.dossier).toEqual({ profile_date: "2027-05-31", funds_min: 6258000, funds_target: 7000000 });
+    expect(plan.dossier).toEqual({ profile_date: "2027-05-31", funds_min: 6258000, funds_target: 7000000, funds_min_cad: null });
   });
 
   it("rejette un fichier sans steps/docs", () => {

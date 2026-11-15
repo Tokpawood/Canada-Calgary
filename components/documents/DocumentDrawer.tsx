@@ -188,17 +188,15 @@ export function DocumentDrawer({ doc, onChange, onDelete, onClose }: Props) {
 
   async function handleDeleteDoc() {
     setActionError(null);
-    for (const f of docRef.current.files) {
-      const err = await deleteVaultFile(f.id);
-      if (err) {
-        setActionError(`Suppression interrompue (${f.name}) : ${err}`);
-        return;
-      }
-      patchDoc((d) => ({ ...d, files: d.files.filter((x) => x.id !== f.id) }));
+    // Fiche et scans sont supprimés ensemble côté serveur, en une seule transaction.
+    const res = await fetch(`/api/documents/${encodeURIComponent(doc.id)}`, { method: "DELETE" }).catch(() => null);
+    if (!res) {
+      setActionError("Serveur injoignable : rien n'a été supprimé.");
+      return;
     }
-    const { error } = await supabase.from("document").delete().eq("id", doc.id);
-    if (error) {
-      setActionError(`Les scans ont été supprimés, mais pas la fiche : ${error.message}`);
+    if (!res.ok) {
+      const json = (await res.json().catch(() => ({}))) as { error?: string };
+      setActionError(`Suppression refusée : ${json.error ?? "erreur inconnue"}. Rien n'a été supprimé.`);
       return;
     }
     onDelete();

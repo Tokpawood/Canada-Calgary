@@ -184,6 +184,8 @@ export interface Dossier {
   ownerId: string;
   profileDate: string | null;
   fundsMin: number;
+  /** Minimum IRCC fixé en dollars canadiens (barème officiel) ; null = fixé en FCFA. */
+  fundsMinCad: number | null;
   fundsTarget: number;
   cadRate: number;
 }

@@ -24,6 +24,7 @@ function mapDossier(row: Record<string, unknown>): Dossier {
     ownerId: row.owner_id as string,
     profileDate: (row.profile_date as string | null) ?? null,
     fundsMin: Number(row.funds_min ?? 0),
+    fundsMinCad: row.funds_min_cad == null ? null : Number(row.funds_min_cad),
     fundsTarget: Number(row.funds_target ?? 0),
     cadRate: Number(row.cad_rate ?? 410),
   };

@@ -19,14 +19,14 @@ type Tab = (typeof TABS)[number];
 
 export function EpargneBoard({ dossier, initialSavings, rates }: { dossier: Dossier; initialSavings: Saving[]; rates: Rates | null }) {
   const [savedRows, setSavedRows] = useState(initialSavings);
-  const [funds, setFunds] = useState({ fundsMin: dossier.fundsMin, fundsTarget: dossier.fundsTarget });
+  const [funds, setFunds] = useState({ fundsMin: dossier.fundsMin, fundsMinCad: dossier.fundsMinCad, fundsTarget: dossier.fundsTarget });
   const [tab, setTab] = useHashTab<Tab>(TABS, "evolution");
   const supabase = createClient();
 
   const fundsEd = useEditable(funds, async (d) => {
     const invalid = fundsError(d.fundsMin, d.fundsTarget);
     if (invalid) throw new Error(invalid);
-    const { error } = await supabase.from("dossier").update({ funds_min: d.fundsMin, funds_target: d.fundsTarget }).eq("id", dossier.id);
+    const { error } = await supabase.from("dossier").update({ funds_min: d.fundsMin, funds_min_cad: d.fundsMinCad, funds_target: d.fundsTarget }).eq("id", dossier.id);
     if (error) throw error;
     setFunds(d);
   });
@@ -39,7 +39,7 @@ export function EpargneBoard({ dossier, initialSavings, rates }: { dossier: Doss
   });
 
   const savings = rowsEd.current;
-  const { fundsMin, fundsTarget } = fundsEd.current;
+  const { fundsMin, fundsMinCad, fundsTarget } = fundsEd.current;
   const off = !rowsEd.editing;
 
   const progress = useMemo(() => fundsProgress(savings, { fundsMin, fundsTarget }), [savings, fundsMin, fundsTarget]);
@@ -334,7 +334,7 @@ export function EpargneBoard({ dossier, initialSavings, rates }: { dossier: Doss
                   inputMode="numeric"
                   disabled={!fundsEd.editing}
                   value={fundsMin}
-                  onChange={(e) => fundsEd.set({ fundsMin: Number(e.target.value) || 0 })}
+                  onChange={(e) => fundsEd.set({ fundsMin: Number(e.target.value) || 0, fundsMinCad: null })}
                   className="input mono text-right text-[16px] font-semibold"
                 />
                 {fundsEd.editing && cadRate ? (
@@ -344,14 +344,23 @@ export function EpargneBoard({ dossier, initialSavings, rates }: { dossier: Doss
                       type="number"
                       inputMode="numeric"
                       min={0}
-                      value={toCad(fundsMin) || ""}
-                      onChange={(e) => fundsEd.set({ fundsMin: Math.round((Number(e.target.value) || 0) * cadRate) })}
+                      value={fundsMinCad ?? (toCad(fundsMin) || "")}
+                      onChange={(e) => {
+                        const cad = Math.max(0, Math.round(Number(e.target.value) || 0));
+                        fundsEd.set({ fundsMinCad: cad || null, fundsMin: Math.round(cad * cadRate) });
+                      }}
                       aria-label="Minimum exigé, en dollars canadiens"
                       className="input mono w-28 py-1 text-right text-[13px]"
                     />
                   </span>
                 ) : (
-                  inCad(fundsMin) && <span className="mono mt-1 block text-right text-[12px] text-muted">{inCad(fundsMin)}</span>
+                  fundsMinCad ? (
+                    <span className="mt-1 block text-right text-[12px] text-muted">
+                      Fixé à <span className="mono font-semibold text-ink">{new Intl.NumberFormat("fr-FR").format(fundsMinCad)} $ CA</span> · suit le taux
+                    </span>
+                  ) : (
+                    inCad(fundsMin) && <span className="mono mt-1 block text-right text-[12px] text-muted">{inCad(fundsMin)}</span>
+                  )
                 )}
               </label>
               <label>
@@ -387,7 +396,7 @@ export function EpargneBoard({ dossier, initialSavings, rates }: { dossier: Doss
                 {fundsInvalid}
               </p>
             )}
-            {fundsEd.editing && cadRate && <p className="mt-2 text-[11.5px] text-faint">Le barème IRCC est publié en dollars canadiens : saisissez-le en $ CA, la conversion en FCFA se fait {rateNote}.</p>}
+            {fundsEd.editing && cadRate && <p className="mt-2 text-[11.5px] text-faint">Le barème IRCC est publié en dollars canadiens : saisissez le minimum en $ CA : il reste fixé en dollars et son équivalent FCFA suit le taux ({rateNote}). Saisi en FCFA, il ne bouge plus.</p>}
             <div className="mt-5 grid gap-2 sm:grid-cols-2">
               <Goal reached={progress.minReached} label="Minimum exigé" rest={toMin} months={monthsToMin} />
               <Goal reached={progress.targetReached} label="Cible" rest={toTarget} months={monthsToTarget} />

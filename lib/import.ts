@@ -172,6 +172,7 @@ const EMPTY_FSW = {
 export const rawDossierSchema = z.object({
   profileDate: z.string().nullable().optional(),
   fundsMin: z.number().optional().default(0),
+  fundsMinCad: z.number().nullable().optional().default(null),
   fundsTarget: z.number().optional().default(0),
   steps: z.array(stepSchema),
   docs: z.array(docSchema),
@@ -190,7 +191,7 @@ export const rawDossierSchema = z.object({
 export type RawDossier = z.infer<typeof rawDossierSchema>;
 
 export interface ImportPlan {
-  dossier: { profile_date: string | null; funds_min: number; funds_target: number };
+  dossier: { profile_date: string | null; funds_min: number; funds_target: number; funds_min_cad: number | null };
   identity: Record<string, string | null>;
   profile: Record<string, string>;
   fsw: Record<string, string>;
@@ -377,7 +378,7 @@ export function buildImportPlan(dossierId: string, raw: RawDossier): ImportPlan 
   }));
 
   return {
-    dossier: { profile_date: raw.profileDate || null, funds_min: raw.fundsMin, funds_target: raw.fundsTarget },
+    dossier: { profile_date: raw.profileDate || null, funds_min: raw.fundsMin, funds_target: raw.fundsTarget, funds_min_cad: raw.fundsMinCad ?? null },
     identity: { ...raw.identity, naissance: raw.identity.naissance || null },
     profile: raw.profile,
     fsw: raw.fsw,

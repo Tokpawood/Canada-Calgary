@@ -2,16 +2,19 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getContacts, getDossierForUser, getNetwork, getSavingsActual, getStepsWithDetails, signPhotos } from "@/lib/queries";
 import { fundsProgress } from "@/lib/rules";
+import { getDailyRates } from "@/lib/rates";
+import { effectiveFundsMin } from "@/lib/epargne";
 import type { Stat } from "@/components/StatsRow";
 import { ParcoursBoard } from "@/components/parcours/ParcoursBoard";
 
 export default async function ParcoursPage({ searchParams }: { searchParams: Promise<{ etape?: string | string[] }> }) {
   const { etape } = await searchParams;
   const supabase = await createClient();
-  const dossier = await getDossierForUser(supabase);
-  if (!dossier) redirect("/import");
+  const stored = await getDossierForUser(supabase);
+  if (!stored) redirect("/import");
 
-  const [steps, savings, contacts] = await Promise.all([getStepsWithDetails(supabase, dossier.id), getSavingsActual(supabase, dossier.id), getContacts(supabase, dossier.id)]);
+  const [steps, savings, contacts, rates] = await Promise.all([getStepsWithDetails(supabase, stored.id), getSavingsActual(supabase, stored.id), getContacts(supabase, stored.id), getDailyRates()]);
+  const dossier = { ...stored, fundsMin: effectiveFundsMin(stored, rates?.perXof.CAD) };
   const { persons, links } = await getNetwork(supabase, dossier.id);
   const logos = await signPhotos(
     supabase,

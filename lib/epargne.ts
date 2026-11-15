@@ -69,3 +69,13 @@ export function fundsError(fundsMin: number, fundsTarget: number): string | null
   if (fundsTarget > 0 && fundsMin > fundsTarget) return "La cible personnelle doit être au moins égale au minimum exigé.";
   return null;
 }
+
+/**
+ * Minimum IRCC en FCFA : quand il est fixé en dollars canadiens (barème officiel), il suit le taux
+ * (taux du jour, sinon taux enregistré) ; sinon on garde le montant FCFA enregistré.
+ */
+export function effectiveFundsMin(d: { fundsMin: number; fundsMinCad: number | null; cadRate: number }, liveCadRate: number | null | undefined): number {
+  const rate = liveCadRate && liveCadRate > 0 ? liveCadRate : d.cadRate;
+  if (d.fundsMinCad != null && d.fundsMinCad > 0 && rate > 0) return Math.round(d.fundsMinCad * rate);
+  return d.fundsMin;
+}

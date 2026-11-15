@@ -3,7 +3,7 @@ import { rawDossierSchema } from "./import";
 import { toRawDossierJson, type FullBundle } from "./exportData";
 
 const bundle: FullBundle = {
-  dossier: { id: "dossier-1", ownerId: "owner-1", profileDate: "2027-05-31", fundsMin: 6258000, fundsTarget: 7000000, cadRate: 410 },
+  dossier: { id: "dossier-1", ownerId: "owner-1", profileDate: "2027-05-31", fundsMin: 6258000, fundsMinCad: 15263, fundsTarget: 7000000, cadRate: 410 },
   identity: { dossierId: "dossier-1", nom: "N", prenoms: "P", naissance: "2000-01-01", lieu: "L", pere: "", mere: "", statut: "" },
   profile: { dossierId: "dossier-1", titre: "", enfants: "", nationalite: "", passeport: "", telephone: "", courriel: "", permis: "", adresse: "", programme: "", cnp: "", ville: "", repli: "" },
   fsw: { dossierId: "dossier-1", first: "fr", fr_co: "9", fr_ce: "9", fr_eo: "9", fr_ee: "9", en_co: "", en_ce: "", en_eo: "", en_ee: "", edu: "p3", arranged: "0", adapt: "0" },
