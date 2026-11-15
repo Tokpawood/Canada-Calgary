@@ -3,7 +3,7 @@ import webpush from "web-push";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { isOpenStep } from "@/lib/rules";
-import { DEFAULT_SETTINGS, cleanTimes, type NotifySettings, type StepLite } from "@/lib/notifyPlan";
+import { DEFAULT_SETTINGS, cleanTimes, type DocLite, type NotifySettings, type StepLite } from "@/lib/notifyPlan";
 import type { StepStatus } from "@/lib/types";
 
 export interface PushPayload {
@@ -48,6 +48,11 @@ export async function loadSettings(admin: SupabaseClient, dossierId: string): Pr
   const { data } = await admin.from("notification_settings").select("enabled,times,include_steps").eq("dossier_id", dossierId).maybeSingle();
   if (!data) return DEFAULT_SETTINGS;
   return { enabled: Boolean(data.enabled), times: cleanTimes(data.times), includeSteps: Boolean(data.include_steps) };
+}
+
+export async function loadDocsLite(admin: SupabaseClient, dossierId: string): Promise<DocLite[]> {
+  const { data } = await admin.from("document").select("name,expires").eq("dossier_id", dossierId).not("expires", "is", null);
+  return (data ?? []).map((d) => ({ name: d.name as string, expires: (d.expires as string | null) ?? null }));
 }
 
 export async function loadStepsLite(admin: SupabaseClient, dossierId: string): Promise<StepLite[]> {

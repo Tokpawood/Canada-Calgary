@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { timingSafeEqual } from "node:crypto";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { abidjanNow, dueNow, remindersFor } from "@/lib/notifyPlan";
-import { loadSettings, loadStepsLite, sendToDossier } from "@/lib/push";
+import { loadDocsLite, loadSettings, loadStepsLite, sendToDossier } from "@/lib/push";
 
 export const dynamic = "force-dynamic";
 
@@ -35,16 +35,17 @@ async function run(request: NextRequest) {
   for (const dossierId of dossiers) {
     const settings = await loadSettings(admin, dossierId);
     if (!settings.enabled) continue;
-    const [{ data: checks }, steps] = await Promise.all([
+    const [{ data: checks }, steps, docs] = await Promise.all([
       admin.from("training_check").select("item_key").eq("dossier_id", dossierId).like("item_key", `${date}:%`),
       loadStepsLite(admin, dossierId),
+      loadDocsLite(admin, dossierId),
     ]);
     const done = new Set((checks ?? []).map((c) => c.item_key as string));
     // Les jalons (achat, inscription…) ont une clé de semaine : on les charge à part.
     const { data: sendChecks } = await admin.from("training_check").select("item_key").eq("dossier_id", dossierId).not("item_key", "like", "____-__-__:%");
     (sendChecks ?? []).forEach((c) => done.add(c.item_key as string));
 
-    for (const r of dueNow(remindersFor(date, done, settings, steps), time)) {
+    for (const r of dueNow(remindersFor(date, done, settings, steps, docs), time)) {
       // Réserver la clé d'abord : deux appels simultanés ne peuvent pas envoyer deux fois.
       const { error } = await admin.from("notification_log").insert({ dossier_id: dossierId, key: r.key });
       if (error) continue;

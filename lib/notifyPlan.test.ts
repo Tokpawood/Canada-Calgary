@@ -63,3 +63,16 @@ describe("rappels de la formation", () => {
     expect(abidjanNow(new Date("2026-11-16T23:50:00Z"))).toEqual({ date: "2026-11-16", time: "23:50" });
   });
 });
+
+describe("rappel du matin : pièces qui expirent", () => {
+  it("rappelle une pièce à J-30, J-7, J-1 et le jour même seulement", async () => {
+    const { remindersFor, DEFAULT_SETTINGS } = await import("./notifyPlan");
+    const docs = [{ name: "Passeport", expires: "2026-12-15" }, { name: "Police", expires: "2026-11-20" }];
+    const resume = (date: string) => remindersFor(date, new Set(), DEFAULT_SETTINGS, [], docs).find((r) => r.key.endsWith(":resume"));
+    expect(resume("2026-11-15")?.body).toContain("Pièce « Passeport » : expire dans 30 jours");
+    expect(resume("2026-11-15")?.body ?? "").not.toContain("Police");
+    expect(resume("2026-11-13")?.body).toContain("Pièce « Police » : expire dans 7 jours");
+    expect(resume("2026-11-20")?.body).toContain("Pièce « Police » : expire aujourd'hui");
+    expect(remindersFor("2026-11-15", new Set(), { ...DEFAULT_SETTINGS, includeSteps: false }, [], docs).some((r) => (r.body ?? "").includes("Passeport"))).toBe(false);
+  });
+});

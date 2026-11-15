@@ -112,7 +112,23 @@ function list(items: DayItem[], max = 3): string {
 const plural = (n: number, w: string) => `${n} ${w}${n > 1 ? "s" : ""}`;
 
 /** Tous les rappels d'une journée, déjà filtrés : rien pour un moment dont les tâches sont faites. */
-export function remindersFor(date: string, done: Set<string>, settings: NotifySettings, steps: StepLite[] = []): Reminder[] {
+/** Jours avant la fin de validité où la notification du matin rappelle la pièce (pas chaque jour, pour ne pas lasser). */
+export const EXPIRY_NOTICE_DAYS = [30, 7, 1, 0];
+
+export interface DocLite {
+  name: string;
+  expires: string | null;
+}
+
+function daysBetween(fromIso: string, toIso: string): number {
+  const [a, b] = [fromIso, toIso].map((x) => {
+    const [y, m, d] = x.split("-").map(Number);
+    return Date.UTC(y, m - 1, d);
+  });
+  return Math.round((b - a) / 86_400_000);
+}
+
+export function remindersFor(date: string, done: Set<string>, settings: NotifySettings, steps: StepLite[] = [], docs: DocLite[] = []): Reminder[] {
   if (!settings.enabled) return [];
   const plan = dayPlan(date);
   const items = plan?.items ?? [];
@@ -127,13 +143,20 @@ export function remindersFor(date: string, done: Set<string>, settings: NotifySe
   if (todo.length) parts.push(`${plural(todo.length, "tâche")} de formation · ${plan?.title ?? ""}`.trim());
   if (dueToday.length) parts.push(`Parcours, échéance aujourd'hui : ${dueToday.map((s) => s.title).slice(0, 2).join(", ")}${dueToday.length > 2 ? "…" : ""}`);
   if (late.length) parts.push(`Parcours : ${plural(late.length, "étape")} en retard`);
+  const expiring = settings.includeSteps
+    ? docs.filter((d) => d.expires && /^\d{4}-\d{2}-\d{2}$/.test(d.expires) && EXPIRY_NOTICE_DAYS.includes(daysBetween(date, d.expires)))
+    : [];
+  for (const d of expiring.slice(0, 2)) {
+    const n = daysBetween(date, d.expires!);
+    parts.push(`Pièce « ${d.name} » : ${n === 0 ? "expire aujourd'hui" : `expire dans ${plural(n, "jour")}`}`);
+  }
   if (parts.length) {
     out.push({
       key: `${date}:resume`,
       at: t("resume"),
       title: "Votre programme du jour",
       body: parts.join("\n"),
-      url: todo.length ? taskUrl(date, todo[0].key) : "/parcours",
+      url: todo.length ? taskUrl(date, todo[0].key) : dueToday.length || late.length || !expiring.length ? "/parcours" : "/documents#controles",
       tag: `resume-${date}`,
     });
   }

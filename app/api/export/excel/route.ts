@@ -57,8 +57,8 @@ export async function GET() {
   bundle.steps.forEach((s) => s.tasks.forEach((t) => subtasks.addRow([s.title, t.text, t.done ? "Oui" : "Non"])));
 
   const docs = wb.addWorksheet("Documents");
-  docs.addRow(["Nom", "Statut", "Caractère", "Format", "Validité", "Sert pour", "Délivré par", "Date"]);
-  bundle.documents.forEach((d) => docs.addRow([d.name, d.status, d.req, d.format, d.validity, d.use, d.from, d.date]));
+  docs.addRow(["Nom", "Statut", "Caractère", "Format", "Validité", "Valable jusqu'au", "Sert pour", "Délivré par", "Date"]);
+  bundle.documents.forEach((d) => docs.addRow([d.name, d.status, d.req, d.format, d.validity, d.expires, d.use, d.from, d.date]));
 
   const checks = wb.addWorksheet("Contrôles documents");
   checks.addRow(["Document", "Contrôle", "Fait"]);
