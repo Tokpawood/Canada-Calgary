@@ -8,7 +8,9 @@ import { personLabel, type ContactPerson, type ContactStepLink } from "@/lib/net
 import { Drawer, Meter, STEP_TONE, TONE_DOT, dueInfo, fcfa, fmtShortDate } from "@/components/ui";
 import { Checklist } from "@/components/EditableLists";
 import { DrawerCard, DrawerFacts, ReadRow } from "@/components/DrawerParts";
-import { IconArrowRight, IconChevronLeft, IconMail, IconPhone, IconUser } from "@/components/icons";
+import { IconArrowRight, IconChevronLeft, IconMail, IconPhone } from "@/components/icons";
+import { initials } from "./contactLink";
+import { PhotoBadge } from "./PhotoPicker";
 
 interface Props {
   step: Step;
@@ -88,22 +90,24 @@ export function StepPeek({ step, contacts, persons, links, backLabel, onBack, on
         <DrawerCard title="Qui peut aider" sub="Contacts liés à cette tâche.">
           <ul className="flex flex-col gap-2">
             {links.map((l) => {
-              const c = orgOf.get(l.contactId);
-              const p = l.personId ? personOf.get(l.personId) : null;
-              if (!c) return null;
+              const c = l.contactId ? orgOf.get(l.contactId) : undefined;
+              const p = l.personId ? personOf.get(l.personId) : undefined;
+              if (!c && !p) return null;
               return (
                 <li key={l.id}>
                   <button
                     type="button"
-                    onClick={() => (p ? onOpenPerson(p.id) : onOpenOrg(c.id))}
+                    onClick={() => (p ? onOpenPerson(p.id) : c && onOpenOrg(c.id))}
                     className="flex w-full items-start gap-2.5 rounded-xl bg-surface-2/60 px-3 py-2 text-left hover:bg-surface-2"
                   >
-                    <span className="mt-0.5 grid h-7 w-7 shrink-0 place-items-center rounded-full bg-act-soft text-act">
-                      <IconUser size={14} />
-                    </span>
+                    {p ? (
+                      <PhotoBadge url={p.photoUrl} label={initials(p.name)} shape="circle" size={30} className="mt-0.5" />
+                    ) : (
+                      <PhotoBadge url={c?.photoUrl} label={(c?.org.trim()[0] ?? "?").toUpperCase()} shape="square" size={30} className="mt-0.5" />
+                    )}
                     <span className="min-w-0 flex-1">
-                      <span className="block truncate text-[13.5px] font-semibold">{p ? personLabel(p) : c.org || "Organisme sans nom"}</span>
-                      <span className="block truncate text-[12px] text-muted">{p ? c.org : c.role || "Organisme"}</span>
+                      <span className="block truncate text-[13.5px] font-semibold">{p ? personLabel(p) : c?.org || "Organisme sans nom"}</span>
+                      <span className="block truncate text-[12px] text-muted">{p ? (c ? c.org : p.relation || "Personne indépendante") : c?.role || "Organisme"}</span>
                       {p && (p.email || p.phone) && (
                         <span className="mt-0.5 flex flex-wrap gap-x-3 text-[12px] text-act">
                           {p.email && (

@@ -3,16 +3,26 @@ import { createClient } from "@/lib/supabase/client";
 const SIZE = 320;
 
 /** Recadre la photo au carré (centre) et la réduit à 320 px, en JPEG : léger et lisible partout (iPad compris). */
-async function squareJpeg(file: File): Promise<Blob> {
+export async function squareJpeg(file: Blob, mode: "cover" | "contain" = "cover"): Promise<Blob> {
   const bitmap = await createImageBitmap(file);
-  const side = Math.min(bitmap.width, bitmap.height);
   const canvas = document.createElement("canvas");
   canvas.width = SIZE;
   canvas.height = SIZE;
   const ctx = canvas.getContext("2d");
   if (!ctx) throw new Error("Lecture de l'image impossible.");
   ctx.imageSmoothingQuality = "high";
-  ctx.drawImage(bitmap, (bitmap.width - side) / 2, (bitmap.height - side) / 2, side, side, 0, 0, SIZE, SIZE);
+  if (mode === "contain") {
+    // Logo : l'image entière, centrée sur fond blanc (rien n'est coupé).
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, SIZE, SIZE);
+    const scale = Math.min((SIZE * 0.86) / bitmap.width, (SIZE * 0.86) / bitmap.height);
+    const w = bitmap.width * scale;
+    const h = bitmap.height * scale;
+    ctx.drawImage(bitmap, (SIZE - w) / 2, (SIZE - h) / 2, w, h);
+  } else {
+    const side = Math.min(bitmap.width, bitmap.height);
+    ctx.drawImage(bitmap, (bitmap.width - side) / 2, (bitmap.height - side) / 2, side, side, 0, 0, SIZE, SIZE);
+  }
   bitmap.close();
   return new Promise((resolve, reject) => canvas.toBlob((b) => (b ? resolve(b) : reject(new Error("Conversion impossible."))), "image/jpeg", 0.88));
 }

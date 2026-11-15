@@ -6,8 +6,9 @@ import type { Contact } from "@/lib/types";
 import { personLabel, type ContactPerson, type ContactStepLink, type StepLite } from "@/lib/network";
 import { linkStep, parseTarget, targetValue, unlinkStep } from "@/lib/networkClient";
 import { STEP_TONE, TONE_DOT, fmtShortDate } from "@/components/ui";
-import { IconLink, IconMail, IconPhone, IconUser, IconX } from "@/components/icons";
-import { contactLink } from "./contactLink";
+import { IconLink, IconMail, IconPhone, IconX } from "@/components/icons";
+import { contactLink, initials } from "./contactLink";
+import { PhotoBadge } from "./PhotoPicker";
 
 const shortPhase = (p: string) => p.replace(/^\d+\.\s*/, "");
 
@@ -173,19 +174,23 @@ export function StepContacts({
       ) : (
         <ul className="flex flex-col gap-2">
           {links.map((l) => {
-            const c = orgOf.get(l.contactId);
-            if (!c) return null;
-            const p = l.personId ? personOf.get(l.personId) : null;
-            const mail = p?.email || (c.contact && contactLink(c.contact)?.kind === "mail" ? c.contact : "");
-            const phone = p?.phone || (c.contact && contactLink(c.contact)?.kind === "phone" ? c.contact : "");
+            const c = l.contactId ? orgOf.get(l.contactId) : undefined;
+            const p = l.personId ? personOf.get(l.personId) : undefined;
+            if (!c && !p) return null;
+            const orgMail = c?.contact && contactLink(c.contact)?.kind === "mail" ? c.contact : "";
+            const orgPhone = c?.contact && contactLink(c.contact)?.kind === "phone" ? c.contact : "";
+            const mail = p ? p.email : orgMail;
+            const phone = p ? p.phone || p.whatsapp : orgPhone;
             return (
               <li key={l.id} className="flex items-start gap-2.5 rounded-xl bg-surface-2/60 px-3 py-2">
-                <span className="mt-0.5 grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-act-soft text-act">
-                  <IconUser size={14} />
-                </span>
+                {p ? (
+                  <PhotoBadge url={p.photoUrl} label={initials(p.name)} shape="circle" size={30} className="mt-0.5" />
+                ) : (
+                  <PhotoBadge url={c?.photoUrl} label={(c?.org.trim()[0] ?? "?").toUpperCase()} shape="square" size={30} className="mt-0.5" />
+                )}
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-[13.5px] font-semibold">{p ? personLabel(p) : c.org || "Organisme sans nom"}</p>
-                  <p className="truncate text-[12px] text-muted">{p ? c.org : c.role || "Organisme"}</p>
+                  <p className="truncate text-[13.5px] font-semibold">{p ? personLabel(p) : c?.org || "Organisme sans nom"}</p>
+                  <p className="truncate text-[12px] text-muted">{p ? (c ? c.org : p.relation || "Personne indépendante") : c?.role || "Organisme"}</p>
                   {(mail || phone) && (
                     <p className="mt-0.5 flex flex-wrap gap-x-3 text-[12.5px]">
                       {mail && (
@@ -219,7 +224,7 @@ export function StepContacts({
         </ul>
       )}
       {canEdit &&
-        (contacts.length === 0 ? (
+        (contacts.length === 0 && persons.length === 0 ? (
           <p className="mt-2 text-[12.5px] text-faint">
             Ajoutez d&apos;abord des organismes dans{" "}
             <Link href="/contacts" className="font-semibold text-act hover:underline">
@@ -254,6 +259,17 @@ export function StepContacts({
                     ))}
                 </optgroup>
               ))}
+              {persons.some((p) => !p.contactId) && (
+                <optgroup label="Personnes indépendantes">
+                  {persons
+                    .filter((p) => !p.contactId && !taken.has(targetValue(null, p.id)))
+                    .map((p) => (
+                      <option key={p.id} value={targetValue(null, p.id)}>
+                        {p.relation ? `${p.name} · ${p.relation}` : p.name}
+                      </option>
+                    ))}
+                </optgroup>
+              )}
             </select>
             <button type="submit" disabled={!who || act.busy} className="btn btn-sm btn-ghost">
               <IconLink size={14} /> Lier

@@ -4,7 +4,9 @@ import type { StepStatus } from "./types";
 
 export interface ContactPerson {
   id: string;
-  contactId: string;
+  dossierId: string;
+  /** null : personne indépendante (coursier, ami, voisin…), sans organisme. */
+  contactId: string | null;
   parentId: string | null;
   name: string;
   title: string;
@@ -12,7 +14,42 @@ export interface ContactPerson {
   phone: string;
   notes: string;
   position: number;
+  /** Ce qu'elle est pour vous (coursier, ami, chauffeur…), surtout pour les indépendants. */
+  relation: string;
+  whatsapp: string;
+  website: string;
+  address: string;
+  city: string;
+  country: string;
+  birthDate: string | null;
+  nationality: string;
+  idType: string;
+  idNumber: string;
+  photoPath: string | null;
+  /** Lien signé temporaire vers la photo. */
+  photoUrl: string | null;
 }
+
+/** Champs d'identification modifiables d'une personne. */
+export const PERSON_FIELDS = ["name", "title", "relation", "email", "phone", "whatsapp", "website", "address", "city", "country", "birthDate", "nationality", "idType", "idNumber", "notes"] as const;
+export type PersonField = (typeof PERSON_FIELDS)[number];
+export const PERSON_COLUMNS: Record<PersonField, string> = {
+  name: "name",
+  title: "title",
+  relation: "relation",
+  email: "email",
+  phone: "phone",
+  whatsapp: "whatsapp",
+  website: "website",
+  address: "address",
+  city: "city",
+  country: "country",
+  birthDate: "birth_date",
+  nationality: "nationality",
+  idType: "id_type",
+  idNumber: "id_number",
+  notes: "notes",
+};
 
 export interface StepLite {
   id: string;
@@ -25,14 +62,15 @@ export interface StepLite {
 export interface ContactStepLink {
   id: string;
   stepId: string;
-  contactId: string;
+  contactId: string | null;
   personId: string | null;
 }
 
 export function mapPerson(row: Record<string, unknown>): ContactPerson {
   return {
     id: row.id as string,
-    contactId: row.contact_id as string,
+    dossierId: row.dossier_id as string,
+    contactId: (row.contact_id as string | null) ?? null,
     parentId: (row.parent_id as string | null) ?? null,
     name: (row.name as string) ?? "",
     title: (row.title as string) ?? "",
@@ -40,11 +78,23 @@ export function mapPerson(row: Record<string, unknown>): ContactPerson {
     phone: (row.phone as string) ?? "",
     notes: (row.notes as string) ?? "",
     position: Number(row.position ?? 0),
+    relation: (row.relation as string) ?? "",
+    whatsapp: (row.whatsapp as string) ?? "",
+    website: (row.website as string) ?? "",
+    address: (row.address as string) ?? "",
+    city: (row.city as string) ?? "",
+    country: (row.country as string) ?? "",
+    birthDate: (row.birth_date as string | null) ?? null,
+    nationality: (row.nationality as string) ?? "",
+    idType: (row.id_type as string) ?? "",
+    idNumber: (row.id_number as string) ?? "",
+    photoPath: (row.photo_path as string | null) ?? null,
+    photoUrl: null,
   };
 }
 
 export function mapContactStep(row: Record<string, unknown>): ContactStepLink {
-  return { id: row.id as string, stepId: row.step_id as string, contactId: row.contact_id as string, personId: (row.person_id as string | null) ?? null };
+  return { id: row.id as string, stepId: row.step_id as string, contactId: (row.contact_id as string | null) ?? null, personId: (row.person_id as string | null) ?? null };
 }
 
 export interface OrgNode {

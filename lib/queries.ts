@@ -240,6 +240,7 @@ export async function getContacts(supabase: SupabaseClient, dossierId: string): 
     next: (row.next as string) ?? "",
     notes: (row.notes as string) ?? "",
     stage: ((row.stage as string) ?? "a-contacter") as Contact["stage"],
+    photoPath: (row.photo_path as string | null) ?? null,
   }));
 }
 
@@ -304,14 +305,25 @@ export function mapAddress(row: Record<string, unknown>): AddressEntry {
   };
 }
 
-/** Personnes des organismes et liens contacts <-> étapes du dossier. */
-export async function getNetwork(supabase: SupabaseClient, contactIds: string[]): Promise<{ persons: ContactPerson[]; links: ContactStepLink[] }> {
-  if (!contactIds.length) return { persons: [], links: [] };
+export const PHOTO_BUCKET = "contact-photos";
+
+/** Liens signés (6 h) pour une liste de chemins de photos. */
+export async function signPhotos(supabase: SupabaseClient, paths: Array<string | null | undefined>): Promise<Map<string, string>> {
+  const list = [...new Set(paths.filter((p): p is string => !!p))];
+  if (!list.length) return new Map();
+  const { data } = await supabase.storage.from(PHOTO_BUCKET).createSignedUrls(list, 60 * 60 * 6);
+  return new Map((data ?? []).filter((d) => d.signedUrl && d.path).map((d) => [d.path as string, d.signedUrl as string]));
+}
+
+/** Personnes (des organismes ou indépendantes) et liens contacts <-> étapes du dossier. */
+export async function getNetwork(supabase: SupabaseClient, dossierId: string): Promise<{ persons: ContactPerson[]; links: ContactStepLink[] }> {
   const [{ data: persons }, { data: links }] = await Promise.all([
-    supabase.from("contact_person").select("*").in("contact_id", contactIds).order("position").order("created_at"),
-    supabase.from("contact_step").select("id,step_id,contact_id,person_id").in("contact_id", contactIds).order("created_at"),
+    supabase.from("contact_person").select("*").eq("dossier_id", dossierId).order("position").order("created_at"),
+    supabase.from("contact_step").select("id,step_id,contact_id,person_id").eq("dossier_id", dossierId).order("created_at"),
   ]);
-  return { persons: (persons ?? []).map(mapPerson), links: (links ?? []).map(mapContactStep) };
+  const list = (persons ?? []).map(mapPerson);
+  const urls = await signPhotos(supabase, list.map((p) => p.photoPath));
+  return { persons: list.map((p) => ({ ...p, photoUrl: p.photoPath ? (urls.get(p.photoPath) ?? null) : null })), links: (links ?? []).map(mapContactStep) };
 }
 
 /** Étapes réduites à ce qu'il faut pour les lier à un contact. */

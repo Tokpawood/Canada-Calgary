@@ -12,6 +12,7 @@ import { CopyButton } from "@/components/profil/FieldGrid";
 import { contactLink } from "./contactLink";
 import { OrgTeam } from "./OrgTeam";
 import { ContactSteps } from "./Links";
+import { PhotoBadge, PhotoPicker, type Photo } from "./PhotoPicker";
 
 export type OrgTab = "equipe" | "taches" | "infos";
 type OrgDraft = Pick<Contact, "org" | "role" | "contact" | "next" | "notes" | "stage">;
@@ -27,6 +28,10 @@ const stageLabel = (s: ContactStage) => CONTACT_STAGES.find((x) => x.id === s)?.
 const stageOf = (label: string) => CONTACT_STAGES.find((x) => x.label === label)?.id ?? "a-contacter";
 
 interface Props {
+  dossierId: string;
+  onOpenPerson: (personId: string) => void;
+  /** Logo changé (chemin et lien signé), ou retiré. */
+  onPhoto: (photo: Photo) => void;
   contact: Contact;
   persons: ContactPerson[];
   links: ContactStepLink[];
@@ -42,7 +47,7 @@ interface Props {
 }
 
 /** Fiche d'un organisme : équipe (organigramme), tâches liées et informations, modifiables. */
-export function OrgDrawer({ contact: c, persons, links, steps, initialTab = "equipe", onSave, onDelete, onPersons, onLinkAdd, onLinkRemove, onOpenStep, onClose }: Props) {
+export function OrgDrawer({ dossierId, onOpenPerson, onPhoto, contact: c, persons, links, steps, initialTab = "equipe", onSave, onDelete, onPersons, onLinkAdd, onLinkRemove, onOpenStep, onClose }: Props) {
   const [tab, setTab] = useState<OrgTab>(initialTab);
   const [warn, setWarn] = useState(false);
   const saved: OrgDraft = useMemo(() => ({ org: c.org, role: c.role, contact: c.contact, next: c.next, notes: c.notes, stage: c.stage }), [c]);
@@ -71,8 +76,13 @@ export function OrgDrawer({ contact: c, persons, links, steps, initialTab = "equ
       onClose={guardedClose}
       header={
         <>
-          <p className="pr-28 text-[11px] font-semibold tracking-[0.12em] text-night-muted uppercase">{v.role || "Organisme"}</p>
-          <DrawerTitle value={v.org} editing={ed.editing} onChange={(org) => ed.set({ org })} label="Nom de l'organisme" />
+          <div className="flex items-center gap-4 pr-24">
+            <PhotoBadge url={c.photoUrl} label={(c.org.trim()[0] ?? "?").toUpperCase()} shape="square" size={60} className="ring-2 ring-white/15" />
+            <div className="min-w-0 flex-1">
+              <p className="text-[11px] font-semibold tracking-[0.12em] text-night-muted uppercase">{v.role || "Organisme"}</p>
+              <DrawerTitle value={v.org} editing={ed.editing} onChange={(org) => ed.set({ org })} label="Nom de l'organisme" />
+            </div>
+          </div>
           <div className="mt-2.5 flex flex-wrap items-center gap-2">
             {ed.editing ? (
               <DarkStatusPicker
@@ -159,7 +169,7 @@ export function OrgDrawer({ contact: c, persons, links, steps, initialTab = "equ
 
       {tab === "equipe" && (
         <DrawerCard title="Équipe" sub="Les personnes qui peuvent vous aider, rangées sous leur responsable.">
-          <OrgTeam contactId={c.id} persons={persons} canEdit={!ed.editing} stepCount={(id) => links.filter((l) => l.personId === id).length} onChange={onPersons} />
+          <OrgTeam dossierId={dossierId} onOpenPerson={onOpenPerson} contactId={c.id} persons={persons} canEdit={!ed.editing} stepCount={(id) => links.filter((l) => l.personId === id).length} onChange={onPersons} />
         </DrawerCard>
       )}
 
@@ -170,6 +180,19 @@ export function OrgDrawer({ contact: c, persons, links, steps, initialTab = "equ
       )}
 
       {tab === "infos" && (
+        <div className="flex flex-col gap-4">
+        <DrawerCard title="Logo ou photo">
+          <PhotoPicker
+            dossierId={dossierId}
+            kind="org"
+            id={c.id}
+            url={c.photoUrl}
+            path={c.photoPath}
+            label={(c.org.trim()[0] ?? "?").toUpperCase()}
+            suggestedUrl={link?.kind === "web" ? c.contact : ""}
+            onChange={onPhoto}
+          />
+        </DrawerCard>
         <DrawerCard title="Informations">
           {ed.editing ? (
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -214,6 +237,7 @@ export function OrgDrawer({ contact: c, persons, links, steps, initialTab = "equ
             </dl>
           )}
         </DrawerCard>
+        </div>
       )}
     </Drawer>
   );

@@ -96,6 +96,9 @@ export interface Contact {
   next: string;
   notes: string;
   stage: ContactStage;
+  photoPath?: string | null;
+  /** Lien signé temporaire vers le logo. */
+  photoUrl?: string | null;
 }
 
 export type ContactStage = "a-contacter" | "en-contact" | "en-attente" | "etabli" | "termine";

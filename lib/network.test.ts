@@ -1,7 +1,23 @@
 import { describe, expect, it } from "vitest";
 import { canReportTo, orgChart, type ContactPerson } from "./network";
 
+const BASE = {
+  dossierId: "d1",
+  relation: "",
+  whatsapp: "",
+  website: "",
+  address: "",
+  city: "",
+  country: "",
+  birthDate: null,
+  nationality: "",
+  idType: "",
+  idNumber: "",
+  photoPath: null,
+  photoUrl: null,
+};
 const P = (id: string, parentId: string | null, position = 0, contactId = "c1"): ContactPerson => ({
+  ...BASE,
   id,
   contactId,
   parentId,

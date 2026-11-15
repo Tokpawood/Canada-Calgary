@@ -55,10 +55,7 @@ export async function getFullBundle(supabase: SupabaseClient, dossier: Dossier):
   ]);
 
   // Les personnes de chaque organisme reprennent la place de l'ancien champ « interlocuteur » (texte) dans les exports.
-  const { persons } = await getNetwork(
-    supabase,
-    contacts.map((c) => c.id),
-  );
+  const { persons } = await getNetwork(supabase, dossier.id);
   for (const c of contacts) {
     const team = persons.filter((p) => p.contactId === c.id).map((p) => [p.name, p.title, p.email, p.phone].filter(Boolean).join(", "));
     if (team.length) c.person = team.join(" ; ");

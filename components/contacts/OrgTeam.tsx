@@ -2,13 +2,17 @@
 
 import { useState } from "react";
 import { canReportTo, orgChart, personLabel, type ContactPerson } from "@/lib/network";
-import { addPerson, deletePerson, updatePerson, type PersonDraft } from "@/lib/networkClient";
+import { addPerson, type PersonDraft } from "@/lib/networkClient";
 import { ConfirmButton, Field } from "@/components/ui";
 import { IconCheck, IconMail, IconPencil, IconPhone, IconPlus, IconTrash } from "@/components/icons";
 import { initials } from "./contactLink";
+import { PhotoBadge } from "./PhotoPicker";
 
 interface Props {
+  dossierId: string;
   contactId: string;
+  /** Ouvre la fiche complète d'une personne. */
+  onOpenPerson: (personId: string) => void;
   persons: ContactPerson[];
   /** Nombre d'étapes liées à chaque personne. */
   stepCount: (personId: string) => number;
@@ -16,27 +20,16 @@ interface Props {
   onChange: (persons: ContactPerson[]) => void;
 }
 
-type Editing = { kind: "new"; parentId: string | null } | { kind: "edit"; id: string } | null;
+type Editing = { kind: "new"; parentId: string | null } | null;
 
 /** Équipe d'un organisme en mini-organigramme : chaque personne sous son responsable. */
-export function OrgTeam({ contactId, persons, stepCount, canEdit, onChange }: Props) {
+export function OrgTeam({ dossierId, contactId, onOpenPerson, persons, stepCount, canEdit, onChange }: Props) {
   const [editing, setEditing] = useState<Editing>(null);
   const chart = orgChart(persons);
 
   async function save(draft: PersonDraft) {
-    if (editing?.kind === "new") {
-      const p = await addPerson(contactId, draft, persons.length);
-      onChange([...persons, p]);
-    } else if (editing?.kind === "edit") {
-      const p = await updatePerson(editing.id, draft);
-      onChange(persons.map((x) => (x.id === p.id ? p : x)));
-    }
-    setEditing(null);
-  }
-
-  async function remove(p: ContactPerson) {
-    await deletePerson(p);
-    onChange(persons.filter((x) => x.id !== p.id).map((x) => (x.parentId === p.id ? { ...x, parentId: p.parentId } : x)));
+    const p = await addPerson(dossierId, contactId, draft, persons.length);
+    onChange([...persons, p]);
     setEditing(null);
   }
 
@@ -48,26 +41,14 @@ export function OrgTeam({ contactId, persons, stepCount, canEdit, onChange }: Pr
           <li key={p.id} style={{ paddingLeft: Math.min(depth, 4) * 22 }}>
             <div className={depth > 0 ? "relative border-l-2 border-line pl-3" : ""}>
               {depth > 0 && <span aria-hidden className="absolute top-5 left-0 h-0.5 w-2.5 bg-line" />}
-              {editing?.kind === "edit" && editing.id === p.id ? (
-                <PersonForm
-                  persons={persons}
-                  selfId={p.id}
-                  initial={p}
-                  onSave={save}
-                  onCancel={() => setEditing(null)}
-                  onDelete={() => remove(p)}
-                  deleteHint={reports ? "Ses collaborateurs remontent d'un niveau." : undefined}
-                />
-              ) : (
-                <PersonRow
-                  person={p}
-                  reports={reports}
-                  steps={stepCount(p.id)}
-                  canEdit={canEdit && editing === null}
-                  onEdit={() => setEditing({ kind: "edit", id: p.id })}
-                  onAddBelow={() => setEditing({ kind: "new", parentId: p.id })}
-                />
-              )}
+              <PersonRow
+                person={p}
+                reports={reports}
+                steps={stepCount(p.id)}
+                canEdit={canEdit && editing === null}
+                onOpen={() => onOpenPerson(p.id)}
+                onAddBelow={() => setEditing({ kind: "new", parentId: p.id })}
+              />
               {editing?.kind === "new" && editing.parentId === p.id && (
                 <div className="relative ml-[22px] border-l-2 border-act/40 pl-3">
                   <PersonForm persons={persons} initial={{ parentId: p.id }} onSave={save} onCancel={() => setEditing(null)} />
@@ -92,25 +73,27 @@ function PersonRow({
   reports,
   steps,
   canEdit,
-  onEdit,
+  onOpen,
   onAddBelow,
 }: {
   person: ContactPerson;
   reports: number;
   steps: number;
   canEdit: boolean;
-  onEdit: () => void;
+  onOpen: () => void;
   onAddBelow: () => void;
 }) {
   const tel = p.phone.replace(/[^\d+]/g, "");
   return (
     <div className="group flex items-start gap-2.5 rounded-xl py-1.5 pr-1">
-      <span className="mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-full bg-surface-2 text-[11.5px] font-bold text-muted">{initials(p.name)}</span>
+      <button type="button" onClick={onOpen} className="mt-0.5 shrink-0 rounded-full" aria-label={`Fiche de ${p.name}`}>
+        <PhotoBadge url={p.photoUrl} label={initials(p.name)} shape="circle" size={34} />
+      </button>
       <div className="min-w-0 flex-1">
-        <p className="truncate text-[14px] font-semibold">
+        <button type="button" onClick={onOpen} className="block max-w-full truncate text-left text-[14px] font-semibold hover:text-act hover:underline">
           {p.name}
           {p.title && <span className="font-normal text-muted"> · {p.title}</span>}
-        </p>
+        </button>
         <p className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[12.5px]">
           {p.email && (
             <a href={`mailto:${p.email}`} className="inline-flex min-w-0 items-center gap-1 font-medium text-act hover:underline">
@@ -137,7 +120,7 @@ function PersonRow({
           <button type="button" onClick={onAddBelow} className="btn btn-ghost btn-sm px-2" aria-label={`Ajouter une personne sous ${p.name}`} title="Ajouter une personne sous elle">
             <IconPlus size={14} />
           </button>
-          <button type="button" onClick={onEdit} className="btn btn-ghost btn-sm px-2" aria-label={`Modifier ${p.name}`} title="Modifier">
+          <button type="button" onClick={onOpen} className="btn btn-ghost btn-sm px-2" aria-label={`Fiche de ${p.name}`} title="Fiche complète">
             <IconPencil size={14} />
           </button>
         </span>

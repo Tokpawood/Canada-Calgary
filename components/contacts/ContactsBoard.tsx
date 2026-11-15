@@ -12,11 +12,17 @@ import { CopyButton } from "@/components/profil/FieldGrid";
 import { initials } from "./contactLink";
 import { OrgDrawer, STAGE_DOT, type OrgTab } from "./OrgDrawer";
 import { StepPeek } from "./StepPeek";
+import { PersonDrawer } from "./PersonDrawer";
+import { PhotoBadge } from "./PhotoPicker";
+import { addPerson } from "@/lib/networkClient";
 
 const TABS = ["organismes", "reseau", "a-relancer"] as const;
 type Tab = (typeof TABS)[number];
 type View = "liste" | "kanban";
-type Panel = { kind: "org"; id: string; tab: OrgTab } | { kind: "step"; id: string; back?: { orgId: string; tab: OrgTab } } | null;
+type PanelBase = { kind: "org"; id: string; tab: OrgTab } | { kind: "step"; id: string } | { kind: "person"; id: string };
+/** Panneau ouvert, et celui d'où l'on vient (bouton retour). */
+type Panel = (PanelBase & { back?: PanelBase }) | null;
+type PeopleFilter = "tous" | "organismes" | "independants";
 
 const VIEW_KEY = "pcc-contacts-view";
 const stageLabel = (s: ContactStage) => CONTACT_STAGES.find((x) => x.id === s)?.label ?? s;
@@ -38,6 +44,8 @@ export function ContactsBoard({ dossierId, initialContacts, initialPersons, init
   const [view, setViewState] = useState<View>("liste");
   const [adding, setAdding] = useState(false);
   const [query, setQuery] = useState("");
+  const [peopleFilter, setPeopleFilter] = useState<PeopleFilter>("tous");
+  const [addingPerson, setAddingPerson] = useState(false);
   const [tab, setTab] = useHashTab<Tab>(TABS, "organismes");
   const supabase = createClient();
 
@@ -97,7 +105,9 @@ export function ContactsBoard({ dossierId, initialContacts, initialPersons, init
 
   const withNext = contacts.filter((c) => c.next.trim()).length;
   const linkedSteps = new Set(links.map((l) => l.stepId)).size;
-  const orgName = new Map(contacts.map((c) => [c.id, c.org || "Sans nom"]));
+  const orgNames = new Map(contacts.map((c) => [c.id, c.org || "Sans nom"]));
+  const orgName = { get: (id: string | null) => (id ? orgNames.get(id) : undefined) };
+  const personWhere = (p: ContactPerson) => orgName.get(p.contactId) ?? (p.relation || "Indépendant");
   const stepOf = new Map(steps.map((s) => [s.id, s]));
 
   const q = query.trim().toLowerCase();
@@ -108,15 +118,36 @@ export function ContactsBoard({ dossierId, initialContacts, initialPersons, init
       .join(" ")}`.toLowerCase();
   const visible = contacts.filter((c) => (!q || orgText(c).includes(q)) && (tab !== "a-relancer" || c.next.trim()));
   const personSteps = (id: string) => links.filter((l) => l.personId === id).map((l) => stepOf.get(l.stepId)).filter((s): s is Step => !!s);
+  const independents = persons.filter((p) => !p.contactId).length;
   const visiblePeople = persons
-    .filter((p) => !q || `${p.name} ${p.title} ${p.email} ${p.phone} ${orgName.get(p.contactId) ?? ""} ${personSteps(p.id).map((s) => s.title).join(" ")}`.toLowerCase().includes(q))
-    .sort((a, b) => (orgName.get(a.contactId) ?? "").localeCompare(orgName.get(b.contactId) ?? "", "fr") || a.name.localeCompare(b.name, "fr"));
+    .filter((p) => peopleFilter === "tous" || (peopleFilter === "independants" ? !p.contactId : !!p.contactId))
+    .filter((p) => !q || `${p.name} ${p.title} ${p.relation} ${p.email} ${p.phone} ${p.whatsapp} ${p.city} ${personWhere(p)} ${personSteps(p.id).map((s) => s.title).join(" ")}`.toLowerCase().includes(q))
+    .sort((a, b) => Number(!a.contactId) - Number(!b.contactId) || personWhere(a).localeCompare(personWhere(b), "fr") || a.name.localeCompare(b.name, "fr"));
   const shown = tab === "reseau" ? visiblePeople.length : visible.length;
   const total = tab === "reseau" ? persons.length : contacts.length;
 
-  const openOrg = (id: string, t: OrgTab = "equipe") => setPanel({ kind: "org", id, tab: t });
+  const current = (): PanelBase | undefined => {
+    if (!panel) return undefined;
+    const { back: _back, ...rest } = panel;
+    void _back;
+    return rest as PanelBase;
+  };
+  const openOrg = (id: string, t: OrgTab = "equipe", from?: PanelBase) => setPanel({ kind: "org", id, tab: t, back: from });
+  const openPerson = (id: string, from?: PanelBase) => setPanel({ kind: "person", id, back: from });
+  const openStep = (id: string, from?: PanelBase) => setPanel({ kind: "step", id, back: from });
   const panelOrg = panel?.kind === "org" ? contacts.find((c) => c.id === panel.id) : undefined;
   const panelStep = panel?.kind === "step" ? stepOf.get(panel.id) : undefined;
+  const panelPerson = panel?.kind === "person" ? persons.find((p) => p.id === panel.id) : undefined;
+  const backLabel = (b?: PanelBase) =>
+    !b ? undefined : b.kind === "org" ? orgName.get(b.id) : b.kind === "person" ? persons.find((p) => p.id === b.id)?.name : stepOf.get(b.id)?.title;
+  const goBack = (b?: PanelBase) => (b ? () => setPanel(b) : undefined);
+
+  async function createPerson(name: string, relation: string, phone: string) {
+    const p = await addPerson(dossierId, null, { name, title: "", email: "", phone, notes: "", parentId: null, relation }, persons.length);
+    setPersons((prev) => [...prev, p]);
+    setAddingPerson(false);
+    openPerson(p.id);
+  }
 
   return (
     <>
@@ -127,13 +158,14 @@ export function ContactsBoard({ dossierId, initialContacts, initialPersons, init
           <button
             type="button"
             onClick={() => {
+              if (tab === "reseau") return setAddingPerson(true);
               if (tab !== "organismes") setTab("organismes");
               setAdding(true);
             }}
-            disabled={adding}
+            disabled={tab === "reseau" ? addingPerson : adding}
             className="btn btn-primary"
           >
-            <IconPlus size={16} /> Organisme
+            <IconPlus size={16} /> {tab === "reseau" ? "Personne" : "Organisme"}
           </button>
         }
       />
@@ -185,9 +217,10 @@ export function ContactsBoard({ dossierId, initialContacts, initialPersons, init
       </DarkHeader>
 
       <div className="mt-5" role="tabpanel">
-        {adding && <NewOrgForm onCreate={createContact} onCancel={() => setAdding(false)} />}
+        {adding && tab !== "reseau" && <NewOrgForm onCreate={createContact} onCancel={() => setAdding(false)} />}
+        {addingPerson && tab === "reseau" && <NewPersonForm onCreate={createPerson} onCancel={() => setAddingPerson(false)} />}
 
-        {contacts.length > 0 && (
+        {(contacts.length > 0 || persons.length > 0) && (
           <div className="mb-4 flex flex-wrap items-center gap-2">
             <div className="card flex min-w-0 flex-1 items-center gap-2 px-3 py-2">
               <IconSearch size={16} className="shrink-0 text-faint" />
@@ -202,6 +235,28 @@ export function ContactsBoard({ dossierId, initialContacts, initialPersons, init
                 {shown} / {total}
               </span>
             </div>
+            {tab === "reseau" && (
+              <div role="radiogroup" aria-label="Personnes affichées" className="card flex shrink-0 gap-1 p-1">
+                {(
+                  [
+                    ["tous", "Toutes"],
+                    ["organismes", "Organismes"],
+                    ["independants", `Indépendants${independents ? ` · ${independents}` : ""}`],
+                  ] as const
+                ).map(([v, l]) => (
+                  <button
+                    key={v}
+                    type="button"
+                    role="radio"
+                    aria-checked={peopleFilter === v}
+                    onClick={() => setPeopleFilter(v)}
+                    className={`rounded-lg px-3 py-1.5 text-[13px] font-semibold ${peopleFilter === v ? "bg-act text-white" : "text-muted hover:bg-surface-2"}`}
+                  >
+                    {l}
+                  </button>
+                ))}
+              </div>
+            )}
             {tab === "organismes" && (
               <div role="radiogroup" aria-label="Affichage des organismes" className="card flex shrink-0 gap-1 p-1">
                 {(["liste", "kanban"] as const).map((v) => (
@@ -221,25 +276,25 @@ export function ContactsBoard({ dossierId, initialContacts, initialPersons, init
           </div>
         )}
 
-        {contacts.length === 0 ? (
-          !adding && (
+        {contacts.length === 0 && (tab !== "reseau" || persons.length === 0) ? (
+          !adding && !addingPerson && (
             <EmptyState icon={<IconUsers size={20} />} title="Aucun organisme">
-              Ajoutez les organismes avec lesquels vous échangez (ambassade, école, employeur, centre de tests…), puis les personnes qui peuvent vous aider dans chacun.
+              Ajoutez les organismes avec lesquels vous échangez (ambassade, école, employeur, centre de tests…), puis les personnes qui peuvent vous aider. Une personne sans organisme (coursier, ami…) s&apos;ajoute depuis l&apos;onglet Réseau.
             </EmptyState>
           )
         ) : tab === "reseau" ? (
           visiblePeople.length === 0 ? (
             <EmptyState icon={<IconUser size={20} />} title={q ? "Aucune personne trouvée" : "Aucune personne"}>
-              {q ? "Essayez une autre recherche." : "Ouvrez un organisme et ajoutez-y les personnes qui peuvent vous aider."}
+              {q ? "Essayez une autre recherche." : "Ajoutez une personne avec le bouton « Personne », ou depuis la fiche d'un organisme."}
             </EmptyState>
           ) : (
             <PeopleList
               persons={visiblePeople}
               all={persons}
-              orgName={orgName}
+              where={personWhere}
               stepsOf={personSteps}
-              onOpenOrg={(id) => openOrg(id, "equipe")}
-              onOpenStep={(id) => setPanel({ kind: "step", id })}
+              onOpenPerson={(id) => openPerson(id)}
+              onOpenStep={(id) => openStep(id)}
             />
           )
         ) : visible.length === 0 ? (
@@ -256,6 +311,9 @@ export function ContactsBoard({ dossierId, initialContacts, initialPersons, init
       {panel?.kind === "org" && panelOrg && (
         <OrgDrawer
           key={panelOrg.id}
+          dossierId={dossierId}
+          onOpenPerson={(id) => openPerson(id, current())}
+          onPhoto={(ph) => setContacts((prev) => prev.map((c) => (c.id === panelOrg.id ? { ...c, photoPath: ph?.path ?? null, photoUrl: ph?.url ?? null } : c)))}
           contact={panelOrg}
           persons={persons.filter((p) => p.contactId === panelOrg.id)}
           links={links.filter((l) => l.contactId === panelOrg.id)}
@@ -266,7 +324,7 @@ export function ContactsBoard({ dossierId, initialContacts, initialPersons, init
           onPersons={(next) => setOrgPersons(panelOrg.id, next)}
           onLinkAdd={(l) => setLinks((prev) => [...prev, l])}
           onLinkRemove={(id) => setLinks((prev) => prev.filter((l) => l.id !== id))}
-          onOpenStep={(id) => setPanel({ kind: "step", id, back: { orgId: panelOrg.id, tab: "taches" } })}
+          onOpenStep={(id) => openStep(id, { kind: "org", id: panelOrg.id, tab: "taches" })}
           onClose={() => setPanel(null)}
         />
       )}
@@ -278,20 +336,99 @@ export function ContactsBoard({ dossierId, initialContacts, initialPersons, init
           contacts={contacts}
           persons={persons}
           links={links.filter((l) => l.stepId === panelStep.id)}
-          backLabel={panel.back ? orgName.get(panel.back.orgId) : undefined}
-          onBack={panel.back ? () => panel.back && openOrg(panel.back.orgId, panel.back.tab) : undefined}
-          onOpenPerson={(pid) => {
-            const p = persons.find((x) => x.id === pid);
-            if (p) openOrg(p.contactId, "equipe");
-          }}
-          onOpenOrg={(cid) => openOrg(cid, "taches")}
+          backLabel={backLabel(panel.back)}
+          onBack={goBack(panel.back)}
+          onOpenPerson={(pid) => openPerson(pid, current())}
+          onOpenOrg={(cid) => openOrg(cid, "taches", current())}
           onChange={(s) => setSteps((prev) => prev.map((x) => (x.id === s.id ? s : x)))}
+          onClose={() => setPanel(null)}
+        />
+      )}
+
+      {panel?.kind === "person" && panelPerson && (
+        <PersonDrawer
+          key={panelPerson.id}
+          dossierId={dossierId}
+          person={panelPerson}
+          contacts={contacts}
+          persons={persons}
+          links={links.filter((l) => l.personId === panelPerson.id)}
+          steps={steps}
+          backLabel={backLabel(panel.back)}
+          onBack={goBack(panel.back)}
+          onChange={(np) => setPersons((prev) => prev.map((x) => (x.id === np.id ? np : x)))}
+          onMoved={(np, contactId) => {
+            setPersons((prev) => prev.map((x) => (x.id === np.id ? np : x.parentId === np.id ? { ...x, parentId: null } : x)));
+            setLinks((prev) => prev.map((l) => (l.personId === np.id ? { ...l, contactId } : l)));
+          }}
+          onDeleted={(dp) => {
+            setPersons((prev) => prev.filter((x) => x.id !== dp.id).map((x) => (x.parentId === dp.id ? { ...x, parentId: dp.parentId } : x)));
+            setLinks((prev) => prev.filter((l) => l.personId !== dp.id));
+            setPanel(panel.back ?? null);
+          }}
+          onLinkAdd={(l) => setLinks((prev) => [...prev, l])}
+          onLinkRemove={(id) => setLinks((prev) => prev.filter((l) => l.id !== id))}
+          onOpenStep={(id) => openStep(id, current())}
+          onOpenOrg={(cid) => openOrg(cid, "equipe", current())}
           onClose={() => setPanel(null)}
         />
       )}
     </>
   );
 }
+
+function NewPersonForm({ onCreate, onCancel }: { onCreate: (name: string, relation: string, phone: string) => Promise<void>; onCancel: () => void }) {
+  const [name, setName] = useState("");
+  const [relation, setRelation] = useState("");
+  const [phone, setPhone] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  return (
+    <form
+      className="card anim-fade mb-4 p-4 ring-2 ring-act-soft"
+      onSubmit={async (e) => {
+        e.preventDefault();
+        if (!name.trim()) return setError("Indiquez au moins un nom.");
+        setBusy(true);
+        setError(null);
+        try {
+          await onCreate(name.trim(), relation.trim(), phone.trim());
+        } catch (err) {
+          setError(err instanceof Error ? err.message : "Ajout impossible.");
+          setBusy(false);
+        }
+      }}
+    >
+      <p className="mb-3 text-[12.5px] text-muted">Personne sans organisme : coursier, ami, chauffeur, voisin… Photo et identité se complètent ensuite dans sa fiche.</p>
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <Field label="Nom">
+          <input autoFocus value={name} onChange={(e) => setName(e.target.value)} maxLength={120} className="input" />
+        </Field>
+        <Field label="Ce qu'elle est pour vous">
+          <input value={relation} onChange={(e) => setRelation(e.target.value)} placeholder="Coursier, ami…" list="relations" className="input" />
+          <datalist id="relations">
+            {["Coursier", "Ami", "Famille", "Chauffeur", "Voisin", "Collègue", "Mentor", "Agent immobilier"].map((r) => (
+              <option key={r} value={r} />
+            ))}
+          </datalist>
+        </Field>
+        <Field label="Téléphone">
+          <input type="tel" inputMode="tel" value={phone} onChange={(e) => setPhone(e.target.value)} className="input" />
+        </Field>
+      </div>
+      <div className="mt-3 flex flex-wrap items-center justify-end gap-2">
+        {error && <span className="text-[12px] text-bad">{error}</span>}
+        <button type="button" onClick={onCancel} disabled={busy} className="btn btn-sm btn-ghost">
+          Annuler
+        </button>
+        <button type="submit" disabled={busy} className="btn btn-sm btn-primary">
+          <IconCheck size={14} /> {busy ? "Ajout…" : "Ajouter et ouvrir"}
+        </button>
+      </div>
+    </form>
+  );
+}
+
 
 function NewOrgForm({ onCreate, onCancel }: { onCreate: (org: string, role: string, stage: ContactStage) => Promise<void>; onCancel: () => void }) {
   const [org, setOrg] = useState("");
@@ -350,13 +487,8 @@ function TeamDots({ persons }: { persons: ContactPerson[] }) {
   return (
     <span className="flex items-center">
       {persons.slice(0, 4).map((p, i) => (
-        <span
-          key={p.id}
-          title={p.name}
-          className="grid h-7 w-7 place-items-center rounded-full bg-surface-2 text-[10.5px] font-bold text-muted ring-2 ring-surface"
-          style={{ marginLeft: i ? -8 : 0 }}
-        >
-          {initials(p.name)}
+        <span key={p.id} title={p.name} style={{ marginLeft: i ? -8 : 0 }} className="rounded-full ring-2 ring-surface">
+          <PhotoBadge url={p.photoUrl} label={initials(p.name)} shape="circle" size={28} />
         </span>
       ))}
       {persons.length > 4 && <span className="ml-1.5 text-[12px] text-muted">+{persons.length - 4}</span>}
@@ -396,7 +528,7 @@ function OrgList({ contacts, persons, links, onOpen }: { contacts: Contact[]; pe
                 className="grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-2 px-4 py-3 text-left hover:bg-surface-2/60 sm:px-5 md:grid-cols-[minmax(0,2.2fr)_9.5rem_8rem_5.5rem_minmax(0,2fr)_1.5rem]"
               >
                 <span className="flex min-w-0 items-center gap-3">
-                  <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-act-soft font-display text-[14px] font-bold text-act">{(c.org.trim()[0] ?? "?").toUpperCase()}</span>
+                  <PhotoBadge url={c.photoUrl} label={(c.org.trim()[0] ?? "?").toUpperCase()} shape="square" size={38} className="ring-1 ring-line" />
                   <span className="min-w-0">
                     <span className="block truncate text-[14.5px] font-bold">{c.org || "Organisme sans nom"}</span>
                     <span className="block truncate text-[12px] text-muted">{c.role || "—"}</span>
@@ -492,8 +624,13 @@ function Kanban({
                       className={dragId === c.id ? "opacity-50" : ""}
                     >
                       <button type="button" onClick={() => onOpen(c.id)} className="card block w-full cursor-grab p-3 text-left hover:border-act/40 active:cursor-grabbing">
-                        <span className="block truncate text-[14px] font-bold">{c.org || "Organisme sans nom"}</span>
-                        {c.role && <span className="block truncate text-[12px] text-muted">{c.role}</span>}
+                        <span className="flex items-center gap-2">
+                          <PhotoBadge url={c.photoUrl} label={(c.org.trim()[0] ?? "?").toUpperCase()} shape="square" size={30} className="ring-1 ring-line" />
+                          <span className="min-w-0">
+                            <span className="block truncate text-[14px] font-bold">{c.org || "Organisme sans nom"}</span>
+                            {c.role && <span className="block truncate text-[12px] text-muted">{c.role}</span>}
+                          </span>
+                        </span>
                         {c.next && <span className="mt-2 line-clamp-2 block rounded-lg bg-signal-soft px-2 py-1 text-[12px] text-opt">{c.next}</span>}
                         <span className="mt-2.5 flex items-center justify-between gap-2">
                           <TeamDots persons={team} />
@@ -521,34 +658,35 @@ function Kanban({
 function PeopleList({
   persons,
   all,
-  orgName,
+  where,
   stepsOf,
-  onOpenOrg,
+  onOpenPerson,
   onOpenStep,
 }: {
   persons: ContactPerson[];
   all: ContactPerson[];
-  orgName: Map<string, string>;
+  where: (p: ContactPerson) => string;
   stepsOf: (personId: string) => Step[];
-  onOpenOrg: (contactId: string) => void;
+  onOpenPerson: (personId: string) => void;
   onOpenStep: (stepId: string) => void;
 }) {
   const nameOf = new Map(all.map((p) => [p.id, p.name]));
   return (
     <section className="card overflow-hidden">
-      <div className="hidden grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_minmax(0,1.3fr)_minmax(0,2fr)] gap-3 border-b border-line px-5 py-2 text-[11.5px] font-medium text-muted lg:grid">
+      <div className="hidden grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)_minmax(0,1.3fr)_minmax(0,2fr)] gap-3 border-b border-line px-5 py-2 text-[11.5px] font-medium text-muted lg:grid">
         <span>Personne</span>
-        <span>Organisme</span>
+        <span>Organisme ou rôle</span>
         <span>Coordonnées</span>
         <span>Tâches liées</span>
       </div>
       <ul>
         {persons.map((p) => {
           const tasks = stepsOf(p.id);
+          const phone = p.phone || p.whatsapp;
           return (
-            <li key={p.id} className="grid grid-cols-1 gap-2 border-b border-line px-4 py-3 last:border-0 sm:grid-cols-2 sm:px-5 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_minmax(0,1.3fr)_minmax(0,2fr)] lg:gap-3">
-              <button type="button" onClick={() => onOpenOrg(p.contactId)} className="flex min-w-0 items-center gap-2.5 text-left">
-                <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-surface-2 text-[11px] font-bold text-muted">{initials(p.name)}</span>
+            <li key={p.id} className="grid grid-cols-1 gap-2 border-b border-line px-4 py-3 last:border-0 sm:grid-cols-2 sm:px-5 lg:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)_minmax(0,1.3fr)_minmax(0,2fr)] lg:gap-3">
+              <button type="button" onClick={() => onOpenPerson(p.id)} className="flex min-w-0 items-center gap-2.5 text-left">
+                <PhotoBadge url={p.photoUrl} label={initials(p.name)} shape="circle" size={36} />
                 <span className="min-w-0">
                   <span className="block truncate text-[14px] font-semibold hover:text-act hover:underline">{p.name}</span>
                   {(p.title || p.parentId) && (
@@ -559,9 +697,10 @@ function PeopleList({
                   )}
                 </span>
               </button>
-              <button type="button" onClick={() => onOpenOrg(p.contactId)} className="truncate text-left text-[13px] font-medium text-act hover:underline lg:self-center">
-                {orgName.get(p.contactId)}
-              </button>
+              <span className="flex min-w-0 items-center gap-1.5 text-[13px] lg:self-center">
+                {!p.contactId && <span className="shrink-0 rounded-full bg-surface-2 px-2 py-0.5 text-[11px] font-semibold text-muted">Indépendant</span>}
+                <span className={`truncate ${p.contactId ? "font-medium" : "text-muted"}`}>{p.contactId ? where(p) : p.relation}</span>
+              </span>
               <span className="flex min-w-0 flex-col gap-0.5 text-[13px] lg:self-center">
                 {p.email && (
                   <span className="flex min-w-0 items-center gap-1">
@@ -571,15 +710,15 @@ function PeopleList({
                     <CopyButton text={p.email} label={`courriel ${p.name}`} />
                   </span>
                 )}
-                {p.phone && (
+                {phone && (
                   <span className="flex items-center gap-1">
-                    <a href={`tel:${p.phone.replace(/[^\d+]/g, "")}`} className="font-medium text-act hover:underline">
-                      {p.phone}
+                    <a href={`tel:${phone.replace(/[^\d+]/g, "")}`} className="font-medium text-act hover:underline">
+                      {phone}
                     </a>
-                    <CopyButton text={p.phone} label={`téléphone ${p.name}`} />
+                    <CopyButton text={phone} label={`téléphone ${p.name}`} />
                   </span>
                 )}
-                {!p.email && !p.phone && <span className="text-faint">—</span>}
+                {!p.email && !phone && <span className="text-faint">—</span>}
               </span>
               <span className="flex min-w-0 flex-wrap gap-1.5 lg:self-center">
                 {tasks.length === 0 ? (
