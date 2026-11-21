@@ -6,6 +6,7 @@ import { daysUntil, isLate, nextOpenStep, overallProgress, parseD } from "@/lib/
 import { DossierProvider } from "@/lib/dossier-context";
 import { AppShell, type ShellSummary } from "@/components/AppShell";
 import { getAccount } from "@/lib/account";
+import { dayPlan } from "@/lib/formation";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createClient();
@@ -16,10 +17,17 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   let summary: ShellSummary | null = null;
   if (dossier) {
-    const [steps, { data: docRows }] = await Promise.all([
+    // Actions de Formation prévues aujourd'hui (fuseau d'Abidjan), pour la pastille de la barre latérale.
+    const today = new Date().toLocaleDateString("en-CA", { timeZone: "Africa/Abidjan" });
+    const todayKeys = dayPlan(today)?.items.map((i) => i.key) ?? [];
+    const [steps, { data: docRows }, { data: checkRows }] = await Promise.all([
       getStepsWithDetails(supabase, dossier.id),
       supabase.from("document").select("status,expires").eq("dossier_id", dossier.id),
+      todayKeys.length
+        ? supabase.from("training_check").select("item_key").eq("dossier_id", dossier.id).in("item_key", todayKeys)
+        : Promise.resolve({ data: [] as Array<{ item_key: string }> }),
     ]);
+    const checked = new Set((checkRows ?? []).map((c) => c.item_key as string));
     const next = nextOpenStep(steps);
     const nextDays = daysUntil(next?.due);
     const countdown = daysUntil(dossier.profileDate);
@@ -38,6 +46,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           ? null
           : { label: countdown >= 0 ? `J-${countdown}` : `+${-countdown} j`, date: dossier.profileDate, late: countdown < 0 },
       lateSteps: steps.filter((s) => isLate(s)).length,
+      formationToday: { remaining: todayKeys.filter((k) => !checked.has(k)).length, total: todayKeys.length },
       docs: {
         obtained: (docRows ?? []).filter((d) => d.status === "Obtenu").length,
         total: (docRows ?? []).length,

@@ -13,12 +13,11 @@ export default async function CoffrePage() {
 
   const [files, { data: docs }, { data: folderRows }] = await Promise.all([
     getVaultFiles(supabase, dossier.id),
-    supabase.from("document").select("id,name").eq("dossier_id", dossier.id),
+    supabase.from("document").select("id,name,position").eq("dossier_id", dossier.id).order("position"),
     supabase.from("vault_folder").select("*").eq("dossier_id", dossier.id).order("name"),
   ]);
 
-  const documentNames: Record<string, string> = {};
-  for (const d of docs ?? []) documentNames[d.id as string] = d.name as string;
+  const documents = (docs ?? []).map((d) => ({ id: d.id as string, name: (d.name as string) || "Document" }));
 
-  return <VaultBoard initialFiles={files} documentNames={documentNames} initialFolders={(folderRows ?? []).map(mapFolder)} />;
+  return <VaultBoard initialFiles={files} documents={documents} initialFolders={(folderRows ?? []).map(mapFolder)} />;
 }

@@ -34,29 +34,64 @@ export async function PATCH(request: NextRequest, { params }: Ctx) {
 }
 
 /** Supprime un dossier vide (ses anciennes versions archivées restent dans « Remplacés »). */
+/**
+ * Supprime un dossier avec tout ce qu'il contient : sous-dossiers et fichiers non rattachés
+ * (mis à la corbeille Drive, récupérables 30 jours). Les fichiers liés à une pièce de Documents
+ * sont conservés : ils restent sur leur pièce et deviennent « non classés ».
+ */
 export async function DELETE(_request: NextRequest, { params }: Ctx) {
   try {
     const { id } = await params;
     const { supabase, dossierId } = await requireOwner();
-    const [{ count }, { count: subCount }] = await Promise.all([
-      supabase.from("file").select("id", { count: "exact", head: true }).eq("folder_id", id).is("replaced_at", null),
-      supabase.from("vault_folder").select("id", { count: "exact", head: true }).eq("parent_id", id),
-    ]);
-    if (subCount) return NextResponse.json({ error: "Le dossier contient des sous-dossiers : supprimez-les d'abord." }, { status: 409 });
-    if (count) return NextResponse.json({ error: "Le dossier contient encore des fichiers : déplacez-les ou supprimez-les d'abord." }, { status: 409 });
-    const { error } = await supabase.from("vault_folder").delete().eq("id", id).eq("dossier_id", dossierId);
-    if (error) return NextResponse.json({ error: "Suppression impossible." }, { status: 500 });
-    const conn = await getConnection(dossierId);
-    const key = `folder:${id}`;
-    const driveId = conn?.folders[key];
-    if (conn && driveId) {
-      const { token } = await requireDrive(dossierId).catch(() => ({ token: null }));
-      if (token) await trashFile(token, driveId).catch(() => null);
-      const folders = { ...conn.folders };
-      delete folders[key];
-      await saveConnection(dossierId, { folders }).catch(() => null);
+    const { data: rows } = await supabase.from("vault_folder").select("*").eq("dossier_id", dossierId);
+    const folders = (rows ?? []).map(mapFolder);
+    if (!folders.some((f) => f.id === id)) return NextResponse.json({ ok: true, deletedFiles: [], deletedFolders: [] });
+
+    // Le dossier et ses descendants, du plus profond au plus haut (la clé parent interdit l'inverse).
+    const tree: string[] = [];
+    const walk = (fid: string) => {
+      for (const c of folders.filter((f) => f.parentId === fid)) walk(c.id);
+      tree.push(fid);
+    };
+    walk(id);
+
+    const { data: fileRows } = await supabase.from("file").select("*").eq("dossier_id", dossierId).in("folder_id", tree);
+    const doomed = (fileRows ?? []).filter((f) => !f.document_id);
+
+    const storagePaths = doomed.filter((f) => f.provider !== "gdrive" && f.storage_path).map((f) => f.storage_path as string);
+    if (storagePaths.length) await supabase.storage.from("coffre").remove(storagePaths);
+    if (doomed.length) {
+      const { error } = await supabase.from("file").delete().in("id", doomed.map((f) => f.id as string));
+      if (error) return NextResponse.json({ error: "Les fichiers du dossier n'ont pas pu être supprimés." }, { status: 500 });
     }
-    return NextResponse.json({ ok: true });
+    for (const fid of tree) {
+      const { error } = await supabase.from("vault_folder").delete().eq("id", fid).eq("dossier_id", dossierId);
+      if (error) return NextResponse.json({ error: "Suppression impossible." }, { status: 500 });
+    }
+
+    // Drive : fichiers puis dossiers à la corbeille, en arrière-plan.
+    const driveFiles = doomed.map((f) => f.drive_file_id as string | null).filter((x): x is string => Boolean(x));
+    after(async () => {
+      try {
+        const conn = await getConnection(dossierId);
+        if (!conn) return;
+        const { token } = await requireDrive(dossierId).catch(() => ({ token: null }));
+        if (token) {
+          for (const d of driveFiles) await trashFile(token, d).catch(() => null);
+          for (const fid of tree) {
+            const driveId = conn.folders[`folder:${fid}`];
+            if (driveId) await trashFile(token, driveId).catch(() => null);
+          }
+        }
+        const kept = { ...conn.folders };
+        for (const fid of tree) delete kept[`folder:${fid}`];
+        await saveConnection(dossierId, { folders: kept }).catch(() => null);
+      } catch (e) {
+        console.error("[drive] suppression de dossier", e);
+      }
+    });
+
+    return NextResponse.json({ ok: true, deletedFiles: doomed.map((f) => f.id as string), deletedFolders: tree });
   } catch (e) {
     return errorResponse(e);
   }

@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import {
+  FORMATION_TODAY_EVENT,
   ERROR_REPEAT_THRESHOLD,
   IELTS_DATE,
   PROGRAM_END,
@@ -127,6 +128,14 @@ export function FormationBoard({
       streak: streak(today, done),
     };
   }, [done, today, ref, program]);
+
+  // La pastille « actions du jour » de la barre latérale suit les cases cochées ici.
+  useEffect(() => {
+    const items = dayPlan(today)?.items;
+    if (!items) return;
+    const remaining = items.filter((i) => !done.has(i.key)).length;
+    window.dispatchEvent(new CustomEvent(FORMATION_TODAY_EVENT, { detail: { remaining } }));
+  }, [done, today]);
 
   const phase = phaseOf(ref);
   const jTcf = daysBetween(today, TCF_DATE);

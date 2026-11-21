@@ -1,7 +1,7 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
-import { copyVaultFile, createFolder, deleteFolder, deleteVaultFile, fileUrl, moveFolder, moveVaultFile, renameFolder, signFileUrl, uploadMany } from "@/lib/vaultClient";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { copyVaultFile, createFolder, linkVaultFile, deleteFolder, deleteVaultFile, fileUrl, moveFolder, moveVaultFile, renameFolder, signFileUrl, uploadMany } from "@/lib/vaultClient";
 import { folderOptions, folderPath, type VaultFolder } from "@/lib/folders";
 import type { VaultFile } from "@/lib/types";
 import { EmptyState, PageHeader } from "@/components/ui";
@@ -16,6 +16,7 @@ import { FilePreview, isPdf } from "./FilePreview";
 import { FileCard } from "./FileCard";
 import { FoldersView } from "./FoldersView";
 import { StatusMessage } from "./StatusMessage";
+import { FileRows, VIEW_KEY, ViewToggle, type VaultView } from "./VaultList";
 import { joinUploadErrors, normalizeSearch } from "@/lib/documents";
 import { pendingDriveBackup } from "@/lib/vaultStats";
 
@@ -24,11 +25,34 @@ const UNLINKED = "__divers__";
 
 interface Props {
   initialFiles: VaultFile[];
-  documentNames: Record<string, string>;
+  /** Pièces de Documents, dans leur ordre : cibles possibles d'un rattachement. */
+  documents: Array<{ id: string; name: string }>;
   initialFolders: VaultFolder[];
 }
 
-export function VaultBoard({ initialFiles, documentNames, initialFolders }: Props) {
+export function VaultBoard({ initialFiles, documents, initialFolders }: Props) {
+  const documentNames = useMemo(() => Object.fromEntries(documents.map((d) => [d.id, d.name])) as Record<string, string>, [documents]);
+  // Grille ou liste : choix mémorisé sur l'appareil, lu après l'hydratation.
+  const [view, setViewState] = useState<VaultView>("grille");
+  useEffect(() => {
+    const raf = requestAnimationFrame(() => {
+      try {
+        const v = localStorage.getItem(VIEW_KEY);
+        if (v === "grille" || v === "liste") setViewState(v);
+      } catch {
+        /* stockage indisponible : grille */
+      }
+    });
+    return () => cancelAnimationFrame(raf);
+  }, []);
+  function setView(v: VaultView) {
+    setViewState(v);
+    try {
+      localStorage.setItem(VIEW_KEY, v);
+    } catch {
+      /* rien */
+    }
+  }
   const [allFiles, setFiles] = useState(initialFiles);
   // Versions actives d'un côté, versions remplacées (archivées sur Drive) de l'autre.
   const files = useMemo(() => allFiles.filter((f) => !f.replacedAt), [allFiles]);
@@ -149,6 +173,22 @@ export function VaultBoard({ initialFiles, documentNames, initialFolders }: Prop
     return true;
   }
 
+  async function linkFile(f: VaultFile, documentId: string | null): Promise<boolean> {
+    if ((f.documentId ?? null) === documentId) return true;
+    setError(null);
+    setFiles((prev) => prev.map((x) => (x.id === f.id ? { ...x, documentId } : x)));
+    const res = await linkVaultFile(f.id, documentId);
+    if (!res.file) {
+      setError(`${f.name} : ${res.error}`);
+      setFiles((prev) => prev.map((x) => (x.id === f.id ? f : x)));
+      return false;
+    }
+    const saved = res.file;
+    setFiles((prev) => prev.map((x) => (x.id === f.id ? saved : x)));
+    setNotice(documentId ? `${f.name} est maintenant joint à « ${documentNames[documentId] ?? "la pièce"} » dans Documents.` : `${f.name} n'est plus rattaché à une pièce.`);
+    return true;
+  }
+
   async function copyFile(f: VaultFile, folderId: string | null): Promise<boolean> {
     const res = await copyVaultFile(f.id, folderId);
     if (!res.file) {
@@ -196,11 +236,20 @@ export function VaultBoard({ initialFiles, documentNames, initialFolders }: Prop
   }
 
   async function removeFolder(id: string): Promise<string | null> {
-    const err = await deleteFolder(id);
-    if (err) return err;
-    // Retour au dossier parent après la suppression.
-    setOpenFolder(folders.find((f) => f.id === id)?.parentId ?? null);
-    setFolders((prev) => prev.filter((f) => f.id !== id));
+    const name = folders.find((f) => f.id === id)?.name ?? "dossier";
+    const res = await deleteFolder(id);
+    if (res.error) return res.error;
+    const goneFolders = new Set(res.deletedFolders);
+    const goneFiles = new Set(res.deletedFiles);
+    // Retour au dossier parent si l'on était dedans.
+    if (openFolder && goneFolders.has(openFolder)) setOpenFolder(folders.find((f) => f.id === id)?.parentId ?? null);
+    setFolders((prev) => prev.filter((f) => !goneFolders.has(f.id)));
+    // Fichiers liés à une pièce : conservés, désormais non classés.
+    setFiles((prev) => prev.filter((f) => !goneFiles.has(f.id)).map((f) => (f.folderId && goneFolders.has(f.folderId) ? { ...f, folderId: null } : f)));
+    const kept = files.filter((f) => f.folderId && goneFolders.has(f.folderId) && f.documentId).length;
+    setNotice(
+      `Dossier « ${name} » supprimé${goneFiles.size ? ` avec ${goneFiles.size} fichier${goneFiles.size > 1 ? "s" : ""} (corbeille Google Drive, récupérables 30 jours)` : ""}.${kept ? ` ${kept} fichier${kept > 1 ? "s" : ""} lié${kept > 1 ? "s" : ""} à une pièce ${kept > 1 ? "sont conservés" : "est conservé"} dans « Non classés ».` : ""}`,
+    );
     return null;
   }
 
@@ -262,7 +311,7 @@ export function VaultBoard({ initialFiles, documentNames, initialFolders }: Prop
           <IconShield size={15} className="text-act" /> Bon à savoir
         </p>
         <p className="mt-1.5">Les fichiers sont d&apos;abord enregistrés dans l&apos;application (plusieurs à la fois, avec barre d&apos;avancement), puis copiés automatiquement sur Google Drive en sauvegarde. Les photos de plus de 2,5 Mo sont réduites avant l&apos;envoi (toujours lisibles) ; les PDF sont envoyés tels quels.</p>
-        <p className="mt-1.5">Un fichier déposé ici n&apos;est rattaché à aucune pièce. Pour le lier au passeport, au diplôme, etc., déposez-le depuis sa fiche dans Documents.</p>
+        <p className="mt-1.5">Un fichier déposé ici n&apos;est rattaché à aucune pièce. Pour le lier au passeport, au diplôme, etc., choisissez la pièce dans son aperçu ou dans l&apos;affichage en liste ; il apparaît alors sur sa fiche dans Documents.</p>
         <p className="mt-1.5">Un fichier joint à une pièce peut aussi être rangé dans un dossier (il reste lié à sa pièce) ou copié dans un dossier : depuis son aperçu, ou avec « Ajouter des pièces jointes » dans un dossier ouvert.</p>
         <p className="mt-1.5">Même nom sur la même pièce : la nouvelle version remplace l&apos;ancienne, qui reste conservée dans « Remplacés » (dossier Drive « Fichiers remplacés »).</p>
         <p className="mt-1.5">Le type réel est vérifié avant l&apos;envoi : un fichier renommé en .pdf est refusé.</p>      </div>
@@ -376,6 +425,12 @@ export function VaultBoard({ initialFiles, documentNames, initialFolders }: Prop
           onDelete={removeFolder}
           onMove={relocateFolder}
           onBring={(list, id, mode) => bringFiles(list, id, mode)}
+          view={view}
+          onView={setView}
+          documents={documents}
+          folderName={folderName}
+          onLink={(f, docId) => void linkFile(f, docId)}
+          onDeleteFile={(f) => void deleteFile(f)}
         />
       )}
       {tab === "deposer" && <div className="mx-auto max-w-2xl">{dropAside}</div>}
@@ -403,6 +458,9 @@ export function VaultBoard({ initialFiles, documentNames, initialFolders }: Prop
           </EmptyState>
         ) : (
           <div className="flex flex-col gap-4">
+            <div className="flex justify-end">
+              <ViewToggle view={view} onView={setView} />
+            </div>
             {groups.map((g) => (
               <section key={g.id} className="card overflow-hidden">
                 <div className="flex items-center gap-3 px-4 pt-4 pb-3 sm:px-5">
@@ -414,6 +472,11 @@ export function VaultBoard({ initialFiles, documentNames, initialFolders }: Prop
                     {g.files.length} · {formatSize(g.files.reduce((s, f) => s + f.size, 0))}
                   </span>
                 </div>
+                {view === "liste" ? (
+                  <div className="px-4 pb-4 sm:px-5">
+                    <FileRows files={g.files} documents={documents} folderName={folderName} onOpen={openPreview} onLink={(f, d) => void linkFile(f, d)} onDelete={(f) => void deleteFile(f)} />
+                  </div>
+                ) : (
                 <ul className="grid grid-cols-2 gap-3 px-4 pb-4 sm:grid-cols-3 sm:px-5 xl:grid-cols-5">
                   {g.files.map((f) => (
                     <FileCard
@@ -431,6 +494,7 @@ export function VaultBoard({ initialFiles, documentNames, initialFolders }: Prop
                     />
                   ))}
                 </ul>
+                )}
               </section>
             ))}
           </div>
@@ -440,7 +504,10 @@ export function VaultBoard({ initialFiles, documentNames, initialFolders }: Prop
       <div className={files.length === 0 ? "grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,1fr)_340px]" : ""}>
         <div className="min-w-0">
           {files.length > 0 && (
-            <div className="mb-4">
+            <div className="mb-4 flex flex-col gap-3">
+              <div className="flex justify-end">
+                <ViewToggle view={view} onView={setView} />
+              </div>
               <FilterBar
                 query={query}
                 onQuery={setQuery}
@@ -478,6 +545,8 @@ export function VaultBoard({ initialFiles, documentNames, initialFolders }: Prop
             <EmptyState icon={<IconSearch size={20} />} title="Aucun fichier ne correspond">
               Changez de filtre ou de recherche.
             </EmptyState>
+          ) : view === "liste" ? (
+            <FileRows files={visible} documents={documents} folderName={folderName} onOpen={openPreview} onLink={(f, d) => void linkFile(f, d)} onDelete={(f) => void deleteFile(f)} />
           ) : (
             <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-5">
               {visible.map((f) => (
@@ -506,6 +575,8 @@ export function VaultBoard({ initialFiles, documentNames, initialFolders }: Prop
           folders={choices.map((c) => ({ id: c.id, name: c.label }))}
           onMove={(f, id) => void moveFile(f, id)}
           onCopy={(f, id) => void copyFile(f, id)}
+          documents={documents}
+          onLink={(f, id) => void linkFile(f, id)}
         />
       )}
     </>

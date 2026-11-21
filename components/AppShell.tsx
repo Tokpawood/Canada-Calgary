@@ -9,7 +9,8 @@ import { OfflineBanner } from "@/components/OfflineBanner";
 import { ThemeToggle } from "@/components/Theme";
 import type { Account } from "@/lib/account";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
+import { FORMATION_TODAY_EVENT } from "@/lib/formation";
 import { createClient } from "@/lib/supabase/client";
 import {
   IconArrowRight,
@@ -29,6 +30,8 @@ export interface ShellSummary {
   nextStep: { title: string; dueLabel: string | null; late: boolean } | null;
   countdown: { label: string; date: string | null; late: boolean } | null;
   lateSteps: number;
+  /** Actions de Formation prévues aujourd'hui : restant à cocher / total. */
+  formationToday: { remaining: number; total: number };
   docs: { obtained: number; total: number; expired: number };
 }
 
@@ -78,6 +81,14 @@ export function AppShell({
   })).filter((g) => g.items.length);
   const nav = groups.flatMap((g) => g.items);
 
+  // Pastille Formation : valeur du serveur, puis mise à jour en direct quand une tâche est cochée.
+  const [formationLeft, setFormationLeft] = useState<number | null>(null);
+  useEffect(() => {
+    const onChange = (e: Event) => setFormationLeft((e as CustomEvent<{ remaining: number }>).detail.remaining);
+    window.addEventListener(FORMATION_TODAY_EVENT, onChange);
+    return () => window.removeEventListener(FORMATION_TODAY_EVENT, onChange);
+  }, []);
+
   // La molette modifie la valeur d'un champ numérique qui a le focus : on le quitte avant que la page défile.
   useEffect(() => {
     const onWheel = () => {
@@ -90,8 +101,14 @@ export function AppShell({
 
   function badgeFor(
     href: string,
-  ): { text: string; alert: boolean; title: string } | null {
+  ): { text: string; alert: boolean; signal?: boolean; title: string } | null {
     if (!summary) return null;
+    if (href === "/formation" && summary.formationToday.total > 0) {
+      const left = formationLeft ?? summary.formationToday.remaining;
+      return left > 0
+        ? { text: String(left), alert: false, signal: true, title: left > 1 ? "Actions du jour à faire" : "Action du jour à faire" }
+        : { text: "✓", alert: false, title: "Actions du jour faites" };
+    }
     if (href === "/parcours" && summary.lateSteps > 0)
       return {
         text: String(summary.lateSteps),
@@ -169,7 +186,7 @@ export function AppShell({
                       <span className="flex-1">{n.label}</span>
                       {badge && (
                         <span
-                          className={`badge-in mono rounded-full px-1.5 text-[10.5px] leading-[18px] font-semibold ${badge.alert ? "bg-bad text-white nav-alert" : "bg-white/10 text-night-muted"}`}
+                          className={`badge-in mono rounded-full px-1.5 text-[10.5px] leading-[18px] font-semibold ${badge.alert ? "bg-bad text-white nav-alert" : badge.signal ? "bg-signal text-black" : "bg-white/10 text-night-muted"}`}
                           title={badge.title}
                         >
                           {badge.text}
@@ -252,8 +269,8 @@ export function AppShell({
                   }`}
                 >
                   {n.label}
-                  {badge?.alert && (
-                    <span className="mono rounded-full bg-bad px-1.5 text-[10px] leading-[16px] text-white" title={badge.title}>
+                  {(badge?.alert || badge?.signal) && (
+                    <span className={`mono rounded-full px-1.5 text-[10px] leading-[16px] ${badge.alert ? "bg-bad text-white" : "bg-signal text-black"}`} title={badge.title}>
                       {badge.text}
                       <span className="sr-only"> : {badge.title}</span>
                     </span>

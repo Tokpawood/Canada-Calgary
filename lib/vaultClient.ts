@@ -134,6 +134,14 @@ export async function moveVaultFile(id: string, folderId: string | null): Promis
   return res.ok && json.file ? { file: json.file } : { error: json.error ?? "Classement refusé." };
 }
 
+/** Lie un fichier à une pièce de Documents (ou le détache avec null). */
+export async function linkVaultFile(id: string, documentId: string | null): Promise<UploadResult> {
+  const res = await fetch(`/api/files/${id}`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ documentId }) }).catch(() => null);
+  if (!res) return { error: "Serveur injoignable." };
+  const json = (await res.json().catch(() => ({}))) as UploadResult;
+  return res.ok && json.file ? { file: json.file } : { error: json.error ?? "Rattachement refusé." };
+}
+
 /** Copie un fichier dans un dossier ; l'original reste à sa place et lié à sa pièce. */
 export async function copyVaultFile(id: string, folderId: string | null): Promise<UploadResult> {
   const { ok, json } = await postJson<UploadResult>(`/api/files/${id}/copy`, { folderId });
@@ -152,11 +160,13 @@ export async function renameFolder(id: string, name: string): Promise<{ folder?:
   return res.ok && json.folder ? { folder: json.folder } : { error: json.error ?? "Renommage impossible." };
 }
 
-export async function deleteFolder(id: string): Promise<string | null> {
+/** Supprime un dossier et son contenu ; renvoie les fichiers et dossiers effectivement supprimés. */
+export async function deleteFolder(id: string): Promise<{ error?: string; deletedFiles: string[]; deletedFolders: string[] }> {
   const res = await fetch(`/api/folders/${id}`, { method: "DELETE" }).catch(() => null);
-  if (!res) return "Serveur injoignable.";
-  if (res.ok) return null;
-  return ((await res.json().catch(() => ({}))) as { error?: string }).error ?? "Suppression impossible.";
+  if (!res) return { error: "Serveur injoignable.", deletedFiles: [], deletedFolders: [] };
+  const json = (await res.json().catch(() => ({}))) as { error?: string; deletedFiles?: string[]; deletedFolders?: string[] };
+  if (!res.ok) return { error: json.error ?? "Suppression impossible.", deletedFiles: [], deletedFolders: [] };
+  return { deletedFiles: json.deletedFiles ?? [], deletedFolders: json.deletedFolders ?? [id] };
 }
 
 /** Déplace un dossier dans un autre dossier (ou à la racine avec null). */

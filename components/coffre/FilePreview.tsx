@@ -5,7 +5,7 @@ import { createPortal } from "react-dom";
 import type { VaultFile } from "@/lib/types";
 import { ConfirmButton } from "@/components/ui";
 import { formatSize } from "@/components/FileDropzone";
-import { IconChevronLeft, IconChevronRight, IconCopy, IconDownload, IconExternal, IconFile, IconFolder, IconTrash, IconX } from "@/components/icons";
+import { IconChevronLeft, IconChevronRight, IconCopy, IconDownload, IconExternal, IconFile, IconFolder, IconPaperclip, IconTrash, IconX } from "@/components/icons";
 
 export const isPdf = (f: VaultFile) => f.mime === "application/pdf";
 
@@ -38,10 +38,13 @@ interface Props {
   onMove?: (f: VaultFile, folderId: string | null) => void;
   /** Copie dans un dossier (l'original reste à sa place). */
   onCopy?: (f: VaultFile, folderId: string | null) => void;
+  /** Rattachement à une pièce de Documents (absent ailleurs). */
+  documents?: Array<{ id: string; name: string }>;
+  onLink?: (f: VaultFile, documentId: string | null) => void;
 }
 
 /** Visionneuse plein écran : image ou PDF, navigation au clavier (← → Échap). */
-export function FilePreview({ files, index, documentLabel, signUrl, onIndex, onDelete, onClose, folders, onMove, onCopy }: Props) {
+export function FilePreview({ files, index, documentLabel, signUrl, onIndex, onDelete, onClose, folders, onMove, onCopy, documents, onLink }: Props) {
   const file = files[index];
   const [loaded, setLoaded] = useState<{ id: string; url: string | null } | null>(null);
   const url = loaded?.id === file?.id ? loaded.url : undefined;
@@ -148,6 +151,24 @@ export function FilePreview({ files, index, documentLabel, signUrl, onIndex, onD
           {index + 1} / {files.length}
         </span>
         <div className="flex flex-wrap items-center gap-1.5">
+          {documents && onLink && !file.replacedAt && (
+            <label className="flex items-center gap-1.5 rounded-lg bg-white/10 pl-2.5 text-[12.5px] font-semibold" title="Lier à une pièce de Documents">
+              <IconPaperclip size={14} />
+              <span className="sr-only">Lier à une pièce de Documents</span>
+              <select
+                value={file.documentId ?? ""}
+                onChange={(e) => onLink(file, e.target.value || null)}
+                className="h-8 max-w-[180px] cursor-pointer truncate rounded-lg bg-transparent pr-2 text-white outline-none [&>option]:text-black"
+              >
+                <option value="">Non rattaché</option>
+                {documents.map((d) => (
+                  <option key={d.id} value={d.id}>
+                    {d.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
           {folders && onMove && !file.replacedAt && (
             <label className="flex items-center gap-1.5 rounded-lg bg-white/10 pl-2.5 text-[12.5px] font-semibold">
               <IconFolder size={14} />

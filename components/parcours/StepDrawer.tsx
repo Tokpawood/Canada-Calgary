@@ -32,11 +32,13 @@ import {
 } from "@/components/editable";
 import {
   IconAlert,
+  IconCalendar,
   IconChevronLeft,
   IconChevronRight,
   IconTrash,
 } from "@/components/icons";
 import { HeaderTabs } from "@/components/DarkHeader";
+import { DueShift } from "./DueShift";
 import {
   DarkStatusPicker,
   DrawerCard,
@@ -397,6 +399,19 @@ export function StepDrawer({
                   {due.text}
                 </span>
               )}
+              {!ed.editing && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setTab("infos");
+                    ed.start();
+                  }}
+                  className="rounded-full bg-white/10 px-2.5 py-1 text-[12px] font-semibold text-night-ink hover:bg-white/20"
+                  title="Changer la date ou appliquer un nouveau délai"
+                >
+                  {step.due ? "Reporter" : "Fixer une échéance"}
+                </button>
+              )}
               {!ed.editing && step.org && (
                 <span className="text-[12.5px] text-night-muted">
                   {step.org}
@@ -596,14 +611,23 @@ export function StepDrawer({
           <div className="flex flex-col gap-4">
             <DrawerCard title="Planification">
               {off ? (
-                <dl className="m-0">
-                  <ReadRow
-                    label="Échéance"
-                    value={step.due ? fmtShortDate(step.due) : ""}
-                  />
-                  <ReadRow label="Phase" value={step.phase} />
-                  <ReadRow label="Organisme" value={step.org} />
-                </dl>
+                <>
+                  <dl className="m-0">
+                    <ReadRow
+                      label="Échéance"
+                      value={step.due ? fmtShortDate(step.due) : ""}
+                    />
+                    <ReadRow label="Phase" value={step.phase} />
+                    <ReadRow label="Organisme" value={step.org} />
+                  </dl>
+                  <button
+                    type="button"
+                    className="btn btn-ghost btn-sm mt-3"
+                    onClick={() => ed.start()}
+                  >
+                    <IconCalendar size={14} /> Modifier l&apos;échéance
+                  </button>
+                </>
               ) : (
                 <div className="grid grid-cols-2 gap-3">
                   <Field label="Échéance">
@@ -614,6 +638,22 @@ export function StepDrawer({
                       className="input"
                     />
                   </Field>
+                  <DueShift
+                    key={v.due ?? "sans-date"}
+                    due={v.due}
+                    onApply={(due, note) =>
+                      ed.update((d) => ({
+                        ...d,
+                        due,
+                        notes: note
+                          ? d.notes.trim()
+                            ? `${d.notes.trimEnd()}
+${note}`
+                            : note
+                          : d.notes,
+                      }))
+                    }
+                  />
                   <Field label="Phase">
                     <select
                       value={v.phase}

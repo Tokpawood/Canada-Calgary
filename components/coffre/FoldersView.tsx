@@ -8,6 +8,7 @@ import { FileDropzone, formatSize } from "@/components/FileDropzone";
 import { IconArrowRight, IconChevronLeft, IconChevronRight, IconCopy, IconFolder, IconFolderPlus, IconPaperclip, IconPencil, IconPlus, IconTrash } from "@/components/icons";
 import { FileCard } from "./FileCard";
 import { StatusMessage } from "./StatusMessage";
+import { FileRows, FolderRows, ViewToggle, type VaultView } from "./VaultList";
 
 export const UNSORTED = "__non-classe__";
 
@@ -29,6 +30,12 @@ interface Props {
   onMove: (id: string, parentId: string | null) => Promise<string | null>;
   /** Range (déplace) ou copie des fichiers existants dans le dossier ouvert. */
   onBring: (files: VaultFile[], folderId: string, mode: "move" | "copy") => Promise<void>;
+  view: VaultView;
+  onView: (v: VaultView) => void;
+  documents: Array<{ id: string; name: string }>;
+  folderName: (id: string | null) => string | null;
+  onLink: (f: VaultFile, documentId: string | null) => void;
+  onDeleteFile: (f: VaultFile) => void;
 }
 
 /** Onglet « Dossiers » : classement libre avec sous-dossiers ; l'arborescence est reproduite sur Google Drive. */
@@ -41,6 +48,20 @@ export function FoldersView(p: Props) {
   const children = (id: string | null) => p.folders.filter((f) => f.parentId === id).sort((a, b) => a.name.localeCompare(b.name, "fr"));
   // Total d'un dossier, sous-dossiers compris.
   const deep = (id: string): VaultFile[] => [...direct(id), ...children(id).flatMap((c) => deep(c.id))];
+  // Nombre de sous-dossiers à tous les niveaux (supprimés avec le dossier).
+  const deepFolders = (id: string): number => children(id).reduce((n, c) => n + 1 + deepFolders(c.id), 0);
+  const removeFolder = async (id: string) => {
+    setErr(null);
+    const e = await p.onDelete(id);
+    if (e) setErr(e);
+  };
+  const deleteLabel = (id: string) => {
+    const inside = deep(id);
+    const removable = inside.filter((f) => !f.documentId).length;
+    const subs = deepFolders(id);
+    const parts = [removable > 0 && `${removable} fichier${removable > 1 ? "s" : ""}`, subs > 0 && `${subs} sous-dossier${subs > 1 ? "s" : ""}`].filter(Boolean);
+    return parts.length ? `Supprimer avec ${parts.join(" et ")}` : "Supprimer le dossier";
+  };
 
   const create = async (name: string, parentId: string | null) => {
     setErr(null);
@@ -122,12 +143,9 @@ export function FoldersView(p: Props) {
                 </button>
                 <ConfirmButton
                   label={`Supprimer le dossier ${folder.name}`}
-                  confirmLabel="Supprimer le dossier"
+                  confirmLabel={deleteLabel(folder.id)}
                   className="btn btn-sm btn-danger"
-                  onConfirm={async () => {
-                    const er = await p.onDelete(folder.id);
-                    if (er) setErr(er);
-                  }}
+                  onConfirm={() => removeFolder(folder.id)}
                 >
                   <IconTrash size={14} />
                 </ConfirmButton>
@@ -177,10 +195,33 @@ export function FoldersView(p: Props) {
         </StatusMessage>
       )}
 
-      {!unsortedOpen && <NewFolder key={current ?? "racine"} label={folder ? "Nouveau sous-dossier" : "Nouveau dossier"} onCreate={(n) => create(n, current)} />}
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        {!unsortedOpen ? <NewFolder key={current ?? "racine"} label={folder ? "Nouveau sous-dossier" : "Nouveau dossier"} onCreate={(n) => create(n, current)} /> : <span />}
+        <ViewToggle view={p.view} onView={p.onView} />
+      </div>
 
-      {/* Sous-dossiers (ou dossiers de la racine) */}
-      {!unsortedOpen && (subfolders.length > 0 || (!p.open && unsorted.length > 0)) && (
+      {/* Sous-dossiers (ou dossiers de la racine), en liste */}
+      {p.view === "liste" && !unsortedOpen && (subfolders.length > 0 || (!p.open && unsorted.length > 0)) && (
+        <FolderRows
+          rows={[
+            ...subfolders.map((f) => {
+              const inside = deep(f.id);
+              return { id: f.id, name: f.name, count: inside.length, subCount: deepFolders(f.id), size: inside.reduce((s, x) => s + x.size, 0), linked: inside.filter((x) => x.documentId).length };
+            }),
+            ...(!p.open && unsorted.length > 0
+              ? [{ id: UNSORTED, name: "Non classés", count: unsorted.length, subCount: 0, size: unsorted.reduce((s, x) => s + x.size, 0), linked: 0, muted: true, fixed: true }]
+              : []),
+          ]}
+          onOpen={(id) => {
+            setErr(null);
+            p.onOpen(id);
+          }}
+          onDelete={removeFolder}
+        />
+      )}
+
+      {/* Sous-dossiers (ou dossiers de la racine), en grille */}
+      {p.view === "grille" && !unsortedOpen && (subfolders.length > 0 || (!p.open && unsorted.length > 0)) && (
         <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
           {subfolders.map((f) => {
             const inside = deep(f.id);
@@ -232,6 +273,8 @@ export function FoldersView(p: Props) {
                 {folder ? "Déposez des fichiers ci-dessus, créez un sous-dossier, ou classez-y un fichier existant depuis son aperçu." : "Tous les fichiers sont classés."}
               </EmptyState>
             )
+          ) : p.view === "liste" ? (
+            <FileRows files={list} documents={p.documents} folderName={p.folderName} onOpen={(f) => p.onOpenFile(f, list)} onLink={p.onLink} onDelete={p.onDeleteFile} />
           ) : (
             <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-5">
               {list.map((f) => (

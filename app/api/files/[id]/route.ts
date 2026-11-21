@@ -74,21 +74,31 @@ export async function DELETE(_request: NextRequest, { params }: Ctx) {
   }
 }
 
-/** Classement : range le fichier dans un dossier du Coffre (ou hors dossier) ; la copie Drive suit en arrière-plan. */
+/**
+ * Classement : range le fichier dans un dossier du Coffre (`folderId`) et/ou le lie à une pièce
+ * de Documents (`documentId`, null pour le détacher). La copie Drive suit en arrière-plan.
+ */
 export async function PATCH(request: NextRequest, { params }: Ctx) {
   try {
     const { id } = await params;
     const { supabase, dossierId, row } = await loadFile(id);
     if (!row) return NextResponse.json({ error: "Fichier introuvable." }, { status: 404 });
-    const { folderId = null } = (await request.json().catch(() => ({}))) as { folderId?: string | null };
-    if ((row.folder_id ?? null) === folderId) return NextResponse.json({ file: mapVaultFile(row) });
+    const body = (await request.json().catch(() => ({}))) as { folderId?: string | null; documentId?: string | null };
+    const oldFolder = (row.folder_id as string | null) ?? null;
+    const oldDoc = (row.document_id as string | null) ?? null;
+    const folderId = "folderId" in body ? (body.folderId ?? null) : oldFolder;
+    const documentId = "documentId" in body ? (body.documentId ?? null) : oldDoc;
+    if (folderId === oldFolder && documentId === oldDoc) return NextResponse.json({ file: mapVaultFile(row) });
+    if (documentId !== oldDoc && row.replaced_at) return NextResponse.json({ error: "Une ancienne version ne peut pas être liée à une pièce." }, { status: 400 });
 
-    const target = await resolveTarget(supabase, dossierId, null, folderId);
-    const { data, error } = await supabase.from("file").update({ folder_id: folderId }).eq("id", id).select("*").single();
-    if (error || !data) return NextResponse.json({ error: "Classement non enregistré." }, { status: 500 });
+    // Vérifie que la pièce et le dossier appartiennent bien au dossier du titulaire.
+    const target = await resolveTarget(supabase, dossierId, documentId, folderId);
+    const { data, error } = await supabase.from("file").update({ folder_id: folderId, document_id: documentId }).eq("id", id).select("*").single();
+    if (error || !data) return NextResponse.json({ error: "Modification non enregistrée." }, { status: 500 });
 
-    // La pièce rattachée garde la priorité pour l'emplacement Drive ; sinon la copie suit le dossier.
-    if (row.drive_file_id && !row.document_id && !row.replaced_at) {
+    // Sur Drive, la pièce rattachée garde la priorité pour l'emplacement ; sinon la copie suit le dossier.
+    const moves = documentId !== oldDoc || (!documentId && folderId !== oldFolder);
+    if (row.drive_file_id && !row.replaced_at && moves) {
       const driveId = row.drive_file_id as string;
       const name = row.name as string;
       after(() => relocateOnDrive(dossierId, driveId, name, target).catch((e) => console.error("[drive] déplacement", e)));

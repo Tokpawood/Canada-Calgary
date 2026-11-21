@@ -7,6 +7,9 @@
 
 export type Lang = "tcf" | "ielts";
 
+/** Événement navigateur : nombre d'actions du jour restant à cocher (pastille de la barre latérale). */
+export const FORMATION_TODAY_EVENT = "formation:today";
+
 export const PROGRAM_START = "2026-11-16";
 export const PROGRAM_END = "2027-03-27";
 export const TCF_DATE = "2027-02-15";
