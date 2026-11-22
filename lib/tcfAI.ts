@@ -30,11 +30,13 @@ const RESEARCH_MODEL = "claude-sonnet-5-5";
 /** Cherche des documents authentiques récents. En cas d'échec, le test se prépare sans (notes vides). */
 export async function research(
   today: string,
+  /** Thème de la semaine du cours, pour qu'une partie des documents s'y rattache. */
+  theme?: string,
 ): Promise<{ notes: string; sources: Array<{ url: string; title: string }> }> {
   const messages: Anthropic.MessageParam[] = [
     {
       role: "user",
-      content: `Nous sommes le ${today}. Prépare les notes de recherche pour le test TCF Canada du jour. Les faits récents changent : cherche-les plutôt que de te fier à ta mémoire.`,
+      content: `Nous sommes le ${today}. Prépare les notes de recherche pour le test TCF Canada du jour. Les faits récents changent : cherche-les plutôt que de te fier à ta mémoire.${theme ? ` Le cours de la semaine porte sur « ${theme} » : qu'au moins un tiers des sujets s'y rattache.` : ""}`,
     },
   ];
   const sources = new Map<string, string>();

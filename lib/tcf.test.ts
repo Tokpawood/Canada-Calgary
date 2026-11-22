@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
+import { dayPlan } from "./formation";
 import {
   LEVELS,
+  kindFor,
+  tcfDigest,
   adaptiveLevels,
   currentEstimates,
   estimateScore,
@@ -52,14 +55,26 @@ describe("plan des tests", () => {
   });
 
   it("suit la rotation de la semaine et découpe en morceaux", () => {
-    expect(planFor("quotidien", "2026-11-23", {}).sections.map((s) => s.epreuve)).toEqual(["co"]); // lundi
-    expect(planFor("quotidien", "2026-11-26", {}).sections.map((s) => s.epreuve)).toEqual(["eo", "co"]); // jeudi
-    const blanc = withParts(planFor("blanc", "2026-11-28", {}).sections);
+    expect(planFor("quotidien", "2026-11-23", {})!.sections.map((s) => s.epreuve)).toEqual(["co"]); // lundi
+    expect(planFor("quotidien", "2026-11-26", {})!.sections.map((s) => s.epreuve)).toEqual(["eo", "co"]); // jeudi
+    const blanc = withParts(planFor("blanc", "2026-11-28", {})!.sections);
     expect(blanc.sections[0].levels).toHaveLength(39);
     expect(blanc.sections[0].parts).toHaveLength(8);
     expect(blanc.sections.flatMap((s) => s.parts.map((p) => p.idx))).toEqual([...Array(18).keys()]);
-    expect(planFor("positionnement", "2026-11-23", {}).sections.map((s) => s.epreuve)).toEqual(["co", "ce", "ee"]);
-    expect(planFor("quotidien", "2026-11-22", { co: 400, ce: 500 }).title).toContain("orale"); // dimanche : point faible
+    expect(planFor("positionnement", "2026-11-23", {})!.sections.map((s) => s.epreuve)).toEqual(["co", "ce", "ee"]);
+    expect(planFor("quotidien", "2026-11-22", { co: 400, ce: 500 })!.title).toContain("orale"); // dimanche : point faible
+  });
+
+  it("suit le programme de formation : examens blancs, samedis d'entraînement, repos final", () => {
+    expect(kindFor("2026-11-28", true)).toBe("quotidien"); // semaine 2 : entraînement
+    expect(kindFor("2026-12-19", true)).toBe("blanc"); // examen blanc n° 1
+    expect(kindFor("2026-12-19", false)).toBe("positionnement");
+    const sat = planFor("quotidien", "2026-11-28", { co: 500, ce: 420 })!;
+    expect(sat.sections.map((s) => s.epreuve)).toEqual(["ce", "ee"]);
+    expect(sat.sections[0].levels).toHaveLength(39);
+    expect(planFor("blanc", "2026-12-19", {})!.title).toBe("TCF Canada blanc n° 1 complet");
+    expect(planFor("quotidien", "2027-02-13", {})).toBeNull();
+    expect(planFor("quotidien", "2026-12-21", {})!.sections[0].levels).toHaveLength(10); // semaine allégée
   });
 });
 
@@ -93,5 +108,30 @@ describe("correction", () => {
       { day: "2026-11-21", plan, progress: { "0": { result: { ...r, value: 500 } } } },
     ]);
     expect(est.ce).toBe(463);
+  });
+});
+
+describe("liens avec la formation", () => {
+  it("le plan du jour envoie vers le test et les exercices", () => {
+    const mon = dayPlan("2026-11-23")!;
+    const co = mon.items.find((i) => i.key.endsWith(":t1"))!;
+    expect(co.tool).toBe("tcf");
+    expect(co.epreuve).toBe("co");
+    expect(mon.items.find((i) => i.key.endsWith(":fin"))!.tool).toBe("exercices");
+    expect(dayPlan("2026-11-29")!.items.some((i) => i.tool === "tcf")).toBe(true); // dimanche
+    expect(dayPlan("2027-02-13")!.items.some((i) => i.tool)).toBe(false);
+  });
+
+  it("résume les tests pour les exercices du jour", () => {
+    expect(tcfDigest([])).toBe("");
+    const t = {
+      id: "t", day: "2026-11-23", kind: "quotidien" as const, title: "", sources: [], summary: null, status: "corrige" as const, parts: {},
+      plan: { sections: [{ epreuve: "co" as const, minutes: 10, levels: ["B2" as Level], parts: [] }] },
+      progress: { "0": { result: { epreuve: "co" as const, value: 480, level: "B2" as Level, nclc: 7, questions: [{ id: "co-1", level: "B2" as Level, chosen: "A", correct: false }] } } },
+    };
+    const d = tcfDigest([t]);
+    expect(d).toContain("Compréhension orale : 480/699");
+    expect(d).toContain("objectif examen 549/699");
+    expect(d).toContain("CO B2");
   });
 });

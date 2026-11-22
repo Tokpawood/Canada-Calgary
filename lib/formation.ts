@@ -14,6 +14,24 @@ export const PROGRAM_START = "2026-11-16";
 export const PROGRAM_END = "2027-03-27";
 export const TCF_DATE = "2027-02-15";
 export const IELTS_DATE = "2027-03-27";
+/** Dernier jour où l'on apprend du nouveau avant le TCF Canada (ensuite : repos actif). */
+export const TCF_LAST_NEW = "2027-02-12";
+
+/**
+ * Objectif unique de toute la préparation TCF Canada : cours, exercices du jour, tests, carnet et aide-mémoire
+ * visent la même cible. NCLC 10 donne le maximum de points de langue à Entrée express ; l'entraînement vise C2
+ * pour garder une marge le jour de l'examen.
+ */
+export const TCF_GOAL = {
+  exam: { label: "NCLC 10", comprehension: 549, expression: 16 },
+  training: { label: "C2", comprehension: 600, expression: 16 },
+} as const;
+
+export type TcfEpreuve = "co" | "ce" | "ee" | "eo";
+/** Épreuves du test TCF Canada de chaque jour, du lundi (1) au dimanche (7). Samedi et dimanche dépendent du programme. */
+export const TCF_ROTATION: Record<number, TcfEpreuve[]> = { 1: ["co"], 2: ["ce"], 3: ["ee"], 4: ["eo", "co"], 5: ["ce", "co", "ee"], 6: [], 7: [] };
+/** Créneau du jour où se fait chaque épreuve du test. */
+const TEST_SLOT: Record<TcfEpreuve, string> = { co: "t1", ce: "midi", ee: "am", eo: "pm" };
 
 export interface Phase {
   prog: Lang;
@@ -230,6 +248,10 @@ export interface DayItem {
   group: SlotGroup;
   /** Sujet du guide affiché dans le tiroir de la tâche (méthode, ressources). */
   topic: string;
+  /** Outil de l'application qui sert à faire cette tâche (bouton dans le plan du jour). */
+  tool?: "tcf" | "exercices";
+  /** Épreuve du test TCF Canada faite dans ce créneau. */
+  epreuve?: TcfEpreuve;
 }
 
 export interface DayPlan {
@@ -249,6 +271,19 @@ export const dayName = (iso: string) => DAY_NAMES[weekday(iso)];
 type Slot = Omit<DayItem, "key"> & { id: string };
 
 function tcfWeekday(iso: string, w: Week): Slot[] {
+  const slots = tcfWeekdayBase(iso, w);
+  if (iso > TCF_LAST_NEW) return slots;
+  const d = weekday(iso);
+  for (const e of TCF_ROTATION[d] ?? []) {
+    const slot = slots.find((x) => x.id === TEST_SLOT[e]);
+    if (slot) Object.assign(slot, { tool: "tcf", epreuve: e, detail: `Test TCF Canada du jour, en conditions réelles (onglet TCF Canada)${slot.detail ? ` · ${slot.detail}` : ""}` });
+  }
+  const fin = slots.find((x) => x.id === "fin");
+  if (fin) Object.assign(fin, { minutes: 20, tool: "exercices", label: "Exercices du jour, puis carnet d'erreurs", detail: "10 exercices préparés par Claude à partir du carnet, de l'aide-mémoire, du cours et des tests" });
+  return slots;
+}
+
+function tcfWeekdayBase(iso: string, w: Week): Slot[] {
   const d = weekday(iso);
   const writing = d === 2 ? "tâches 1 et 2" : d === 4 ? "exercices de grammaire de la semaine et réécriture d'une copie corrigée" : "tâche 3";
   const oral = d === 2 ? "tâche 2" : d === 4 ? "tâche 1" : "tâche 3";
@@ -352,7 +387,14 @@ export function dayPlan(iso: string): DayPlan | null {
   if (d === 6) {
     const items: DayItem[] = [...dated];
     if (week.saturday) {
-      items.push({ key: k("matin"), time: "08:00", minutes: 180, label: week.saturday.label, detail: week.saturday.mock ? "En conditions réelles, chronomètre lancé" : "Chronométré", lang: program.id, group: "weekend", topic: program.id + (week.saturday.mock ? "-blanc" : "-samedi") });
+      const app = program.id === "tcf" && iso <= TCF_LAST_NEW;
+      items.push({
+        key: k("matin"), time: "08:00", minutes: 180, label: week.saturday.label,
+        detail: app
+          ? week.saturday.mock ? "Dans l'onglet TCF Canada : examen blanc complet, résultats enregistrés dans Scores" : "Dans l'onglet TCF Canada : compréhension la plus faible (39 questions) et EE tâche 3"
+          : week.saturday.mock ? "En conditions réelles, chronomètre lancé" : "Chronométré",
+        lang: program.id, group: "weekend", topic: program.id + (week.saturday.mock ? "-blanc" : "-samedi"), ...(app ? { tool: "tcf" as const } : {}),
+      });
       items.push({ key: k("correction"), time: "15:00", minutes: 60, label: "Correction et carnet d'erreurs", lang: program.id, group: "weekend", topic: "correction" });
     }
     return { ...base, kind: "samedi", title: `Samedi · ${week.saturday?.mock ? "examen blanc" : "entraînement"}`, items };
@@ -371,6 +413,9 @@ export function dayPlan(iso: string): DayPlan | null {
       items: [
         ...dated,
         ...study,
+        ...(program.id === "tcf" && iso <= TCF_LAST_NEW
+          ? [{ key: k("test"), time: "11:00", minutes: 30, label: "Test TCF Canada : votre point faible", detail: "L'épreuve de compréhension la plus éloignée de l'objectif (onglet TCF Canada)", lang: "tcf" as const, group: "weekend" as const, topic: "tcf-test", tool: "tcf" as const }]
+          : []),
         { key: k("carnet"), time: "Après-midi", minutes: 15, label: "Relire le carnet d'erreurs", detail: "Une erreur revenue 3 fois devient un exercice ciblé la semaine suivante", lang: program.id, group: "weekend", topic: "carnet" },
         { key: k("bilan"), time: "20:00", minutes: null, label: "Envoyer le bilan de la semaine à Claude (scores et copies)", lang: null, group: "weekend", topic: "bilan" },
       ],

@@ -4,8 +4,9 @@ import { newId } from "@/lib/ids";
 import { QuizAIError } from "@/lib/quizAI";
 import {
   currentEstimates,
+  kindFor,
   planFor,
-  weekdayOf,
+  tcfWeek,
   withParts,
   type TestKind,
 } from "@/lib/tcf";
@@ -43,13 +44,7 @@ export async function POST(request: NextRequest) {
     const history = await loadTests(supabase, dossierId, { limit: 40 });
     const placed = history.some((t) => t.kind === "positionnement");
     const kind: TestKind =
-      body.kind === "blanc"
-        ? "blanc"
-        : !placed
-          ? "positionnement"
-          : weekdayOf(day) === 6
-            ? "blanc"
-            : "quotidien";
+      body.kind === "blanc" && placed ? "blanc" : kindFor(day, placed);
 
     const existing = history.find((t) => t.day === day && t.kind === kind);
     if (existing) return NextResponse.json({ test: existing });
@@ -59,9 +54,15 @@ export async function POST(request: NextRequest) {
         t.status === "corrige" ||
         Object.values(t.progress).some((p) => p.result),
     );
-    const { title, sections } = planFor(kind, day, currentEstimates(done));
+    const planned = planFor(kind, day, currentEstimates(done));
+    if (!planned)
+      return NextResponse.json(
+        { error: "Le programme ne prévoit plus de test : place au repos et à la relecture du carnet avant l'examen." },
+        { status: 409 },
+      );
+    const { title, sections } = planned;
     const plan = withParts(sections);
-    const found = await research(day);
+    const found = await research(day, tcfWeek(day)?.theme);
 
     const row = {
       id: newId("tcf"),

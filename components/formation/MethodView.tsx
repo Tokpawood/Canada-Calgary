@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { IconExternal } from "@/components/icons";
+import { TCF_GOAL } from "@/lib/formation";
 import { LangTag } from "./shared";
 
 function Card({ title, children, aside }: { title: string; children: ReactNode; aside?: ReactNode }) {
@@ -119,6 +120,26 @@ function Listen({ items }: { items: Array<[string, string, string]> }) {
 export function MethodView() {
   return (
     <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
+      <section className="card p-5 sm:p-6 xl:col-span-2">
+        <h3 className="flex items-center gap-2 text-[16px] font-bold">
+          Un seul objectif pour toute la formation <LangTag lang="tcf" />
+        </h3>
+        <p className="mt-2 text-[13.5px] leading-relaxed">
+          <strong>TCF Canada le 15/02/2027 : NCLC 10</strong>, soit {TCF_GOAL.exam.comprehension}/699 en compréhension orale et écrite et {TCF_GOAL.exam.expression}/20 en expression écrite et orale.
+          À l&apos;entraînement, on vise <strong>{TCF_GOAL.training.label}</strong> ({TCF_GOAL.training.comprehension}/699, {TCF_GOAL.training.expression}/20 et plus ; 18/20 en fin de programme) pour garder une marge le jour de l&apos;examen.
+        </p>
+        <Table
+          head={["Outil", "Son rôle vers l'objectif"]}
+          rows={[
+            ["Jour et Semaines", "Le cours : un thème, une grammaire et une épreuve à renforcer chaque semaine ; chaque créneau dit quoi faire et où."],
+            ["Test TCF Canada", "Mesure en conditions réelles l'épreuve du jour (lundi CO, mardi CE, mercredi EE, jeudi EO, vendredi mixte, samedi examen blanc ou entraînement, dimanche point faible), sur le thème et la grammaire de la semaine."],
+            ["Carnet d'erreurs", "Garde les fautes relevées par les corrections des tests et des copies ; elles reviennent dans les tests et les exercices jusqu'à être maîtrisées."],
+            ["Aide-mémoire", "Les leçons de synthèse à remobiliser dans les productions écrites et orales."],
+            ["Exercices du jour", "10 exercices le soir : carnet, aide-mémoire, grammaire de la semaine et faiblesses des derniers tests."],
+            ["Scores", "Les examens blancs et le positionnement passés dans l'application s'y ajoutent seuls ; ajoutez ceux faits ailleurs."],
+          ]}
+        />
+      </section>
       <Card title="Compréhension orale et écrite" aside={<LangTag lang="tcf" />}>
         <p className="text-muted">39 questions chacune ; 60 min pour la compréhension écrite.</p>
         <ul className="mt-2 list-disc pl-5">

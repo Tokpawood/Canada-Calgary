@@ -216,7 +216,8 @@ export const GUIDES: Record<string, Guide> = {
       "Conditions réelles : chronomètre, pas de pause, pas de dictionnaire.",
       "Compréhension orale (39 questions), compréhension écrite (39 questions, 60 min).",
       "Expression écrite : les 3 tâches en 60 minutes. Expression orale : les 3 tâches (12 min).",
-      "Saisir les 4 scores dans l'onglet Scores.",
+      "Dans l'onglet TCF Canada, l'examen blanc est préparé et corrigé par Claude ; ses 4 scores s'enregistrent seuls dans l'onglet Scores.",
+      "Examen blanc fait ailleurs (pack Gold, Institut français) : saisir les 4 scores dans l'onglet Scores.",
     ],
     resources: [R.packGold, R.feiExemples, R.institut],
     send: { what: "Les scores, les copies et les transcriptions.", receive: "Les notes, le niveau NCLC et la compétence à renforcer." },
@@ -224,9 +225,20 @@ export const GUIDES: Record<string, Guide> = {
   "tcf-samedi": {
     title: "Entraînement du samedi",
     why: "Une épreuve de compréhension et une tâche 3, chronométrées, pour garder les automatismes.",
-    steps: ["Une série complète de CO ou de CE, chronométrée.", "Une tâche 3 écrite en conditions réelles.", "Correction l'après-midi."],
+    steps: ["Dans l'onglet TCF Canada : la compréhension la plus éloignée de l'objectif (39 questions) et une tâche 3, chronométrées.", "Ajouter au carnet les erreurs relevées dans la tâche 3.", "Relire les explications des questions ratées l'après-midi."],
     resources: [R.packGold, R.tv5, R.rfiFacile],
     send: SEND_EE,
+  },
+  "tcf-test": {
+    title: "Test TCF Canada du jour",
+    why: "Le même objectif partout : chaque test mesure où vous en êtes par rapport à NCLC 10 (examen) et C2 (entraînement).",
+    steps: [
+      "Ouvrir l'onglet TCF Canada et préparer le test du jour (3 à 6 minutes).",
+      "Le passer en conditions réelles : chronomètre officiel, une seule écoute, pas de correcteur.",
+      "Lire la correction : explications des questions ratées, version corrigée des productions.",
+      "Ajouter les erreurs d'expression au carnet : elles reviendront dans les exercices du jour.",
+    ],
+    tips: ["Lundi CO · mardi CE · mercredi EE · jeudi EO et CO · vendredi CE, CO et EE · samedi examen blanc ou entraînement · dimanche point faible."],
   },
   shadowing: {
     title: "Shadowing",

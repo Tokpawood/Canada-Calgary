@@ -445,6 +445,7 @@ export function FormationBoard({
             openKey={openKey}
             onOpen={setOpenKey}
             canEdit={canEdit}
+            onTool={(t) => setTab(t === "tcf" ? "tcf" : "exercices")}
           />
         )}
         {tab === "exercices" && (

@@ -3,6 +3,8 @@ import { errorResponse, requireOwner } from "@/lib/driveRoute";
 import { newId } from "@/lib/ids";
 import type { ErrorEntry, Lang, MemoEntry } from "@/lib/formation";
 import { QuizAIError, QUIZ_MODEL, generateQuiz } from "@/lib/quizAI";
+import { tcfDigest } from "@/lib/tcf";
+import { loadTests } from "@/lib/tcfStore";
 import { buildQuizContext, finalizeItems, mapQuizRow, type QuizHistoryEntry, type QuizRow } from "@/lib/quiz";
 
 // La préparation de la série par Claude peut prendre une à deux minutes.
@@ -30,11 +32,13 @@ export async function POST() {
     const { data: existing } = await supabase.from("training_quiz").select("*").eq("dossier_id", dossierId).eq("day", day).eq("exam", "tcf").maybeSingle();
     if (existing) return NextResponse.json({ quiz: mapQuizRow(existing as QuizRow) });
 
-    const [{ data: errorRows }, { data: memoRows }, { data: past }] = await Promise.all([
+    const [{ data: errorRows }, { data: memoRows }, { data: past }, tests] = await Promise.all([
       supabase.from("training_error").select("*").eq("dossier_id", dossierId),
       supabase.from("training_memo").select("id, exam, title, body, created_at").eq("dossier_id", dossierId).order("created_at", { ascending: false }),
       supabase.from("training_quiz").select("day, items, results, score, total").eq("dossier_id", dossierId).eq("exam", "tcf").order("day", { ascending: false }).limit(7),
+      loadTests(supabase, dossierId, { limit: 12 }).catch(() => []),
     ]);
+    const tcf = tcfDigest(tests);
 
     const errors: ErrorEntry[] = (errorRows ?? []).map((r) => ({
       id: r.id as string,
@@ -56,11 +60,11 @@ export async function POST() {
       results: (q.results as { items: QuizHistoryEntry["results"] } | null)?.items ?? null,
     }));
 
-    if (!errors.some((e) => e.exam === "tcf") && !memos.some((m) => m.exam === "tcf")) {
-      return NextResponse.json({ error: "Ajoutez d'abord quelques erreurs au carnet ou une leçon à l'aide-mémoire : la série s'appuie dessus." }, { status: 400 });
+    if (!errors.some((e) => e.exam === "tcf") && !memos.some((m) => m.exam === "tcf") && !tcf) {
+      return NextResponse.json({ error: "Ajoutez d'abord quelques erreurs au carnet, une leçon à l'aide-mémoire ou passez un test TCF Canada : la série s'appuie dessus." }, { status: 400 });
     }
 
-    const out = await generateQuiz(buildQuizContext({ today: day, errors, memos, history }));
+    const out = await generateQuiz(buildQuizContext({ today: day, errors, memos, history, tcf }));
     const items = finalizeItems(out.items);
     if (items.length === 0) throw new QuizAIError("Claude n'a renvoyé aucun exercice. Réessayez.");
     // Seules les erreurs réellement présentes au carnet sont rattachées.

@@ -165,6 +165,22 @@ export async function POST(request: NextRequest, { params }: Ctx) {
       .update(patch)
       .eq("id", id);
     if (error) throw error;
+    // Examen blanc et positionnement : les scores rejoignent l'onglet Scores, comme ceux faits ailleurs.
+    if (allDone && full.row.kind !== "quotidien") {
+      const v = (patch.summary as { values: Record<string, number> }).values;
+      const { error: scoreErr } = await supabase.from("training_score").upsert({
+        id: `sc-${id}`,
+        dossier_id: dossierId,
+        exam: "tcf",
+        label: full.row.kind === "blanc" ? `${full.row.title} (application)` : "Diagnostic (positionnement)",
+        taken_on: full.row.day,
+        s1: v.co ?? null,
+        s2: v.ce ?? null,
+        s3: v.ee ?? null,
+        s4: v.eo ?? null,
+      });
+      if (scoreErr) console.error("[tcf] score", scoreErr.message);
+    }
     return reply();
   } catch (e) {
     if (e instanceof QuizAIError)

@@ -16,6 +16,7 @@ import {
   isReady,
   levelOf,
   nclcOf,
+  kindFor,
   planFor,
   weekdayOf,
   type Epreuve,
@@ -227,15 +228,7 @@ export function TcfView({
   );
   const preview = useMemo(() => {
     const placed = tests.some((t) => t.kind === "positionnement");
-    return planFor(
-      !placed
-        ? "positionnement"
-        : weekdayOf(today) === 6
-          ? "blanc"
-          : "quotidien",
-      today,
-      currentEstimates(graded),
-    );
+    return planFor(kindFor(today, placed), today, currentEstimates(graded));
   }, [tests, graded, today]);
 
   async function refresh(id: string) {
@@ -399,7 +392,7 @@ export function TcfView({
               id="tcf-today"
               className="mt-0.5 font-display text-[20px] font-bold"
             >
-              {current?.title ?? preview.title}
+              {current?.title ?? preview?.title ?? "Repos avant l'examen"}
             </h3>
             <p className="mt-1 text-[13px] text-muted">
               {(current?.kind ??
@@ -418,7 +411,7 @@ export function TcfView({
         </div>
 
         <ul className="mt-4 divide-y divide-line border-y border-line">
-          {(current ? current.plan.sections : preview.sections).map((s, si) => {
+          {(current ? current.plan.sections : (preview?.sections ?? [])).map((s, si) => {
             const p = current?.progress[String(si)];
             const r = p?.result;
             const count = s.levels
@@ -518,7 +511,7 @@ export function TcfView({
                 type="button"
                 className="btn btn-primary px-5"
                 onClick={() => void prepare()}
-                disabled={busy}
+                disabled={busy || (!current && !preview)}
               >
                 {busy ? (
                   <IconRefresh size={16} className="animate-spin" />
@@ -597,7 +590,7 @@ export function TcfView({
               </span>
               <span className="mono text-[11.5px] leading-tight font-bold">
                 {d === 6
-                  ? "Blanc"
+                  ? "Sam."
                   : ROTATION[d].epreuves.length
                     ? ROTATION[d].epreuves
                         .map((e) => EPREUVE_SHORT[e])
@@ -608,9 +601,11 @@ export function TcfView({
           ))}
         </ol>
         <p className="mt-2 text-[12px] text-muted">
-          Samedi : TCF Canada blanc complet (2 h 50, faisable en plusieurs fois).
-          Dimanche : l&apos;épreuve de compréhension la plus éloignée de C2. Les
-          exercices du jour restent à faire en plus.
+          Samedi : examen blanc complet les semaines prévues par le programme
+          (2 h 50, faisable en plusieurs fois), sinon la compréhension la plus
+          faible et une tâche 3. Dimanche : la compréhension la plus éloignée de
+          l&apos;objectif. Chaque épreuve se fait dans le créneau du programme
+          (Jour), puis les exercices du jour reprennent vos erreurs.
         </p>
       </section>
 

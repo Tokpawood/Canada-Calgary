@@ -3,7 +3,7 @@
  * (du niveau actuel vers C2), estimation des scores et consignes envoyées à Claude.
  */
 import * as z from "zod/v4";
-import { addDays, type ErrorEntry } from "./formation";
+import { TCF_GOAL, TCF_LAST_NEW, TCF_ROTATION, addDays, weekOf, type ErrorEntry, type Week } from "./formation";
 
 // ---------------------------------------------------------------------------
 // Niveaux et barèmes
@@ -102,12 +102,18 @@ export function nclcOf(e: Epreuve, value: number): number {
   for (const [min, n] of NCLC_TABLES[e]) if (value >= min) return n;
   return 3;
 }
-/** Valeur à atteindre pour le niveau C2 dans chaque épreuve. */
+/** Cible d'entraînement (C2) et cible d'examen (NCLC 10), communes à toute la formation TCF Canada. */
 export const C2_TARGET: Record<Epreuve, number> = {
-  co: 600,
-  ce: 600,
-  ee: 16,
-  eo: 16,
+  co: TCF_GOAL.training.comprehension,
+  ce: TCF_GOAL.training.comprehension,
+  ee: TCF_GOAL.training.expression,
+  eo: TCF_GOAL.training.expression,
+};
+export const EXAM_TARGET: Record<Epreuve, number> = {
+  co: TCF_GOAL.exam.comprehension,
+  ce: TCF_GOAL.exam.comprehension,
+  ee: TCF_GOAL.exam.expression,
+  eo: TCF_GOAL.exam.expression,
 };
 export const MAX_VALUE: Record<Epreuve, number> = {
   co: 699,
@@ -212,20 +218,16 @@ export function adaptiveLevels(
   return out.sort((a, b) => LEVELS.indexOf(a) - LEVELS.indexOf(b));
 }
 
-/** Rotation de la semaine (0 = dimanche). */
-export const ROTATION: Record<number, { label: string; epreuves: Epreuve[] }> =
-  {
-    1: { label: "Compréhension orale", epreuves: ["co"] },
-    2: { label: "Compréhension écrite", epreuves: ["ce"] },
-    3: { label: "Expression écrite", epreuves: ["ee"] },
-    4: { label: "Expression orale + écoute", epreuves: ["eo", "co"] },
-    5: {
-      label: "Mixte : lecture, écoute, écrit",
-      epreuves: ["ce", "co", "ee"],
-    },
-    6: { label: "TCF Canada blanc complet", epreuves: ["co", "ce", "ee", "eo"] },
-    0: { label: "Point faible", epreuves: [] },
-  };
+/** Rotation de la semaine (0 = dimanche), tirée du programme de formation. */
+export const ROTATION: Record<number, { label: string; epreuves: Epreuve[] }> = {
+  1: { label: "Compréhension orale", epreuves: TCF_ROTATION[1] },
+  2: { label: "Compréhension écrite", epreuves: TCF_ROTATION[2] },
+  3: { label: "Expression écrite", epreuves: TCF_ROTATION[3] },
+  4: { label: "Expression orale + écoute", epreuves: TCF_ROTATION[4] },
+  5: { label: "Mixte : lecture, écoute, écrit", epreuves: TCF_ROTATION[5] },
+  6: { label: "Examen blanc ou entraînement", epreuves: [] },
+  0: { label: "Point faible", epreuves: [] },
+};
 
 export function weekdayOf(day: string): number {
   return new Date(`${day}T12:00:00Z`).getUTCDay();
@@ -234,12 +236,23 @@ function weekNumber(day: string): number {
   return Math.floor(new Date(`${day}T12:00:00Z`).getTime() / (7 * 86_400_000));
 }
 
-/** Construit le plan du test du jour (sans numérotation des morceaux). */
-export function planFor(
-  kind: TestKind,
-  day: string,
-  est: Estimates,
-): { title: string; sections: Array<Omit<Section, "parts">> } {
+/** Semaine du cours TCF Canada en cours, s'il reste du nouveau à apprendre. */
+export function tcfWeek(day: string): Week | null {
+  const w = weekOf(day);
+  return w && w.prog === "tcf" && day <= TCF_LAST_NEW ? w : null;
+}
+
+/** Type du test du jour : positionnement d'abord, examen blanc les samedis prévus par le programme. */
+export function kindFor(day: string, placed: boolean): TestKind {
+  if (!placed) return "positionnement";
+  return weekdayOf(day) === 6 && tcfWeek(day)?.saturday?.mock ? "blanc" : "quotidien";
+}
+
+/**
+ * Plan du test du jour (sans numérotation des morceaux), calé sur le programme : rotation des épreuves,
+ * examens blancs du samedi, semaines allégées. null quand le programme ne prévoit plus de test.
+ */
+export function planFor(kind: TestKind, day: string, est: Estimates): { title: string; sections: Array<Omit<Section, "parts">> } | null {
   if (kind === "positionnement")
     return {
       title: "Positionnement TCF Canada",
@@ -249,69 +262,45 @@ export function planFor(
         { epreuve: "ee", minutes: 20, tasks: [2] },
       ],
     };
+  const week = tcfWeek(day);
+  if (!week) return null;
   if (kind === "blanc")
     return {
-      title: "TCF Canada blanc complet",
+      title: week.saturday?.mock ? week.saturday.label.replace(/^Examen blanc/, "TCF Canada blanc") : "TCF Canada blanc complet",
       sections: [
-        {
-          epreuve: "co",
-          minutes: OFFICIAL.co.minutes,
-          levels: spread(OFFICIAL_SPREAD),
-        },
-        {
-          epreuve: "ce",
-          minutes: OFFICIAL.ce.minutes,
-          levels: spread(OFFICIAL_SPREAD),
-        },
+        { epreuve: "co", minutes: OFFICIAL.co.minutes, levels: spread(OFFICIAL_SPREAD) },
+        { epreuve: "ce", minutes: OFFICIAL.ce.minutes, levels: spread(OFFICIAL_SPREAD) },
         { epreuve: "ee", minutes: OFFICIAL.ee.minutes, tasks: [1, 2, 3] },
         { epreuve: "eo", minutes: OFFICIAL.eo.minutes, tasks: [1, 2, 3] },
       ],
     };
-  const wd = weekdayOf(day);
+  // Semaines allégées du programme (fêtes, dernière semaine) : tests raccourcis.
+  const n = week.n === 6 || week.n === 13 ? 10 : 20;
   const eeTasks = weekNumber(day) % 2 ? [1, 3] : [2, 3];
-  const co = (n: number) => ({
-    epreuve: "co" as const,
-    minutes: Math.round((n * OFFICIAL.co.minutes) / OFFICIAL.co.count),
-    levels: adaptiveLevels(n, est.co),
-  });
-  const ce = (n: number) => ({
-    epreuve: "ce" as const,
-    minutes: Math.round((n * OFFICIAL.ce.minutes) / OFFICIAL.ce.count),
-    levels: adaptiveLevels(n, est.ce),
-  });
-  const ee = (tasks: number[]) => ({
-    epreuve: "ee" as const,
-    minutes: tasks.reduce((s, t) => s + EE_TASK_MINUTES[t], 0),
-    tasks,
-  });
-  switch (wd) {
+  const co = (k: number) => ({ epreuve: "co" as const, minutes: Math.round((k * OFFICIAL.co.minutes) / OFFICIAL.co.count), levels: adaptiveLevels(k, est.co) });
+  const ce = (k: number) => ({ epreuve: "ce" as const, minutes: Math.round((k * OFFICIAL.ce.minutes) / OFFICIAL.ce.count), levels: adaptiveLevels(k, est.ce) });
+  const ee = (tasks: number[]) => ({ epreuve: "ee" as const, minutes: tasks.reduce((sum, t) => sum + EE_TASK_MINUTES[t], 0), tasks });
+  // Compréhension la plus éloignée de l'objectif (à égalité, l'oral).
+  const weak: Epreuve = (est.co ?? 0) <= (est.ce ?? 0) ? "co" : "ce";
+  switch (weekdayOf(day)) {
     case 1:
-      return { title: "Compréhension orale", sections: [co(20)] };
+      return { title: "Compréhension orale", sections: [co(n)] };
     case 2:
-      return { title: "Compréhension écrite", sections: [ce(20)] };
+      return { title: "Compréhension écrite", sections: [ce(n)] };
     case 3:
-      return { title: "Expression écrite", sections: [ee(eeTasks)] };
+      return { title: "Expression écrite", sections: [ee(week.n === 13 ? [3] : eeTasks)] };
     case 4:
-      return {
-        title: "Expression orale et écoute",
-        sections: [
-          { epreuve: "eo", minutes: OFFICIAL.eo.minutes, tasks: [1, 2, 3] },
-          co(10),
-        ],
-      };
+      return { title: "Expression orale et écoute", sections: [{ epreuve: "eo", minutes: OFFICIAL.eo.minutes, tasks: [1, 2, 3] }, co(10)] };
     case 5:
+      return { title: "Mixte : lecture, écoute et écrit", sections: [ce(10), co(10), ee([3])] };
+    case 6:
+      // Samedi d'entraînement du programme : une épreuve de compréhension complète et une tâche 3.
       return {
-        title: "Mixte : lecture, écoute et écrit",
-        sections: [ce(10), co(10), ee([1])],
+        title: `Entraînement du samedi : ${EPREUVE_LABEL[weak].toLowerCase()} et tâche 3`,
+        sections: [weak === "co" ? { epreuve: "co", minutes: OFFICIAL.co.minutes, levels: adaptiveLevels(OFFICIAL.co.count, est.co) } : { epreuve: "ce", minutes: OFFICIAL.ce.minutes, levels: adaptiveLevels(OFFICIAL.ce.count, est.ce) }, ee([3])],
       };
-    default: {
-      // Dimanche (ou samedi déjà fait) : l'épreuve de compréhension la plus en retard sur C2.
-      const weak: Epreuve = (est.co ?? 0) <= (est.ce ?? 0) ? "co" : "ce";
-      return {
-        title: `Point faible : ${EPREUVE_LABEL[weak].toLowerCase()}`,
-        sections: [weak === "co" ? co(20) : ce(20)],
-      };
-    }
+    default:
+      return { title: `Point faible : ${EPREUVE_LABEL[weak].toLowerCase()}`, sections: [weak === "co" ? co(n) : ce(n)] };
   }
 }
 
@@ -522,12 +511,20 @@ export function buildPartPrompt(o: {
   avoid: string[];
   errors: ErrorEntry[];
   today: string;
+  /** Leçons de l'aide-mémoire (titres) à remobiliser. */
+  memos?: string[];
 }): string {
   const { section, part } = o;
+  const week = tcfWeek(o.today);
   const lines = [
     `Date : ${o.today}.`,
     `Épreuve : ${EPREUVE_LABEL[section.epreuve]}.`,
+    `Objectif commun à toute la formation : ${TCF_GOAL.exam.label} le jour de l'examen (${TCF_GOAL.exam.comprehension}/699 en compréhension, ${TCF_GOAL.exam.expression}/20 en expression), ${TCF_GOAL.training.label} à l'entraînement.`,
   ];
+  if (week)
+    lines.push(
+      `Cours de la semaine ${week.n} : thème « ${week.theme} », grammaire « ${week.grammar ?? "—"} », épreuve à renforcer : ${week.focus.map((f) => f.value).join(", ")}. Environ un tiers des documents porte sur le thème de la semaine ; ${section.epreuve === "co" || section.epreuve === "ce" ? "plusieurs questions testent la compréhension de la grammaire de la semaine en contexte" : "les consignes appellent naturellement la grammaire de la semaine"}.`,
+    );
   if (o.estimate != null)
     lines.push(
       `Niveau actuel estimé du candidat dans cette épreuve : ${levelOf(section.epreuve, o.estimate)} (${o.estimate}${isComprehension(section.epreuve) ? "/699" : "/20"}). Objectif : C2.`,
@@ -549,6 +546,8 @@ export function buildPartPrompt(o: {
       "Choisis des sujets d'actualité tirés des notes de recherche, exigeants pour un candidat qui vise C2.",
     );
   }
+  if (o.memos?.length && section.epreuve !== "co")
+    lines.push(`Leçons de l'aide-mémoire du candidat (à remobiliser quand c'est naturel) : ${o.memos.slice(0, 8).join(" ; ")}.`);
   if (o.avoid.length)
     lines.push(
       `Thèmes déjà utilisés récemment (à éviter) : ${o.avoid.slice(0, 40).join(" ; ")}.`,
@@ -815,4 +814,49 @@ export function recentThemes(
       else for (const k of c.tasks) out.push(k.consigne.slice(0, 80));
     }
   return out;
+}
+
+/**
+ * Résumé des derniers tests TCF Canada pour les autres outils de la formation (exercices du jour) :
+ * niveau par épreuve face à l'objectif, compétences ratées en compréhension, conseils de la correction.
+ */
+export function tcfDigest(tests: TcfTest[]): string {
+  const graded = tests.filter((t) => Object.values(t.progress).some((p) => p.result));
+  if (!graded.length) return "";
+  const est = currentEstimates(graded);
+  const lines: string[] = [];
+  for (const e of EPREUVES) {
+    const v = est[e];
+    if (v == null) continue;
+    const unit = isComprehension(e) ? "/699" : "/20";
+    lines.push(`- ${EPREUVE_LABEL[e]} : ${v}${unit} (${levelOf(e, v)}, NCLC ${nclcOf(e, v)}) ; objectif examen ${EXAM_TARGET[e]}${unit}, C2 à ${C2_TARGET[e]}${unit}.`);
+  }
+  const missed = new Map<string, number>();
+  const advice: string[] = [];
+  for (const t of [...graded].sort((a, b) => b.day.localeCompare(a.day)).slice(0, 6))
+    t.plan.sections.forEach((s, si) => {
+      const r = t.progress[String(si)]?.result;
+      if (!r) return;
+      if (r.questions) {
+        const items = new Map(sectionQuestions(t, si).map((q) => [q.id, q]));
+        for (const q of r.questions)
+          if (!q.correct) {
+            const it = items.get(q.id);
+            const key = `${EPREUVE_SHORT[s.epreuve]} ${q.level} · ${it?.focus || "compréhension"}`;
+            missed.set(key, (missed.get(key) ?? 0) + 1);
+          }
+      }
+      for (const task of r.grade?.tasks ?? []) if (task.niveau_suivant) advice.push(`- ${EPREUVE_SHORT[s.epreuve]} tâche ${task.task} (${task.note}/20) : ${task.niveau_suivant}`);
+    });
+  const top = [...missed].sort((a, b) => b[1] - a[1]).slice(0, 10);
+  return [
+    "Niveau actuel :",
+    ...lines,
+    top.length ? "Questions de compréhension ratées récemment (épreuve, niveau, compétence) :" : "",
+    ...top.map(([k, n]) => `- ${k} (${n} fois)`),
+    advice.length ? "Pour passer au niveau suivant, d'après les dernières corrections :" : "",
+    ...advice.slice(0, 6),
+  ]
+    .filter(Boolean)
+    .join("\n");
 }

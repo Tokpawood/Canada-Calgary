@@ -73,7 +73,7 @@ export async function POST(_req: NextRequest, { params }: Ctx) {
     }
 
     try {
-      const [{ data: errorRows }, history] = await Promise.all([
+      const [{ data: errorRows }, history, { data: memoRows }] = await Promise.all([
         supabase
           .from("training_error")
           .select("*")
@@ -82,6 +82,13 @@ export async function POST(_req: NextRequest, { params }: Ctx) {
           .order("count", { ascending: false })
           .limit(30),
         loadTests(supabase, dossierId, { limit: 30 }),
+        supabase
+          .from("training_memo")
+          .select("title")
+          .eq("dossier_id", dossierId)
+          .eq("exam", "tcf")
+          .order("created_at", { ascending: false })
+          .limit(8),
       ]);
       const errors: ErrorEntry[] = (errorRows ?? []).map((r) => ({
         id: r.id as string,
@@ -103,6 +110,7 @@ export async function POST(_req: NextRequest, { params }: Ctx) {
         avoid: recentThemes(history, row.day as string),
         errors,
         today: row.day as string,
+        memos: (memoRows ?? []).map((m) => m.title as string).filter(Boolean),
       });
       const content = await generatePart(spec.section, spec.part, prompt);
       await supabase

@@ -25,7 +25,10 @@ export function DayView({
   openKey,
   onOpen,
   canEdit,
+  onTool,
 }: {
+  /** Ouvre l'outil de l'application qui sert à faire la tâche (test TCF Canada, exercices du jour). */
+  onTool?: (tool: NonNullable<DayItem["tool"]>) => void;
   date: string;
   today: string;
   onDate: (d: string) => void;
@@ -121,6 +124,16 @@ export function DayView({
                           </span>
                         </button>
                       </div>
+                      {it.tool && onTool && date >= today && (
+                        <button
+                          type="button"
+                          onClick={() => onTool(it.tool!)}
+                          className="btn btn-ghost mb-1 ml-[44px] min-h-9 px-3 text-[12.5px] font-semibold sm:ml-[48px]"
+                        >
+                          {it.tool === "tcf" ? "Ouvrir le test TCF Canada" : "Ouvrir les exercices du jour"}
+                          <IconChevronRight size={14} />
+                        </button>
+                      )}
                     </li>
                   );
                 })}

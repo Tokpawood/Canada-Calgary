@@ -135,13 +135,14 @@ export interface QuizHistoryEntry {
   results: ItemResult[] | null;
 }
 
-export const QUIZ_SYSTEM = `Tu es le coach TCF Canada d'un candidat francophone (Côte d'Ivoire) qui vise NCLC 10 (16/20 en expression écrite et orale, 549 en compréhension). Chaque jour, tu prépares une courte série d'exercices pour vérifier qu'il a retenu ce qu'il a appris et pour mesurer ses progrès d'un jour à l'autre.
+export const QUIZ_SYSTEM = `Tu es le coach TCF Canada d'un candidat francophone (Côte d'Ivoire) qui vise NCLC 10 le jour de l'examen (16/20 en expression écrite et orale, 549 en compréhension) et C2 à l'entraînement (600/699, 16/20 et plus). Toute la formation sert ce même objectif : le cours de la semaine, l'aide-mémoire, le carnet d'erreurs, les tests TCF Canada en conditions réelles et cette série. Chaque jour, tu prépares une courte série d'exercices pour vérifier qu'il a retenu ce qu'il a appris et pour mesurer ses progrès d'un jour à l'autre.
 
-Ce que tu reçois : son carnet d'erreurs (fautes réelles, avec le nombre de fois où elles sont revenues), son aide-mémoire (leçons de synthèse de son correcteur), le programme des semaines déjà commencées (thème, grammaire, épreuve à renforcer) et les résultats de ses dernières séries.
+Ce que tu reçois : son carnet d'erreurs (fautes réelles, avec le nombre de fois où elles sont revenues), son aide-mémoire (leçons de synthèse de son correcteur), le programme des semaines déjà commencées (thème, grammaire, épreuve à renforcer), le bilan de ses derniers tests TCF Canada (niveau par épreuve, compétences ratées, conseils du correcteur) et les résultats de ses dernières séries.
 
 Comment construire la série :
 - ${QUIZ_SIZE} exercices, du plus simple au plus exigeant, réalisables en 15 minutes environ.
-- Répartition : environ 4 exercices tirés du carnet, 3 de l'aide-mémoire, 3 du cours des semaines en cours. Si une source est vide, répartis sur les autres.
+- Répartition : environ 3 exercices tirés du carnet, 2 de l'aide-mémoire, 3 du cours de la semaine en cours (thème et grammaire), 2 des faiblesses relevées dans les derniers tests TCF Canada (épreuve la plus éloignée de l'objectif, compétences ratées). Si une source est vide, répartis sur les autres.
+- Calibre la difficulté sur le niveau mesuré par les tests : un cran au-dessus du niveau actuel, jamais en dessous de B2.
 - Priorité dans le carnet : les erreurs non maîtrisées revenues plusieurs fois, puis celles ratées dans les séries récentes. Une erreur réussie deux jours de suite peut attendre.
 - Teste la règle, pas la mémoire de la phrase : place-la dans un contexte nouveau et crédible (vie à Calgary, démarches, travail, lieux publics, actualité). Ne recopie jamais la phrase fautive du carnet telle quelle.
 - Varie les types : qcm, trou, correction, reformulation, production. Au plus 2 production.
@@ -163,7 +164,7 @@ Règles par type :
 
 Tout est en français correct, sans faute.`;
 
-export function buildQuizContext(opts: { today: string; errors: ErrorEntry[]; memos: MemoEntry[]; history: QuizHistoryEntry[] }): string {
+export function buildQuizContext(opts: { today: string; errors: ErrorEntry[]; memos: MemoEntry[]; history: QuizHistoryEntry[]; tcf?: string }): string {
   const weeks = weeksSoFar(opts.today);
   const current = weeks[weeks.length - 1];
   const phase = TCF.phases.find((p) => p.from <= opts.today && p.to >= opts.today);
@@ -206,6 +207,9 @@ export function buildQuizContext(opts: { today: string; errors: ErrorEntry[]; me
     "",
     "## Cours des semaines commencées",
     weekLines.length ? weekLines.join("\n") : "(le programme n'a pas commencé)",
+    "",
+    "## Derniers tests TCF Canada",
+    opts.tcf?.trim() || "(aucun test passé pour l'instant)",
     "",
     "## Séries récentes (la plus récente d'abord)",
     recent.length ? recent.join("\n") : "(aucune : c'est la première série)",
