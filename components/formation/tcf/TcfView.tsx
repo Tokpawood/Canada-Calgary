@@ -82,7 +82,8 @@ function GoalPanel({ tests }: { tests: TcfTest[] }) {
         </h3>
         <p className="mt-1 text-[13px] text-night-muted">
           Niveau estimé d&apos;après vos trois derniers résultats dans chaque
-          épreuve. C2 = 600/699 en compréhension, 16/20 en expression ; NCLC 10 (maximum de points Entrée express) = 549/699 et 16/20.
+          épreuve. C2 = 600/699 en compréhension, 16/20 en expression ; NCLC 10
+          (maximum de points Entrée express) = 549/699 et 16/20.
         </p>
       </div>
       <ul className="divide-y divide-line">
@@ -240,57 +241,90 @@ export function TcfView({
     return json.test ?? null;
   }
 
-  /** Prépare les morceaux manquants, quatre à la fois, en suivant l'avancement. */
-  async function fill(test: TcfTest) {
-    const todo = test.plan.sections
-      .flatMap((s) => s.parts.map((p) => p.idx))
-      .filter((i) => test.parts[i]?.status !== "pret");
-    let failed = 0;
-    let lastError = "";
-    const ticker = setInterval(() => {
+  /**
+   * Suit la préparation : le serveur cherche les documents puis rédige chaque partie en arrière-plan.
+   * L'écran lance au plus quatre parties à la fois et relit le test toutes les 5 secondes
+   * (aucune requête ne reste ouverte longtemps : Safari sur iPad les coupe au bout d'une minute).
+   */
+  async function fill(first: TcfTest) {
+    const asked = new Map<number, number>();
+    const retried = new Set<number>();
+    const until = clockNow() + 15 * 60_000;
+    let test: TcfTest | null = first;
+    const wait = () => new Promise((r) => setTimeout(r, 5_000));
+    while (test && clockNow() < until) {
       setNow(clockNow());
-      void refresh(test.id);
-    }, 10_000);
-    const worker = async () => {
-      while (todo.length) {
-        const idx = todo.shift()!;
-        try {
-          const res = await fetch(
-            `/api/formation/tcf/${encodeURIComponent(test.id)}/parts/${idx}`,
-            { method: "POST" },
+      if (isReady(test)) return;
+      if (!test.plan.researching_since) {
+        const all = test.plan.sections.flatMap((sec) =>
+          sec.parts.map((p) => p.idx),
+        );
+        const state = (i: number) => test!.parts[i]?.status;
+        let running = all.filter((i) => state(i) === "en_cours").length;
+        const failed = all.filter((i) => state(i) === "erreur");
+        // Une partie en échec est relancée une fois ; ensuite on montre l'erreur.
+        const stuck = failed.filter((i) => retried.has(i));
+        if (
+          stuck.length &&
+          running === 0 &&
+          all.every((i) => state(i) === "pret" || state(i) === "erreur")
+        ) {
+          const msg = test.parts[stuck[0]]?.error ?? "";
+          setError(
+            `${stuck.length} partie${stuck.length > 1 ? "s" : ""} n'${stuck.length > 1 ? "ont" : "a"} pas pu être préparée${stuck.length > 1 ? "s" : ""}. ${msg} Touchez « Continuer la préparation » pour réessayer.`.trim(),
           );
-          const json = (await res.json().catch(() => ({}))) as {
-            error?: string;
-          };
-          if (!res.ok) {
-            failed++;
-            lastError = json.error ?? "";
+          return;
+        }
+        for (const i of all) {
+          if (running >= 4) break;
+          const st = state(i);
+          const last = asked.get(i) ?? 0;
+          // Une partie « en cours » depuis longtemps a pu être perdue : le serveur la reprend s'il le faut.
+          const again =
+            st === "erreur"
+              ? !retried.has(i)
+              : st === "en_cours"
+                ? clockNow() - last > 6 * 60_000
+                : st !== "pret" && clockNow() - last > 30_000;
+          if (!again) continue;
+          if (st === "erreur") retried.add(i);
+          asked.set(i, clockNow());
+          if (st !== "en_cours") running++;
+          try {
+            await fetch(
+              `/api/formation/tcf/${encodeURIComponent(first.id)}/parts/${i}`,
+              { method: "POST" },
+            );
+          } catch {
+            /* réseau : on redemandera */
           }
+        }
+      } else if (
+        clockNow() - new Date(test.plan.researching_since).getTime() >
+        5.5 * 60_000
+      ) {
+        // Recherche interrompue côté serveur : la création du test la relance.
+        try {
+          await fetch("/api/formation/tcf", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: "{}",
+          });
         } catch {
-          failed++;
+          /* on réessaiera */
         }
       }
-    };
-    try {
-      await Promise.all([worker(), worker(), worker(), worker()]);
-      // Morceaux préparés par un autre onglet : on attend qu'ils arrivent.
-      for (let k = 0; k < 40; k++) {
-        const t = await refresh(test.id);
-        if (
-          !t ||
-          isReady(t) ||
-          Object.values(t.parts).some((p) => p.status === "erreur")
-        )
-          break;
-        await new Promise((r) => setTimeout(r, 10_000));
+      await wait();
+      try {
+        test = (await refresh(first.id)) ?? test;
+      } catch {
+        /* réseau : on garde la dernière version */
       }
-      if (failed)
-        setError(
-          `${failed} partie${failed > 1 ? "s" : ""} n'${failed > 1 ? "ont" : "a"} pas pu être préparée${failed > 1 ? "s" : ""}. ${lastError}`.trim(),
-        );
-    } finally {
-      clearInterval(ticker);
     }
+    if (test && !isReady(test))
+      setError(
+        "La préparation prend plus de temps que prévu. Touchez « Continuer la préparation » dans quelques minutes.",
+      );
   }
 
   async function prepare() {
@@ -302,18 +336,30 @@ export function TcfView({
     try {
       let test = current;
       if (!test) {
-        const res = await fetch("/api/formation/tcf", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: "{}",
-        });
-        const json = (await res.json().catch(() => ({}))) as {
-          test?: TcfTest;
-          error?: string;
-        };
-        if (!res.ok || !json.test)
+        let json: { test?: TcfTest; error?: string } = {};
+        let ok = false;
+        try {
+          const res = await fetch("/api/formation/tcf", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: "{}",
+          });
+          json = (await res.json().catch(() => ({}))) as typeof json;
+          ok = res.ok;
+        } catch {
+          // Réponse perdue en route : le test a peut-être été créé quand même.
+          const res = await fetch("/api/formation/tcf", {
+            cache: "no-store",
+          }).catch(() => null);
+          const got = (await res?.json().catch(() => ({}))) as
+            { tests?: TcfTest[] } | undefined;
+          json = { test: got?.tests?.find((t) => t.status !== "corrige") };
+          ok = !!json.test;
+        }
+        if (!ok || !json.test)
           throw new Error(
-            json.error ?? "Le test n'a pas pu être créé. Réessayez.",
+            json.error ??
+              "Le test n'a pas pu être créé. Vérifiez la connexion et réessayez.",
           );
         test = json.test;
         upsert(test);
@@ -411,67 +457,69 @@ export function TcfView({
         </div>
 
         <ul className="mt-4 divide-y divide-line border-y border-line">
-          {(current ? current.plan.sections : (preview?.sections ?? [])).map((s, si) => {
-            const p = current?.progress[String(si)];
-            const r = p?.result;
-            const count = s.levels
-              ? `${s.levels.length} questions`
-              : `${s.tasks?.length} tâche${(s.tasks?.length ?? 0) > 1 ? "s" : ""}`;
-            return (
-              <li
-                key={si}
-                className="flex flex-wrap items-center gap-3 px-5 py-3 sm:px-7"
-              >
-                <span className="mono flex h-9 w-11 shrink-0 items-center justify-center rounded-lg bg-surface-2 text-[13px] font-bold">
-                  {EPREUVE_SHORT[s.epreuve]}
-                </span>
-                <span className="min-w-0 flex-1">
-                  <span className="block text-[14px] font-semibold">
-                    {EPREUVE_LABEL[s.epreuve]}
+          {(current ? current.plan.sections : (preview?.sections ?? [])).map(
+            (s, si) => {
+              const p = current?.progress[String(si)];
+              const r = p?.result;
+              const count = s.levels
+                ? `${s.levels.length} questions`
+                : `${s.tasks?.length} tâche${(s.tasks?.length ?? 0) > 1 ? "s" : ""}`;
+              return (
+                <li
+                  key={si}
+                  className="flex flex-wrap items-center gap-3 px-5 py-3 sm:px-7"
+                >
+                  <span className="mono flex h-9 w-11 shrink-0 items-center justify-center rounded-lg bg-surface-2 text-[13px] font-bold">
+                    {EPREUVE_SHORT[s.epreuve]}
                   </span>
-                  <span className="mono block text-[12px] text-muted">
-                    {count} · {s.minutes} min
-                    {s.levels
-                      ? ` · ${s.levels[0]} → ${s.levels.at(-1)}`
-                      : s.tasks
-                        ? ` · tâche${s.tasks.length > 1 ? "s" : ""} ${s.tasks.join(", ")}`
-                        : ""}
-                  </span>
-                </span>
-                {r ? (
-                  <button
-                    type="button"
-                    className="flex items-center gap-2 rounded-lg px-2 py-1 hover:bg-surface-2"
-                    onClick={() =>
-                      setScreen({ mode: "result", id: current!.id, si })
-                    }
-                  >
-                    <LevelBadge level={r.level} />
-                    <span className="mono text-[13px] font-semibold">
-                      {r.value}
-                      {unit(s.epreuve)}
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-[14px] font-semibold">
+                      {EPREUVE_LABEL[s.epreuve]}
                     </span>
-                    <IconArrowRight size={14} className="text-muted" />
-                  </button>
-                ) : current && ready && canEdit ? (
-                  <button
-                    type="button"
-                    className="btn btn-primary btn-sm"
-                    onClick={() =>
-                      setScreen({ mode: "run", id: current.id, si })
-                    }
-                  >
-                    {p?.started_at ? "Reprendre" : "Commencer"}{" "}
-                    <IconArrowRight size={14} />
-                  </button>
-                ) : (
-                  <span className="text-[12px] text-faint">
-                    {current ? "en préparation" : "à préparer"}
+                    <span className="mono block text-[12px] text-muted">
+                      {count} · {s.minutes} min
+                      {s.levels
+                        ? ` · ${s.levels[0]} → ${s.levels.at(-1)}`
+                        : s.tasks
+                          ? ` · tâche${s.tasks.length > 1 ? "s" : ""} ${s.tasks.join(", ")}`
+                          : ""}
+                    </span>
                   </span>
-                )}
-              </li>
-            );
-          })}
+                  {r ? (
+                    <button
+                      type="button"
+                      className="flex items-center gap-2 rounded-lg px-2 py-1 hover:bg-surface-2"
+                      onClick={() =>
+                        setScreen({ mode: "result", id: current!.id, si })
+                      }
+                    >
+                      <LevelBadge level={r.level} />
+                      <span className="mono text-[13px] font-semibold">
+                        {r.value}
+                        {unit(s.epreuve)}
+                      </span>
+                      <IconArrowRight size={14} className="text-muted" />
+                    </button>
+                  ) : current && ready && canEdit ? (
+                    <button
+                      type="button"
+                      className="btn btn-primary btn-sm"
+                      onClick={() =>
+                        setScreen({ mode: "run", id: current.id, si })
+                      }
+                    >
+                      {p?.started_at ? "Reprendre" : "Commencer"}{" "}
+                      <IconArrowRight size={14} />
+                    </button>
+                  ) : (
+                    <span className="text-[12px] text-faint">
+                      {current ? "en préparation" : "à préparer"}
+                    </span>
+                  )}
+                </li>
+              );
+            },
+          )}
         </ul>
 
         {!ready && canEdit && (
@@ -601,8 +649,8 @@ export function TcfView({
           ))}
         </ol>
         <p className="mt-2 text-[12px] text-muted">
-          Samedi : examen blanc complet les semaines prévues par le programme
-          (2 h 50, faisable en plusieurs fois), sinon la compréhension la plus
+          Samedi : examen blanc complet les semaines prévues par le programme (2
+          h 50, faisable en plusieurs fois), sinon la compréhension la plus
           faible et une tâche 3. Dimanche : la compréhension la plus éloignée de
           l&apos;objectif. Chaque épreuve se fait dans le créneau du programme
           (Jour), puis les exercices du jour reprennent vos erreurs.

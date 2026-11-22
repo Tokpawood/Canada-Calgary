@@ -1,13 +1,16 @@
-import { NextResponse, type NextRequest } from "next/server";
+import { NextResponse, after, type NextRequest } from "next/server";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { errorResponse, requireOwner } from "@/lib/driveRoute";
 import { newId } from "@/lib/ids";
 import { QuizAIError } from "@/lib/quizAI";
 import {
   currentEstimates,
+  RESEARCH_STALE_MS,
   kindFor,
   planFor,
   tcfWeek,
   withParts,
+  type Plan,
   type TestKind,
 } from "@/lib/tcf";
 import { TCF_MODEL, research } from "@/lib/tcfAI";
@@ -47,7 +50,20 @@ export async function POST(request: NextRequest) {
       body.kind === "blanc" && placed ? "blanc" : kindFor(day, placed);
 
     const existing = history.find((t) => t.day === day && t.kind === kind);
-    if (existing) return NextResponse.json({ test: existing });
+    if (existing) {
+      // Recherche interrompue (serveur arrêté en route) : on la relance.
+      const since = existing.plan.researching_since;
+      if (since && Date.now() - new Date(since).getTime() > RESEARCH_STALE_MS) {
+        const plan: Plan = {
+          ...existing.plan,
+          researching_since: new Date().toISOString(),
+        };
+        await supabase.from("tcf_test").update({ plan }).eq("id", existing.id);
+        after(() => runResearch(supabase, existing.id, day, plan));
+        existing.plan = plan;
+      }
+      return NextResponse.json({ test: existing });
+    }
 
     const done = history.filter(
       (t) =>
@@ -57,12 +73,17 @@ export async function POST(request: NextRequest) {
     const planned = planFor(kind, day, currentEstimates(done));
     if (!planned)
       return NextResponse.json(
-        { error: "Le programme ne prévoit plus de test : place au repos et à la relecture du carnet avant l'examen." },
+        {
+          error:
+            "Le programme ne prévoit plus de test : place au repos et à la relecture du carnet avant l'examen.",
+        },
         { status: 409 },
       );
     const { title, sections } = planned;
-    const plan = withParts(sections);
-    const found = await research(day, tcfWeek(day)?.theme);
+    const plan: Plan = {
+      ...withParts(sections),
+      researching_since: new Date().toISOString(),
+    };
 
     const row = {
       id: newId("tcf"),
@@ -71,8 +92,6 @@ export async function POST(request: NextRequest) {
       kind,
       title,
       plan,
-      research: found.notes,
-      sources: found.sources,
       model: TCF_MODEL,
     };
     const { error } = await supabase.from("tcf_test").insert(row);
@@ -84,6 +103,9 @@ export async function POST(request: NextRequest) {
       if (again) return NextResponse.json({ test: again });
       throw error;
     }
+    // La recherche sur internet (1 à 2 min) se fait après la réponse : Safari sur iPad abandonne
+    // une requête restée plus d'une minute sans réponse.
+    after(() => runResearch(supabase, row.id, day, plan));
     const [test] = await loadTests(supabase, dossierId, { id: row.id });
     return NextResponse.json({ test });
   } catch (e) {
@@ -91,4 +113,28 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: e.message }, { status: e.status });
     return errorResponse(e);
   }
+}
+
+async function runResearch(
+  supabase: SupabaseClient,
+  id: string,
+  day: string,
+  plan: Plan,
+) {
+  let found: { notes: string; sources: Array<{ url: string; title: string }> } =
+    { notes: "", sources: [] };
+  try {
+    found = await research(day, tcfWeek(day)?.theme);
+  } catch (e) {
+    // Sans notes de recherche, les parties s'appuient sur des sujets d'actualité plausibles.
+    console.error("[tcf] recherche", e instanceof Error ? e.message : e);
+  }
+  const { researching_since: _, ...rest } = plan;
+  void _;
+  const { error } = await supabase
+    .from("tcf_test")
+    .update({ plan: rest, research: found.notes, sources: found.sources })
+    .eq("id", id);
+  if (error)
+    console.error("[tcf] enregistrement de la recherche", error.message);
 }

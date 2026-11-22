@@ -1,4 +1,4 @@
-import { NextResponse, type NextRequest } from "next/server";
+import { NextResponse, after, type NextRequest } from "next/server";
 import { errorResponse, requireOwner } from "@/lib/driveRoute";
 import type { ErrorEntry, Lang } from "@/lib/formation";
 import { QuizAIError } from "@/lib/quizAI";
@@ -7,6 +7,7 @@ import {
   currentEstimates,
   partSpec,
   recentThemes,
+  type Plan,
 } from "@/lib/tcf";
 import { generatePart } from "@/lib/tcfAI";
 import { loadTests } from "@/lib/tcfStore";
@@ -35,6 +36,9 @@ export async function POST(_req: NextRequest, { params }: Ctx) {
     const spec = partSpec(row.plan, idx);
     if (!spec)
       return NextResponse.json({ error: "Morceau inconnu." }, { status: 400 });
+    // La recherche de documents n'est pas finie : l'écran redemandera.
+    if ((row.plan as Plan).researching_since)
+      return NextResponse.json({ status: "attente" });
 
     // Réservation du morceau.
     const { data: cur } = await supabase
@@ -72,78 +76,78 @@ export async function POST(_req: NextRequest, { params }: Ctx) {
       if (error) return NextResponse.json({ status: "en_cours" });
     }
 
-    try {
-      const [{ data: errorRows }, history, { data: memoRows }] = await Promise.all([
-        supabase
-          .from("training_error")
-          .select("*")
-          .eq("dossier_id", dossierId)
-          .eq("exam", "tcf")
-          .order("count", { ascending: false })
-          .limit(30),
-        loadTests(supabase, dossierId, { limit: 30 }),
-        supabase
-          .from("training_memo")
-          .select("title")
-          .eq("dossier_id", dossierId)
-          .eq("exam", "tcf")
-          .order("created_at", { ascending: false })
-          .limit(8),
-      ]);
-      const errors: ErrorEntry[] = (errorRows ?? []).map((r) => ({
-        id: r.id as string,
-        exam: r.exam as Lang,
-        skill: (r.skill as string) ?? "",
-        wrong: r.wrong as string,
-        correct: (r.correct as string) ?? "",
-        rule: (r.rule as string) ?? "",
-        count: Number(r.count ?? 1),
-        mastered: Boolean(r.mastered),
-        createdAt: r.created_at as string,
-      }));
-      const others = history.filter((t) => t.id !== id);
-      const prompt = buildPartPrompt({
-        section: spec.section,
-        part: spec.part,
-        research: (row.research as string) ?? "",
-        estimate: currentEstimates(others)[spec.section.epreuve],
-        avoid: recentThemes(history, row.day as string),
-        errors,
-        today: row.day as string,
-        memos: (memoRows ?? []).map((m) => m.title as string).filter(Boolean),
-      });
-      const content = await generatePart(spec.section, spec.part, prompt);
-      await supabase
-        .from("tcf_test_part")
-        .update({
-          status: "pret",
-          content,
-          error: null,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("test_id", id)
-        .eq("idx", idx);
-      return NextResponse.json({ status: "pret" });
-    } catch (e) {
-      const message =
-        e instanceof QuizAIError
-          ? e.message
-          : "La préparation de cette partie a échoué.";
-      await supabase
-        .from("tcf_test_part")
-        .update({
-          status: "erreur",
-          error: message,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("test_id", id)
-        .eq("idx", idx);
-      if (!(e instanceof QuizAIError)) console.error("[tcf] morceau", idx, e);
-      return NextResponse.json(
-        { error: message },
-        { status: e instanceof QuizAIError ? e.status : 500 },
-      );
-    }
+    // Rédaction par Claude (1 à 3 min) après la réponse : l'écran suit l'avancement en relisant le test.
+    after(async () => {
+      try {
+        const [{ data: errorRows }, history, { data: memoRows }] =
+          await Promise.all([
+            supabase
+              .from("training_error")
+              .select("*")
+              .eq("dossier_id", dossierId)
+              .eq("exam", "tcf")
+              .order("count", { ascending: false })
+              .limit(30),
+            loadTests(supabase, dossierId, { limit: 30 }),
+            supabase
+              .from("training_memo")
+              .select("title")
+              .eq("dossier_id", dossierId)
+              .eq("exam", "tcf")
+              .order("created_at", { ascending: false })
+              .limit(8),
+          ]);
+        const errors: ErrorEntry[] = (errorRows ?? []).map((r) => ({
+          id: r.id as string,
+          exam: r.exam as Lang,
+          skill: (r.skill as string) ?? "",
+          wrong: r.wrong as string,
+          correct: (r.correct as string) ?? "",
+          rule: (r.rule as string) ?? "",
+          count: Number(r.count ?? 1),
+          mastered: Boolean(r.mastered),
+          createdAt: r.created_at as string,
+        }));
+        const others = history.filter((t) => t.id !== id);
+        const prompt = buildPartPrompt({
+          section: spec.section,
+          part: spec.part,
+          research: (row.research as string) ?? "",
+          estimate: currentEstimates(others)[spec.section.epreuve],
+          avoid: recentThemes(history, row.day as string),
+          errors,
+          today: row.day as string,
+          memos: (memoRows ?? []).map((m) => m.title as string).filter(Boolean),
+        });
+        const content = await generatePart(spec.section, spec.part, prompt);
+        await supabase
+          .from("tcf_test_part")
+          .update({
+            status: "pret",
+            content,
+            error: null,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("test_id", id)
+          .eq("idx", idx);
+      } catch (e) {
+        const message =
+          e instanceof QuizAIError
+            ? e.message
+            : "La préparation de cette partie a échoué.";
+        await supabase
+          .from("tcf_test_part")
+          .update({
+            status: "erreur",
+            error: message,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("test_id", id)
+          .eq("idx", idx);
+        if (!(e instanceof QuizAIError)) console.error("[tcf] morceau", idx, e);
+      }
+    });
+    return NextResponse.json({ status: "en_cours" });
   } catch (e) {
     return errorResponse(e);
   }

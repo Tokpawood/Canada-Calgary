@@ -168,7 +168,11 @@ export interface Section {
 }
 export interface Plan {
   sections: Section[];
+  /** Recherche de documents en cours depuis cette date (absente une fois terminée). */
+  researching_since?: string;
 }
+/** Au-delà, une recherche jamais terminée (serveur interrompu) est relancée. */
+export const RESEARCH_STALE_MS = 5 * 60_000;
 export type TestKind = "positionnement" | "quotidien" | "blanc";
 export type Estimates = Partial<Record<Epreuve, number>>;
 

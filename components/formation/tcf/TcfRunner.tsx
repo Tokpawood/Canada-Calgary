@@ -822,8 +822,26 @@ export function TcfRunner({
       return null;
     };
     const post = call("submit");
+    const polled = poll();
     try {
-      const t = await Promise.race([post, poll().then((x) => x ?? post)]);
+      // Safari sur iPad coupe une requête sans réponse au bout d'une minute (« Load failed ») alors que
+      // le serveur continue la correction : dans ce cas, on attend le résultat en relisant le test.
+      const t = await Promise.race([
+        post.catch((e: unknown) =>
+          e instanceof TypeError
+            ? polled.then(
+                (x) =>
+                  x ??
+                  Promise.reject(
+                    new Error(
+                      "La correction prend plus de temps que prévu. Revenez dans quelques minutes : vos réponses sont gardées.",
+                    ),
+                  ),
+              )
+            : Promise.reject(e),
+        ),
+        polled.then((x) => x ?? post),
+      ]);
       store.del(storeKey);
       store.del(`${storeKey}-i`);
       store.del(`${storeKey}-heard`);
