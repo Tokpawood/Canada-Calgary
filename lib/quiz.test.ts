@@ -77,3 +77,18 @@ describe("exercices du jour", () => {
     expect(p.byTopic[0]).toMatchObject({ topic: "chez + enseigne", n: 3 });
   });
 });
+
+import { splitBlanks, wordDiff } from "./wordDiff";
+
+describe("comparaison mot à mot", () => {
+  it("repère les mots retirés et ajoutés", () => {
+    const d = wordDiff("Je travaille à Esso depuis deux ans.", "Je travaille chez Esso depuis deux ans.");
+    expect(d.filter((p) => p.type === "del").map((p) => p.text.trim())).toEqual(["à"]);
+    expect(d.filter((p) => p.type === "add").map((p) => p.text.trim())).toEqual(["chez"]);
+    expect(d.filter((p) => p.type !== "del").map((p) => p.text).join("")).toBe("Je travaille chez Esso depuis deux ans.");
+  });
+  it("découpe les énoncés à trous", () => {
+    expect(splitBlanks("Je vais ___ l'épicerie puis ____ le boulanger.")).toHaveLength(3);
+    expect(splitBlanks("Sans blanc")).toHaveLength(1);
+  });
+});
