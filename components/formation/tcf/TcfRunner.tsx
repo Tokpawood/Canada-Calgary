@@ -859,6 +859,13 @@ export function TcfRunner({
   async function start() {
     // Même toucher que le lancement : débloque la voix de l'iPad pour les documents à écouter.
     if (section.epreuve === "co") unlockSpeech();
+    // Section jamais démarrée (ou remise à zéro) : on oublie ce que l'appareil avait gardé.
+    if (!test.progress[String(si)]?.started_at) {
+      store.del(storeKey);
+      store.del(`${storeKey}-i`);
+      store.del(`${storeKey}-heard`);
+      setAnswers({});
+    }
     setBusy("start");
     setError(null);
     try {
