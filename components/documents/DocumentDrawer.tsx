@@ -1,5 +1,6 @@
 "use client";
 
+import { DOCUMENT_STAGES, guessStage, stageOf } from "@/lib/documentStages";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   cleanDocName,
@@ -50,6 +51,7 @@ type DocDraft = Pick<
   | "name"
   | "status"
   | "req"
+  | "stage"
   | "date"
   | "format"
   | "validity"
@@ -104,6 +106,7 @@ export function DocumentDrawer({ doc, onChange, onDelete, onClose }: Props) {
       name: doc.name,
       status: doc.status,
       req: doc.req,
+      stage: doc.stage,
       date: doc.date,
       format: doc.format,
       validity: doc.validity,
@@ -188,6 +191,7 @@ export function DocumentDrawer({ doc, onChange, onDelete, onClose }: Props) {
         "name",
         "status",
         "req",
+        "stage",
         "date",
         "format",
         "validity",
@@ -200,6 +204,7 @@ export function DocumentDrawer({ doc, onChange, onDelete, onClose }: Props) {
       if ("name" in changed) dbPatch.name = changed.name;
       if ("status" in changed) dbPatch.status = changed.status;
       if ("req" in changed) dbPatch.req = changed.req;
+      if ("stage" in changed) dbPatch.stage = changed.stage;
       if ("date" in changed) dbPatch.date = changed.date || null;
       if ("format" in changed) dbPatch.format = changed.format;
       if ("validity" in changed) dbPatch.validity = changed.validity;
@@ -563,6 +568,16 @@ export function DocumentDrawer({ doc, onChange, onDelete, onClose }: Props) {
         <DrawerCard title="Caractéristiques">
           {off ? (
             <dl className="m-0">
+              <ReadRow
+                label="Étape"
+                value={(() => {
+                  const st = stageOf(doc);
+                  const i = DOCUMENT_STAGES.findIndex((x) => x.id === st);
+                  return i >= 0
+                    ? `${i + 1}. ${DOCUMENT_STAGES[i].title}${doc.stage ? "" : " (déduite du nom)"}`
+                    : "À classer";
+                })()}
+              />
               <ReadRow label="Caractère" value={doc.req} />
               <ReadRow
                 label="Date d'obtention"
@@ -580,6 +595,27 @@ export function DocumentDrawer({ doc, onChange, onDelete, onClose }: Props) {
             </dl>
           ) : (
             <div className="grid grid-cols-2 gap-3">
+              <div className="col-span-2">
+                <Field label="Étape de la procédure">
+                  <select
+                    value={v.stage}
+                    onChange={(e) => ed.set({ stage: e.target.value })}
+                    className="input"
+                  >
+                    <option value="">
+                      Déduite du nom
+                      {guessStage(v.name)
+                        ? ` (${DOCUMENT_STAGES.find((x) => x.id === guessStage(v.name))?.title})`
+                        : " : à classer"}
+                    </option>
+                    {DOCUMENT_STAGES.map((st, i) => (
+                      <option key={st.id} value={st.id}>
+                        {i + 1}. {st.title}
+                      </option>
+                    ))}
+                  </select>
+                </Field>
+              </div>
               <Field label="Caractère">
                 <select
                   value={v.req}
@@ -662,7 +698,15 @@ export function DocumentDrawer({ doc, onChange, onDelete, onClose }: Props) {
             onAdd={(label, url) =>
               ed.update((d) => ({
                 ...d,
-                links: [...d.links, { id: tmpId(), label, url, position: nextStepPosition(d.links) }],
+                links: [
+                  ...d.links,
+                  {
+                    id: tmpId(),
+                    label,
+                    url,
+                    position: nextStepPosition(d.links),
+                  },
+                ],
               }))
             }
             onDelete={(id) =>

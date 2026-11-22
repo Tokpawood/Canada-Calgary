@@ -35,7 +35,10 @@ export function DocumentsSidePanel({
           </span>
           <div>
             <h2 className="text-[16px] font-bold">Identité de référence</h2>
-            <p className="text-[12.5px] text-muted">Chaque document doit reprendre ces informations lettre pour lettre.</p>
+            <p className="text-[12.5px] text-muted">
+              Chaque document doit reprendre ces informations lettre pour
+              lettre.
+            </p>
           </div>
         </div>
         <dl className="mt-2 divide-y divide-line px-4 pb-2 sm:px-5">
@@ -43,10 +46,17 @@ export function DocumentsSidePanel({
             const raw = identity?.[key] as string | null | undefined;
             const value = key === "naissance" ? fmtShortDate(raw) : raw;
             return (
-              <div key={key} className="group grid grid-cols-1 gap-0.5 py-2.5 sm:grid-cols-[140px_minmax(0,1fr)] sm:items-center sm:gap-3">
+              <div
+                key={key}
+                className="group grid grid-cols-1 gap-0.5 py-2.5 sm:grid-cols-[140px_minmax(0,1fr)] sm:items-center sm:gap-3"
+              >
                 <dt className="text-[12px] text-muted">{label}</dt>
                 <dd className="m-0 flex min-w-0 items-center gap-2">
-                  <span className={`min-w-0 text-[14px] font-semibold break-words ${value ? "" : "text-bad"}`}>{value || "manquant"}</span>
+                  <span
+                    className={`min-w-0 text-[14px] font-semibold break-words ${value ? "" : "text-bad"}`}
+                  >
+                    {value || "manquant"}
+                  </span>
                   {value && <CopyButton text={String(value)} label={label} />}
                 </dd>
               </div>
@@ -59,12 +69,16 @@ export function DocumentsSidePanel({
         <div className="flex items-center justify-between gap-2">
           <h2 className="text-[16px] font-bold">Écarts à corriger</h2>
           {gaps.length > 0 && (
-            <span className={`mono rounded-md px-1.5 py-0.5 text-[11px] font-semibold ${open ? "bg-opt-bg text-opt" : "bg-ok-bg text-ok"}`}>
+            <span
+              className={`mono rounded-md px-1.5 py-0.5 text-[11px] font-semibold ${open ? "bg-opt-bg text-opt" : "bg-ok-bg text-ok"}`}
+            >
               {open ? `${open} ouvert(s)` : "tout corrigé"}
             </span>
           )}
         </div>
-        <p className="text-[12.5px] text-muted">Différences repérées entre vos pièces ; cochez quand c&apos;est réglé.</p>
+        <p className="text-[12.5px] text-muted">
+          Différences repérées entre vos pièces ; cochez quand c&apos;est réglé.
+        </p>
         {gaps.length === 0 ? (
           <p className="mt-3 text-[13px] text-muted">Aucun écart signalé.</p>
         ) : (
@@ -78,10 +92,16 @@ export function DocumentsSidePanel({
                   onClick={() => onToggleGap(g.id, !g.done)}
                   className="-mx-2 flex w-[calc(100%+1rem)] items-start gap-2.5 rounded-lg px-2 py-2 text-left hover:bg-surface-2"
                 >
-                  <span className={`mt-0.5 grid h-[17px] w-[17px] shrink-0 place-items-center rounded-[5px] border-2 ${g.done ? "border-ok bg-ok text-surface" : "border-line text-transparent"}`}>
+                  <span
+                    className={`mt-0.5 grid h-[17px] w-[17px] shrink-0 place-items-center rounded-[5px] border-2 ${g.done ? "border-ok bg-ok text-surface" : "border-line text-transparent"}`}
+                  >
                     <IconCheck size={10} strokeWidth={3.2} />
                   </span>
-                  <span className={`text-[13.5px] leading-snug ${g.done ? "text-faint line-through" : ""}`}>{g.text}</span>
+                  <span
+                    className={`text-[13.5px] leading-snug ${g.done ? "text-faint line-through" : ""}`}
+                  >
+                    {g.text}
+                  </span>
                 </button>
               </li>
             ))}
@@ -95,8 +115,13 @@ export function DocumentsSidePanel({
           <h2 className="text-[14px] font-bold">Règles de forme</h2>
         </div>
         <ul className="mt-2 flex flex-col gap-1.5 text-[12.5px] text-muted">
-          <li>Nom et prénoms identiques, lettre pour lettre, sur tous les documents.</li>
-          <li>Dates au format AAAA-MM-JJ (ou AAAA-MM si le jour est inconnu).</li>
+          <li>
+            Nom et prénoms identiques, lettre pour lettre, sur tous les
+            documents.
+          </li>
+          <li>
+            Dates au format AAAA-MM-JJ (ou AAAA-MM si le jour est inconnu).
+          </li>
           <li>Seuls les liens en https:// sont acceptés.</li>
           <li>Scans en PDF, JPEG, PNG ou WEBP, 20 Mo maximum.</li>
         </ul>

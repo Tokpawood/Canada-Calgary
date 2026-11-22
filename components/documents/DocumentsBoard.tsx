@@ -14,10 +14,18 @@ import {
   Chip,
   DOC_TONE,
   EmptyState,
+  Meter,
   PageHeader,
   TONE_DOT,
   fmtShortDate,
 } from "@/components/ui";
+import {
+  DOCUMENT_STAGES,
+  groupByStage,
+  guessStage,
+  stageOf,
+  type DocumentStage,
+} from "@/lib/documentStages";
 import {
   IconAlert,
   IconCheck,
@@ -78,6 +86,7 @@ export function DocumentsBoard({
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
   const [newName, setNewName] = useState("");
+  const [addStage, setAddStage] = useState<DocumentStage | "">("");
   const [savingNew, setSavingNew] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const supabase = createClient();
@@ -117,9 +126,11 @@ export function DocumentsBoard({
     const id = newId("d");
     // Après le plus grand rang existant : le nombre de pièces retomberait sur un rang occupé après une suppression.
     const position = nextStepPosition(documents);
+    // Étape choisie dans l'ajout, sinon devinée d'après le nom (modifiable ensuite dans la fiche).
+    const stage = addStage || guessStage(name) || "";
     const { error: insertError } = await supabase
       .from("document")
-      .insert({ id, dossier_id: dossierId, name, position });
+      .insert({ id, dossier_id: dossierId, name, position, stage });
     setSavingNew(false);
     if (insertError) {
       setError(
@@ -142,6 +153,7 @@ export function DocumentsBoard({
         format: "",
         validity: "",
         expires: "",
+        stage,
         position,
         checks: [],
         links: [],
@@ -149,6 +161,7 @@ export function DocumentsBoard({
       },
     ]);
     setNewName("");
+    setAddStage("");
     setAdding(false);
     setSelectedId(id);
   }
@@ -466,6 +479,70 @@ export function DocumentsBoard({
 
         {tab === "pieces" && (
           <>
+            <nav
+              aria-label="Étapes de la procédure"
+              className="mb-4 grid grid-cols-2 gap-2 sm:grid-cols-4"
+            >
+              {DOCUMENT_STAGES.map((st, i) => {
+                const all = documents.filter((d) => stageOf(d) === st.id);
+                const got = all.filter((d) => d.status === "Obtenu").length;
+                const missing = all.filter(
+                  (d) => d.req === "Obligatoire" && d.status !== "Obtenu",
+                ).length;
+                const complete = all.length > 0 && got === all.length;
+                return (
+                  <a
+                    key={st.id}
+                    href={`#etape-${st.id}`}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      document
+                        .getElementById(`etape-${st.id}`)
+                        ?.scrollIntoView({
+                          behavior: "smooth",
+                          block: "start",
+                        });
+                    }}
+                    className="card flex flex-col gap-1.5 p-3 transition-colors hover:bg-surface-2/70"
+                  >
+                    <span className="flex items-center gap-2">
+                      <span
+                        className={`mono grid h-6 w-6 shrink-0 place-items-center rounded-lg text-[11.5px] font-bold ${complete ? "bg-ok-bg text-ok" : "bg-surface-2 text-muted"}`}
+                        aria-hidden
+                      >
+                        {complete ? <IconCheck size={13} /> : i + 1}
+                      </span>
+                      <span className="min-w-0 text-[12.5px] leading-tight font-semibold">
+                        {st.title}
+                      </span>
+                    </span>
+                    <span className="flex items-center gap-2">
+                      <span
+                        className="flex h-1.5 flex-1 overflow-hidden rounded-full bg-surface-2"
+                        aria-hidden
+                      >
+                        <span
+                          className={complete ? "bg-ok" : "bg-ink"}
+                          style={{
+                            width: `${all.length ? (got / all.length) * 100 : 0}%`,
+                          }}
+                        />
+                      </span>
+                      <span className="mono text-[11px] text-muted">
+                        {got}/{all.length}
+                      </span>
+                    </span>
+                    <span
+                      className={`text-[11px] ${missing ? "font-semibold text-bad" : "text-faint"}`}
+                    >
+                      {missing
+                        ? `${missing} obligatoire${missing > 1 ? "s" : ""} à obtenir`
+                        : st.when}
+                    </span>
+                  </a>
+                );
+              })}
+            </nav>
             <div className="mb-3">
               <FilterBar
                 query={query}
@@ -551,11 +628,29 @@ export function DocumentsBoard({
                     className="input"
                   />
                 </label>
+                <label className="min-w-[200px]">
+                  <span className="field-label">Étape</span>
+                  <select
+                    value={addStage}
+                    onChange={(e) =>
+                      setAddStage(e.target.value as DocumentStage | "")
+                    }
+                    className="input"
+                  >
+                    <option value="">Déduite du nom</option>
+                    {DOCUMENT_STAGES.map((st, i) => (
+                      <option key={st.id} value={st.id}>
+                        {i + 1}. {st.title}
+                      </option>
+                    ))}
+                  </select>
+                </label>
                 <button
                   type="button"
                   onClick={() => {
                     setAdding(false);
                     setNewName("");
+                    setAddStage("");
                   }}
                   className="btn btn-ghost"
                 >
@@ -580,63 +675,154 @@ export function DocumentsBoard({
                     : "Aucun document dans cette catégorie."}
               </EmptyState>
             ) : (
-              <ul className="card overflow-hidden">
-                {filtered.map((d) => {
-                  const checksDone = d.checks.filter((c) => c.done).length;
-                  const needsCheck =
-                    d.status === "Obtenu" && checksDone < d.checks.length;
+              <div className="flex flex-col gap-4">
+                {groupByStage(filtered).map(({ stage, docs }) => {
+                  const key = stage?.id ?? "aclasser";
+                  const n = stage ? DOCUMENT_STAGES.indexOf(stage) + 1 : null;
+                  const all = documents.filter(
+                    (d) => stageOf(d) === (stage?.id ?? null),
+                  );
+                  const got = all.filter((d) => d.status === "Obtenu").length;
+                  const complete = all.length > 0 && got === all.length;
+                  const missing = all.filter(
+                    (d) => d.req === "Obligatoire" && d.status !== "Obtenu",
+                  ).length;
                   return (
-                    <li
-                      key={d.id}
-                      className="border-t border-line first:border-t-0"
+                    <section
+                      key={key}
+                      id={`etape-${key}`}
+                      className="card scroll-mt-4 overflow-hidden"
+                      aria-labelledby={`etape-${key}-t`}
                     >
-                      <button
-                        type="button"
-                        onClick={() => setSelectedId(d.id)}
-                        className="flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-surface-2/70 sm:px-5"
-                      >
+                      <header className="flex flex-wrap items-start gap-3 px-4 pt-4 pb-3 sm:px-5">
                         <span
-                          className={`h-2.5 w-2.5 shrink-0 rounded-full ${TONE_DOT[DOC_TONE[d.status]]} ${d.status === "À obtenir" ? "opacity-40" : ""}`}
+                          className={`mono grid h-9 w-9 shrink-0 place-items-center rounded-xl text-[14px] font-bold ${complete ? "bg-ok-bg text-ok" : "bg-night text-night-ink"}`}
                           aria-hidden
-                        />
-                        <span className="min-w-0 flex-1">
-                          <span className="flex items-center gap-2">
-                            <span className="truncate text-[14px] font-semibold">
-                              {d.name}
-                            </span>
-                            {d.req === "Obligatoire" &&
-                              d.status !== "Obtenu" && (
-                                <span className="hidden text-[11px] font-semibold text-bad sm:inline">
-                                  Obligatoire
-                                </span>
-                              )}
-                          </span>
-                          <span className="mt-0.5 flex flex-wrap items-center gap-x-2.5 text-[12px] text-muted">
-                            {d.from && (
-                              <span className="truncate">{d.from}</span>
-                            )}
-                            {d.checks.length > 0 && (
-                              <span
-                                className={`mono ${needsCheck ? "font-semibold text-opt" : ""}`}
-                              >
-                                {checksDone}/{d.checks.length} contrôles
-                              </span>
-                            )}
-                            {d.files.length > 0 && (
-                              <span className="inline-flex items-center gap-1">
-                                <IconPaperclip size={12} />
-                                {d.files.length} scan
-                                {d.files.length > 1 ? "s" : ""}
-                              </span>
-                            )}
-                          </span>
+                        >
+                          {complete ? <IconCheck size={16} /> : (n ?? "?")}
                         </span>
-                        <Chip tone={DOC_TONE[d.status]}>{d.status}</Chip>
-                      </button>
-                    </li>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                            <h2
+                              id={`etape-${key}-t`}
+                              className="text-[16px] font-bold"
+                            >
+                              {stage?.title ?? "À classer"}
+                            </h2>
+                            {stage && (
+                              <span className="rounded-full bg-surface-2 px-2 py-0.5 text-[11px] font-semibold text-muted">
+                                {stage.when}
+                              </span>
+                            )}
+                          </div>
+                          <p className="mt-0.5 text-[12.5px] text-muted">
+                            {stage?.desc ??
+                              "Pièces sans étape : ouvrez-en une pour choisir son étape."}
+                          </p>
+                        </div>
+                        <div className="w-full sm:w-44">
+                          <div className="flex items-baseline justify-between gap-2 text-[12px]">
+                            {missing ? (
+                              <span className="font-semibold text-bad">
+                                {missing} obligatoire{missing > 1 ? "s" : ""} à
+                                obtenir
+                              </span>
+                            ) : (
+                              <span className="text-muted">Obtenues</span>
+                            )}
+                            <span className="mono font-semibold">
+                              {got}/{all.length}
+                            </span>
+                          </div>
+                          <Meter
+                            value={all.length ? (got / all.length) * 100 : 0}
+                            tone={complete ? "ok" : "act"}
+                            className="mt-1"
+                            label={`${stage?.title ?? "À classer"} : ${got} sur ${all.length} obtenues`}
+                          />
+                        </div>
+                      </header>
+                      <ul>
+                        {docs.map((d) => {
+                          const checksDone = d.checks.filter(
+                            (c) => c.done,
+                          ).length;
+                          const needsCheck =
+                            d.status === "Obtenu" &&
+                            checksDone < d.checks.length;
+                          return (
+                            <li key={d.id} className="border-t border-line">
+                              <button
+                                type="button"
+                                onClick={() => setSelectedId(d.id)}
+                                className="flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-surface-2/70 sm:px-5"
+                              >
+                                <span
+                                  className={`h-2.5 w-2.5 shrink-0 rounded-full ${TONE_DOT[DOC_TONE[d.status]]} ${d.status === "À obtenir" ? "opacity-40" : ""}`}
+                                  aria-hidden
+                                />
+                                <span className="min-w-0 flex-1">
+                                  <span className="flex flex-wrap items-center gap-x-2">
+                                    <span className="text-[14px] font-semibold">
+                                      {d.name}
+                                    </span>
+                                    {d.req === "Obligatoire" ? (
+                                      d.status !== "Obtenu" && (
+                                        <span className="text-[11px] font-semibold text-bad">
+                                          Obligatoire
+                                        </span>
+                                      )
+                                    ) : (
+                                      <span className="text-[11px] font-semibold text-faint">
+                                        {d.req}
+                                      </span>
+                                    )}
+                                  </span>
+                                  <span className="mt-0.5 flex flex-wrap items-center gap-x-2.5 text-[12px] text-muted">
+                                    {d.from && (
+                                      <span className="truncate">{d.from}</span>
+                                    )}
+                                    {d.checks.length > 0 && (
+                                      <span
+                                        className={`mono ${needsCheck ? "font-semibold text-opt" : ""}`}
+                                      >
+                                        {checksDone}/{d.checks.length} contrôles
+                                      </span>
+                                    )}
+                                    {d.files.length > 0 && (
+                                      <span className="inline-flex items-center gap-1">
+                                        <IconPaperclip size={12} />
+                                        {d.files.length} scan
+                                        {d.files.length > 1 ? "s" : ""}
+                                      </span>
+                                    )}
+                                  </span>
+                                </span>
+                                <Chip tone={DOC_TONE[d.status]}>
+                                  {d.status}
+                                </Chip>
+                              </button>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                      {stage && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setAddStage(stage.id);
+                            setAdding(true);
+                            window.scrollTo({ top: 0, behavior: "smooth" });
+                          }}
+                          className="flex w-full items-center gap-2 border-t border-line px-4 py-2.5 text-left text-[12.5px] font-semibold text-muted hover:bg-surface-2/70 sm:px-5"
+                        >
+                          <IconPlus size={14} /> Ajouter une pièce à cette étape
+                        </button>
+                      )}
+                    </section>
                   );
                 })}
-              </ul>
+              </div>
             )}
           </>
         )}

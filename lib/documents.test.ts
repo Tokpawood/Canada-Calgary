@@ -28,6 +28,7 @@ const doc = (over: Partial<DocumentRecord> = {}): DocumentRecord => ({
   id: "d",
   dossierId: "x",
   name: "Passeport",
+  stage: "",
   status: "Obtenu",
   use: "",
   from: "",

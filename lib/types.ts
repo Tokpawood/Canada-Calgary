@@ -76,6 +76,8 @@ export interface DocumentRecord {
   validity: string;
   /** Fin de validité (AAAA-MM-JJ), vide si sans objet. */
   expires: string;
+  /** Étape de la procédure (lib/documentStages) ; vide : déduite du nom. */
+  stage: string;
   /** Rang en base (ordre d'affichage) ; un nouveau document se place après le plus grand rang existant. */
   position: number;
   checks: DocumentCheck[];

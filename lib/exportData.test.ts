@@ -39,6 +39,7 @@ const bundle: FullBundle = {
       req: "Obligatoire",
       format: "PDF",
       validity: "5 ans",
+      stage: "",
       expires: "2031-01-01",
       position: 0,
       checks: [{ id: "c1", text: "vérifié", done: true, position: 0 }],

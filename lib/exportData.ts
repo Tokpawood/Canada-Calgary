@@ -113,6 +113,7 @@ export function toRawDossierJson(bundle: FullBundle) {
       format: d.format,
       validity: d.validity,
       expires: d.expires,
+      stage: d.stage,
       checks: d.checks.map((c) => ({ t: c.text, done: c.done })),
       links: d.links.map((l) => ({ l: l.label, u: l.url })),
       files: [] as unknown[],

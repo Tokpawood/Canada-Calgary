@@ -198,6 +198,7 @@ function mapDocument(
     format: (row.format as string) ?? "",
     validity: (row.validity as string) ?? "",
     expires: (row.expires as string) ?? "",
+    stage: (row.stage as string) ?? "",
     position: Number(row.position ?? 0),
     checks: checks.map(mapDocumentCheck),
     links: links.map(mapLink),

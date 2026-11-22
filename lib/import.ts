@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { isStage } from "./documentStages";
 
 const subTaskSchema = z.object({ t: z.string(), done: z.boolean().default(false) });
 const linkSchema = z.object({ l: z.string(), u: z.string() });
@@ -31,6 +32,7 @@ const docSchema = z.object({
   format: z.string().optional().default(""),
   validity: z.string().optional().default(""),
   expires: z.string().optional().default(""),
+  stage: z.string().optional().default(""),
   checks: z.array(subTaskSchema).optional().default([]),
   links: z.array(linkSchema).optional().default([]),
 });
@@ -279,6 +281,7 @@ export function buildImportPlan(dossierId: string, raw: RawDossier): ImportPlan 
       format: d.format,
       validity: d.validity,
       expires: isoDateOrNull(d.expires),
+      stage: isStage(d.stage) ? d.stage : "",
       position: i,
     };
   });
