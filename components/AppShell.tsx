@@ -6,6 +6,7 @@ import { CountUp } from "@/components/CountUp";
 import { UserMenu } from "@/components/UserMenu";
 import { Avatar } from "@/components/Avatar";
 import { OfflineBanner } from "@/components/OfflineBanner";
+import { UpdateBanner } from "@/components/UpdateBanner";
 import { ThemeToggle } from "@/components/Theme";
 import type { Account } from "@/lib/account";
 import { usePathname, useRouter } from "next/navigation";
@@ -283,6 +284,7 @@ export function AppShell({
 
         <main className="shell-main mx-auto w-full max-w-[1180px] px-4 pt-6 pb-20 sm:px-6 lg:px-10 lg:pt-9">
           <OfflineBanner />
+          <UpdateBanner />
           {children}
         </main>
       </div>

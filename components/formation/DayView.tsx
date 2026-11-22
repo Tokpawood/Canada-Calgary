@@ -1,8 +1,20 @@
 "use client";
 
-import { PROGRAM_END, PROGRAM_START, addDays, dayPlan, sendKey, type DayItem, type Week } from "@/lib/formation";
+import {
+  PROGRAM_END,
+  PROGRAM_START,
+  addDays,
+  dayPlan,
+  sendKey,
+  type DayItem,
+  type Week,
+} from "@/lib/formation";
 import { Meter } from "@/components/ui";
-import { IconChevronLeft, IconChevronRight, IconInfo } from "@/components/icons";
+import {
+  IconChevronLeft,
+  IconChevronRight,
+  IconInfo,
+} from "@/components/icons";
 import { CheckBox, LangTag, fmtDay, minutesLabel } from "./shared";
 import { TaskDrawer } from "./TaskDrawer";
 
@@ -26,7 +38,10 @@ export function DayView({
   onOpen,
   canEdit,
   onTool,
+  toolDone,
 }: {
+  /** Tâche déjà faite dans l'application. */
+  toolDone?: (it: DayItem) => boolean;
   /** Ouvre l'outil de l'application qui sert à faire la tâche (test TCF Canada, exercices du jour). */
   onTool?: (tool: NonNullable<DayItem["tool"]>) => void;
   date: string;
@@ -59,10 +74,22 @@ export function DayView({
       <section className="card overflow-hidden">
         <div className="flex flex-wrap items-center gap-3 border-b border-line px-4 py-3 sm:px-5">
           <div className="flex items-center gap-1">
-            <button type="button" className="btn btn-ghost btn-sm h-9 w-9 p-0" aria-label="Jour précédent" disabled={date <= PROGRAM_START} onClick={() => onDate(addDays(date, -1))}>
+            <button
+              type="button"
+              className="btn btn-ghost btn-sm h-9 w-9 p-0"
+              aria-label="Jour précédent"
+              disabled={date <= PROGRAM_START}
+              onClick={() => onDate(addDays(date, -1))}
+            >
               <IconChevronLeft size={17} />
             </button>
-            <button type="button" className="btn btn-ghost btn-sm h-9 w-9 p-0" aria-label="Jour suivant" disabled={date >= PROGRAM_END} onClick={() => onDate(addDays(date, 1))}>
+            <button
+              type="button"
+              className="btn btn-ghost btn-sm h-9 w-9 p-0"
+              aria-label="Jour suivant"
+              disabled={date >= PROGRAM_END}
+              onClick={() => onDate(addDays(date, 1))}
+            >
               <IconChevronRight size={17} />
             </button>
           </div>
@@ -70,7 +97,11 @@ export function DayView({
             <p className="flex flex-wrap items-center gap-2 text-[17px] font-bold capitalize">
               {fmtDay(date)}
               <LangTag lang={plan.program.id} />
-              {isToday && <span className="rounded-full bg-signal px-2 py-px text-[11px] font-bold text-black normal-case">Aujourd&apos;hui</span>}
+              {isToday && (
+                <span className="rounded-full bg-signal px-2 py-px text-[11px] font-bold text-black normal-case">
+                  Aujourd&apos;hui
+                </span>
+              )}
             </p>
             <p className="text-[12.5px] text-muted">
               {plan.title}
@@ -79,7 +110,11 @@ export function DayView({
             </p>
           </div>
           {!isToday && today >= PROGRAM_START && today <= PROGRAM_END && (
-            <button type="button" className="btn btn-ghost btn-sm" onClick={() => onDate(today)}>
+            <button
+              type="button"
+              className="btn btn-ghost btn-sm"
+              onClick={() => onDate(today)}
+            >
               Revenir à aujourd&apos;hui
             </button>
           )}
@@ -87,12 +122,21 @@ export function DayView({
 
         <div className="px-4 pt-3 sm:px-5">
           <div className="flex items-center gap-3">
-            <Meter value={total ? (count / total) * 100 : 0} tone={count === total ? "ok" : "act"} className="flex-1" label="Avancement du jour" />
+            <Meter
+              value={total ? (count / total) * 100 : 0}
+              tone={count === total ? "ok" : "act"}
+              className="flex-1"
+              label="Avancement du jour"
+            />
             <span className="mono text-[12.5px] font-semibold">
               {count}/{total}
             </span>
           </div>
-          {canEdit && past && count < total && <p className="mt-2 text-[12.5px] text-opt">Jour passé : cochez ce qui a été fait pour garder un suivi juste.</p>}
+          {canEdit && past && count < total && (
+            <p className="mt-2 text-[12.5px] text-opt">
+              Jour passé : cochez ce qui a été fait pour garder un suivi juste.
+            </p>
+          )}
         </div>
 
         <div className="stagger flex flex-col pb-2">
@@ -106,13 +150,32 @@ export function DayView({
                     <li key={it.key}>
                       <div className="flex items-start gap-3 rounded-xl px-2 py-2.5 hover:bg-surface-2">
                         <span className="pt-0.5">
-                          <CheckBox checked={on} onChange={(v) => toggle(it.key, v)} label={it.label} disabled={!canEdit} />
+                          <CheckBox
+                            checked={on}
+                            onChange={(v) => toggle(it.key, v)}
+                            label={it.label}
+                            disabled={!canEdit}
+                          />
                         </span>
-                        <button type="button" onClick={() => onOpen(it.key)} className="flex min-w-0 flex-1 cursor-pointer items-start gap-3 text-left">
-                          <span className="mono w-[92px] shrink-0 pt-1 text-[12px] text-muted sm:w-[104px]">{it.time}</span>
+                        <button
+                          type="button"
+                          onClick={() => onOpen(it.key)}
+                          className="flex min-w-0 flex-1 cursor-pointer items-start gap-3 text-left"
+                        >
+                          <span className="mono w-[92px] shrink-0 pt-1 text-[12px] text-muted sm:w-[104px]">
+                            {it.time}
+                          </span>
                           <span className="min-w-0 flex-1">
-                            <span className={`block text-[14.5px] leading-snug font-medium ${on ? "text-faint line-through" : ""}`}>{it.label}</span>
-                            {it.detail && <span className="mt-0.5 block text-[12.5px] text-muted">{it.detail}</span>}
+                            <span
+                              className={`block text-[14.5px] leading-snug font-medium ${on ? "text-faint line-through" : ""}`}
+                            >
+                              {it.label}
+                            </span>
+                            {it.detail && (
+                              <span className="mt-0.5 block text-[12.5px] text-muted">
+                                {it.detail}
+                              </span>
+                            )}
                             <span className="mt-1 inline-flex items-center gap-0.5 text-[12px] font-semibold text-muted">
                               Méthode et ressources
                               <IconChevronRight size={13} />
@@ -120,19 +183,34 @@ export function DayView({
                           </span>
                           <span className="flex shrink-0 flex-col items-end gap-1 pt-0.5">
                             {it.lang && <LangTag lang={it.lang} />}
-                            {it.minutes != null && <span className="mono text-[11px] text-faint">{minutesLabel(it.minutes)}</span>}
+                            {it.minutes != null && (
+                              <span className="mono text-[11px] text-faint">
+                                {minutesLabel(it.minutes)}
+                              </span>
+                            )}
                           </span>
                         </button>
                       </div>
-                      {it.tool && onTool && date >= today && (
-                        <button
-                          type="button"
-                          onClick={() => onTool(it.tool!)}
-                          className="btn btn-ghost mb-1 ml-[44px] min-h-9 px-3 text-[12.5px] font-semibold sm:ml-[48px]"
-                        >
-                          {it.tool === "tcf" ? "Ouvrir le test TCF Canada" : "Ouvrir les exercices du jour"}
-                          <IconChevronRight size={14} />
-                        </button>
+                      {it.tool && date === today && toolDone?.(it) ? (
+                        <p className="mb-1 ml-[44px] inline-flex items-center gap-1 text-[12.5px] font-semibold text-ok sm:ml-[48px]">
+                          ✓ Fait dans l&apos;application
+                          {!on && canEdit ? " : pensez à cocher la tâche" : ""}
+                        </p>
+                      ) : (
+                        it.tool &&
+                        onTool &&
+                        date >= today && (
+                          <button
+                            type="button"
+                            onClick={() => onTool(it.tool!)}
+                            className="btn btn-ghost mb-1 ml-[44px] min-h-9 px-3 text-[12.5px] font-semibold sm:ml-[48px]"
+                          >
+                            {it.tool === "tcf"
+                              ? "Ouvrir le test TCF Canada"
+                              : "Ouvrir les exercices du jour"}
+                            <IconChevronRight size={14} />
+                          </button>
+                        )
                       )}
                     </li>
                   );
@@ -150,15 +228,40 @@ export function DayView({
         )}
       </section>
 
-      {plan.week && <WeekAside week={plan.week} done={done} toggle={toggle} canEdit={canEdit} />}
+      {plan.week && (
+        <WeekAside
+          week={plan.week}
+          done={done}
+          toggle={toggle}
+          canEdit={canEdit}
+        />
+      )}
       {openKey && plan.items.some((i) => i.key === openKey) && (
-        <TaskDrawer plan={plan} itemKey={openKey} done={done} toggle={toggle} onSelect={onOpen} onClose={() => onOpen(null)} canEdit={canEdit} />
+        <TaskDrawer
+          plan={plan}
+          itemKey={openKey}
+          done={done}
+          toggle={toggle}
+          onSelect={onOpen}
+          onClose={() => onOpen(null)}
+          canEdit={canEdit}
+        />
       )}
     </div>
   );
 }
 
-function WeekAside({ week, done, toggle, canEdit }: { week: Week; done: Set<string>; toggle: (key: string, v: boolean) => void; canEdit: boolean }) {
+function WeekAside({
+  week,
+  done,
+  toggle,
+  canEdit,
+}: {
+  week: Week;
+  done: Set<string>;
+  toggle: (key: string, v: boolean) => void;
+  canEdit: boolean;
+}) {
   const sent = week.sends.filter((_, i) => done.has(sendKey(week, i))).length;
   return (
     <div className="flex flex-col gap-5 self-start">
@@ -168,27 +271,39 @@ function WeekAside({ week, done, toggle, canEdit }: { week: Week; done: Set<stri
         </p>
         <dl className="mt-3 flex flex-col gap-3 text-[13.5px]">
           <div>
-            <dt className="text-[11.5px] font-semibold text-muted">Thème de vocabulaire</dt>
+            <dt className="text-[11.5px] font-semibold text-muted">
+              Thème de vocabulaire
+            </dt>
             <dd className="font-semibold">{week.theme}</dd>
           </div>
           {week.grammar && (
             <div>
-              <dt className="text-[11.5px] font-semibold text-muted">Grammaire</dt>
+              <dt className="text-[11.5px] font-semibold text-muted">
+                Grammaire
+              </dt>
               <dd>{week.grammar}</dd>
             </div>
           )}
           {week.focus.map((f) => (
             <div key={f.label}>
-              <dt className="text-[11.5px] font-semibold text-muted">{f.label}</dt>
+              <dt className="text-[11.5px] font-semibold text-muted">
+                {f.label}
+              </dt>
               <dd>{f.value}</dd>
             </div>
           ))}
           <div>
-            <dt className="text-[11.5px] font-semibold text-muted">Objectif de la semaine</dt>
+            <dt className="text-[11.5px] font-semibold text-muted">
+              Objectif de la semaine
+            </dt>
             <dd>{week.goal}</dd>
           </div>
         </dl>
-        {week.note && <p className="mt-3 rounded-lg bg-opt-bg px-3 py-2 text-[12.5px] text-opt">{week.note}</p>}
+        {week.note && (
+          <p className="mt-3 rounded-lg bg-opt-bg px-3 py-2 text-[12.5px] text-opt">
+            {week.note}
+          </p>
+        )}
       </section>
 
       <section className="card p-5">
@@ -204,11 +319,27 @@ function WeekAside({ week, done, toggle, canEdit }: { week: Week; done: Set<stri
             const on = done.has(key);
             return (
               <li key={key}>
-                <label className={`-mx-2 flex items-start gap-2.5 rounded-lg px-2 py-2 ${canEdit ? "cursor-pointer hover:bg-surface-2" : ""}`}>
-                  <CheckBox checked={on} onChange={(v) => toggle(key, v)} label={s.label} size={20} disabled={!canEdit} />
+                <label
+                  className={`-mx-2 flex items-start gap-2.5 rounded-lg px-2 py-2 ${canEdit ? "cursor-pointer hover:bg-surface-2" : ""}`}
+                >
+                  <CheckBox
+                    checked={on}
+                    onChange={(v) => toggle(key, v)}
+                    label={s.label}
+                    size={20}
+                    disabled={!canEdit}
+                  />
                   <span className="min-w-0 flex-1">
-                    <span className={`block text-[13.5px] leading-snug font-medium ${on ? "text-faint line-through" : ""}`}>{s.label}</span>
-                    {s.subject && <span className="block text-[12px] text-muted">{s.subject}</span>}
+                    <span
+                      className={`block text-[13.5px] leading-snug font-medium ${on ? "text-faint line-through" : ""}`}
+                    >
+                      {s.label}
+                    </span>
+                    {s.subject && (
+                      <span className="block text-[12px] text-muted">
+                        {s.subject}
+                      </span>
+                    )}
                   </span>
                 </label>
               </li>

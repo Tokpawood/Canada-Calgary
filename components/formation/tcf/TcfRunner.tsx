@@ -990,6 +990,14 @@ export function TcfRunner({
             l&apos;iPad.
           </p>
         )}
+        {section.epreuve === "co" && canSpeak() && (
+          <p className="mx-5 rounded-xl bg-surface-2 px-3 py-2 text-[12.5px] text-muted sm:mx-7">
+            Voix plus naturelle : sur l&apos;iPad, Réglages › Accessibilité ›
+            Contenu énoncé › Voix › Français, puis téléchargez une voix «
+            améliorée » ou « premium » (Amélie, Thomas…). L&apos;application la
+            choisira d&apos;elle-même.
+          </p>
+        )}
         {section.epreuve === "eo" && !canListen() && (
           <p className="mx-5 rounded-xl bg-opt-bg px-3 py-2 text-[13px] text-opt sm:mx-7">
             La dictée n&apos;est pas disponible ici : vous taperez vos réponses.
@@ -1022,6 +1030,13 @@ export function TcfRunner({
       </section>
     );
 
+  // Rythme en compréhension écrite : combien de questions de retard sur une progression régulière.
+  const totalMs = section.minutes * 60_000;
+  const pace =
+    section.epreuve === "ce" && left != null && left > 0
+      ? Math.max(0, Math.floor((count * (totalMs - left)) / totalMs) - answered)
+      : null;
+  const perQuestion = fmt(totalMs / Math.max(1, count));
   return (
     <div className="flex flex-col gap-3">
       <div className="sticky top-2 z-20 flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-night px-4 py-2.5 text-night-ink shadow-lg">
@@ -1030,6 +1045,15 @@ export function TcfRunner({
           <span className="mono ml-2 font-normal text-night-muted">
             {answered}/{count}
           </span>
+          {pace != null && (
+            <span
+              className={`ml-2 text-[12px] font-normal ${pace > 1 ? "text-signal" : "text-night-muted"}`}
+            >
+              {pace > 1
+                ? `en retard de ${pace} question${pace > 1 ? "s" : ""}`
+                : `≈ ${perQuestion} par question`}
+            </span>
+          )}
         </span>
         {left != null && (
           <span

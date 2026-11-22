@@ -14,9 +14,19 @@ function frenchVoices(): SpeechSynthesisVoice[] {
   const all = window.speechSynthesis
     .getVoices()
     .filter((v) => v.lang.toLowerCase().startsWith("fr"));
-  // Accent canadien d'abord, puis voix locales (meilleure qualité hors ligne).
+  // Voix de meilleure qualité d'abord (premium, améliorées, neuronales : à télécharger dans les Réglages
+  // de l'iPad), puis l'accent canadien, puis les voix locales.
+  const quality = (v: SpeechSynthesisVoice) =>
+    /premium/i.test(`${v.name} ${v.voiceURI}`)
+      ? 3
+      : /enhanced|am[ée]lior|neural|natural|siri/i.test(
+            `${v.name} ${v.voiceURI}`,
+          )
+        ? 2
+        : 0;
   return all.sort(
     (a, b) =>
+      quality(b) - quality(a) ||
       Number(b.lang === "fr-CA") - Number(a.lang === "fr-CA") ||
       Number(b.localService) - Number(a.localService),
   );

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, type Dispatch, type SetStateAction } from "react";
 import type { ErrorEntry } from "@/lib/formation";
 import {
   C2_TARGET,
@@ -195,17 +195,18 @@ type Screen =
   | { mode: "result"; id: string; si: number };
 
 export function TcfView({
-  initialTests,
+  tests,
+  setTests,
   setErrors,
   today,
   canEdit,
 }: {
-  initialTests: TcfTest[];
+  tests: TcfTest[];
+  setTests: Dispatch<SetStateAction<TcfTest[]>>;
   setErrors: (f: (e: ErrorEntry[]) => ErrorEntry[]) => void;
   today: string;
   canEdit: boolean;
 }) {
-  const [tests, setTests] = useState(initialTests);
   const [screen, setScreen] = useState<Screen>({ mode: "home" });
   const [busy, setBusy] = useState(false);
   const [startedAt, setStartedAt] = useState(0);
@@ -390,7 +391,23 @@ export function TcfView({
         <div className="flex flex-col gap-3">
           {back}
           {done || screen.mode === "result" ? (
-            <SectionResults test={test} si={screen.si} setErrors={setErrors} />
+            <>
+              <SectionResults
+                test={test}
+                si={screen.si}
+                setErrors={setErrors}
+              />
+              <button
+                type="button"
+                className="btn btn-primary self-center px-5"
+                onClick={() => {
+                  setScreen({ mode: "home" });
+                  window.scrollTo({ top: 0 });
+                }}
+              >
+                <IconChevronLeft size={16} /> Retour au tableau de bord
+              </button>
+            </>
           ) : (
             <TcfRunner
               test={test}

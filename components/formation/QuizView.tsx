@@ -793,7 +793,25 @@ export function QuizView({
       return json.quiz;
     })();
     try {
-      const quiz = await Promise.race([post, poll().then((q) => q ?? post)]);
+      const polled = poll();
+      // Safari sur iPad coupe une requête sans réponse au bout d'une minute (« Load failed ») alors que
+      // le serveur continue : dans ce cas, on attend la série en relisant la base.
+      const quiz = await Promise.race([
+        post.catch((e: unknown) =>
+          e instanceof TypeError
+            ? polled.then(
+                (q) =>
+                  q ??
+                  Promise.reject(
+                    new Error(
+                      "La préparation prend plus de temps que prévu. Revenez dans quelques minutes.",
+                    ),
+                  ),
+              )
+            : Promise.reject(e),
+        ),
+        polled.then((q) => q ?? post),
+      ]);
       setStep(0);
       show(quiz);
     } catch (e) {
@@ -859,7 +877,23 @@ export function QuizView({
       return { quiz: json.quiz, bumped: json.bumped };
     })();
     try {
-      const json = await Promise.race([post, poll().then((q) => q ?? post)]);
+      const polled = poll();
+      const json = await Promise.race([
+        post.catch((e: unknown) =>
+          e instanceof TypeError
+            ? polled.then(
+                (q) =>
+                  q ??
+                  Promise.reject(
+                    new Error(
+                      "La correction prend plus de temps que prévu. Vos réponses sont gardées : revenez dans quelques minutes.",
+                    ),
+                  ),
+              )
+            : Promise.reject(e),
+        ),
+        polled.then((q) => q ?? post),
+      ]);
       setQuizzes((list) =>
         list.map((q) => (q.id === json.quiz.id ? json.quiz : q)),
       );
@@ -1003,12 +1037,10 @@ export function QuizView({
                   onClick={() =>
                     view === "focus"
                       ? goTo(i)
-                      : document
-                          .getElementById(`ex-${it.id}`)
-                          ?.scrollIntoView({
-                            behavior: "smooth",
-                            block: "center",
-                          })
+                      : document.getElementById(`ex-${it.id}`)?.scrollIntoView({
+                          behavior: "smooth",
+                          block: "center",
+                        })
                   }
                   aria-current={on ? "step" : undefined}
                   aria-label={`Exercice ${i + 1}${filled(it.id) ? " (répondu)" : ""}`}

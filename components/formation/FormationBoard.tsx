@@ -21,6 +21,7 @@ import {
   streak,
   weekKeys,
   weekOf,
+  type DayItem,
   type ErrorEntry,
   type MemoEntry,
   type TrainingScore,
@@ -98,7 +99,20 @@ export function FormationBoard({
   const [memos, setMemos] = useState(initialMemos);
   const [quizzes, setQuizzes] = useState(initialQuizzes);
   const todayQuiz = quizzes.find((q) => q.day === today);
-  const todayTests = initialTests.filter((t) => t.day === today);
+  // Tests gardés ici (et non dans l'onglet) : changer d'onglet ne fait pas perdre un résultat tout juste obtenu.
+  const [tests, setTests] = useState(initialTests);
+  const todayTests = tests.filter((t) => t.day === today);
+  /** Tâche du plan du jour déjà faite dans l'application (test TCF ou exercices du jour). */
+  const toolDone = (it: DayItem): boolean => {
+    if (it.tool === "exercices") return todayQuiz?.status === "corrige";
+    if (it.tool !== "tcf" || !todayTests.length) return false;
+    if (!it.epreuve) return todayTests.every((t) => t.status === "corrige");
+    return todayTests.some((t) =>
+      t.plan.sections.some(
+        (s, si) => s.epreuve === it.epreuve && !!t.progress[String(si)]?.result,
+      ),
+    );
+  };
   const [date, setDate] = useState(() => clampToProgram(initialDate ?? today));
   const [tab, setTab] = useHashTab<Tab>(TABS, "jour");
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -446,6 +460,7 @@ export function FormationBoard({
             onOpen={setOpenKey}
             canEdit={canEdit}
             onTool={(t) => setTab(t === "tcf" ? "tcf" : "exercices")}
+            toolDone={toolDone}
           />
         )}
         {tab === "exercices" && (
@@ -459,7 +474,8 @@ export function FormationBoard({
         )}
         {tab === "tcf" && (
           <TcfView
-            initialTests={initialTests}
+            tests={tests}
+            setTests={setTests}
             setErrors={setErrors}
             today={today}
             canEdit={canEdit}
