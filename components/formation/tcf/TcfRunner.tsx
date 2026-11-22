@@ -20,7 +20,14 @@ import {
   IconChevronRight,
   IconRefresh,
 } from "@/components/icons";
-import { canListen, canSpeak, listen, speakTurns, voicesReady } from "./speech";
+import {
+  canListen,
+  canSpeak,
+  listen,
+  speakTurns,
+  unlockSpeech,
+  voicesReady,
+} from "./speech";
 
 const clockNow = () => Date.now();
 const fmt = (ms: number) => {
@@ -145,22 +152,51 @@ function CoRunner({
   const [heard, setHeard] = useState<string[]>(() =>
     store.get(`${storeKey}-heard`, []),
   );
-  const [playing, setPlaying] = useState(false);
+  // attente : lancé, le son n'a pas encore démarré ; lecture : on entend ; echec : rien n'est sorti.
+  const [audio, setAudio] = useState<"repos" | "attente" | "lecture" | "echec">(
+    "repos",
+  );
+  const [readOnly, setReadOnly] = useState<string[]>([]);
+  const playing = audio === "attente" || audio === "lecture";
   const stopRef = useRef<() => void>(() => {});
   const it = items[Math.min(i, items.length - 1)];
-  useEffect(() => () => stopRef.current(), []);
+  useEffect(() => {
+    // Les voix se chargent en avance : au toucher, la lecture doit partir sans attendre (exigence de Safari).
+    void voicesReady();
+    return () => stopRef.current();
+  }, []);
 
-  const play = async () => {
-    setPlaying(true);
-    const next = [...heard, it.id];
-    setHeard(next);
-    store.set(`${storeKey}-heard`, next);
-    await voicesReady();
-    stopRef.current = speakTurns(it.turns, it.level, () => setPlaying(false));
+  const markHeard = () => {
+    setHeard((h) => {
+      if (h.includes(it.id)) return h;
+      const n = [...h, it.id];
+      store.set(`${storeKey}-heard`, n);
+      return n;
+    });
+  };
+  // Appelée directement dans le clic, sans attente : sinon l'iPad reste muet.
+  const play = () => {
+    setAudio("attente");
+    stopRef.current = speakTurns(it.turns, it.level, {
+      onStart: () => {
+        markHeard();
+        setAudio("lecture");
+      },
+      onEnd: () => {
+        markHeard();
+        setAudio("repos");
+      },
+      onFail: () => setAudio("echec"),
+    });
+  };
+  const showText = () => {
+    setReadOnly((r) => [...r, it.id]);
+    markHeard();
+    setAudio("repos");
   };
   const next = () => {
     stopRef.current();
-    setPlaying(false);
+    setAudio("repos");
     if (i >= items.length - 1) return onFinish();
     setI(i + 1);
     store.set(`${storeKey}-i`, i + 1);
@@ -184,6 +220,42 @@ function CoRunner({
           <p className="text-[13px] text-night-muted">
             La lecture audio n&apos;est pas disponible sur cet appareil.
           </p>
+        ) : audio === "echec" ? (
+          <>
+            <p className="text-[13px] text-night-ink">
+              Le son ne démarre pas. Vérifiez que l&apos;iPad n&apos;est pas en
+              mode silencieux et que le volume est monté.
+            </p>
+            <div className="flex flex-wrap justify-center gap-2">
+              <button
+                type="button"
+                className="btn bg-signal px-4 text-night"
+                onClick={play}
+                disabled={locked}
+              >
+                ▶ Réessayer
+              </button>
+              <button
+                type="button"
+                className="btn btn-ghost px-4 text-night-ink"
+                onClick={showText}
+                disabled={locked}
+              >
+                Lire la transcription à la place
+              </button>
+            </div>
+          </>
+        ) : readOnly.includes(it.id) ? (
+          <div className="flex w-full flex-col gap-1.5 text-left text-[14px] leading-relaxed">
+            {it.turns.map((t, k) => (
+              <p key={k}>
+                <span className="font-semibold text-night-muted">
+                  {t.speaker} :{" "}
+                </span>
+                {t.text}
+              </p>
+            ))}
+          </div>
         ) : playing ? (
           <>
             <span className="flex h-8 items-end gap-1" aria-hidden>
@@ -198,7 +270,9 @@ function CoRunner({
                 />
               ))}
             </span>
-            <p className="text-[13px] text-night-muted">Écoute en cours…</p>
+            <p className="text-[13px] text-night-muted">
+              {audio === "attente" ? "Démarrage du son…" : "Écoute en cours…"}
+            </p>
           </>
         ) : was ? (
           <p className="text-[13px] text-night-muted">
@@ -208,7 +282,7 @@ function CoRunner({
           <button
             type="button"
             className="btn bg-signal px-5 py-3 text-[15px] text-night"
-            onClick={() => void play()}
+            onClick={play}
             disabled={locked}
           >
             ▶ Écouter le document{" "}
@@ -783,10 +857,20 @@ export function TcfRunner({
   }
 
   async function start() {
+    // Même toucher que le lancement : débloque la voix de l'iPad pour les documents à écouter.
+    if (section.epreuve === "co") unlockSpeech();
     setBusy("start");
     setError(null);
     try {
-      onUpdate(await call("start"));
+      let t: TcfTest;
+      try {
+        t = await call("start");
+      } catch {
+        // Premier appel parfois perdu (connexion qui se réveille, session à rafraîchir) : un second essai.
+        await new Promise((r) => setTimeout(r, 1200));
+        t = await call("start");
+      }
+      onUpdate(t);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Impossible de démarrer.");
     } finally {

@@ -48,36 +48,104 @@ const RATE: Record<Level, number> = {
   C2: 1.05,
 };
 
-/** Lit un document réplique par réplique, en alternant voix féminine et masculine si possible. */
+/**
+ * Débloque la voix sur iPad : Safari ne parle que si la première lecture part directement d'un toucher.
+ * À appeler dans le gestionnaire du clic (« Lancer le chronomètre », « Écouter »), sans attente avant.
+ */
+export function unlockSpeech() {
+  if (!canSpeak()) return;
+  const synth = window.speechSynthesis;
+  synth.resume();
+  const u = new SpeechSynthesisUtterance(" ");
+  u.volume = 0;
+  synth.speak(u);
+}
+
+/** Découpe en phrases : Safari et Chrome interrompent parfois les lectures longues sans prévenir. */
+function sentences(text: string): string[] {
+  const parts = text.match(/[^.!?…]+[.!?…]+["»”)]*\s*|[^.!?…]+$/g) ?? [text];
+  return parts.map((p) => p.trim()).filter(Boolean);
+}
+
+// Gardées en mémoire tant qu'elles sont lues : sinon Safari peut les libérer et ne jamais finir.
+let live: SpeechSynthesisUtterance[] = [];
+
+/**
+ * Lit un document réplique par réplique, en alternant voix féminine et masculine si possible.
+ * Appelle onStart quand le son démarre vraiment, onFail si rien ne démarre en 6 secondes,
+ * onEnd à la fin (au plus tard après la durée estimée de lecture, pour ne jamais rester bloqué).
+ */
 export function speakTurns(
   turns: Array<{ voice: "f" | "m"; text: string }>,
   level: Level,
-  onEnd: () => void,
+  cb: { onStart?: () => void; onEnd: () => void; onFail?: () => void },
 ): () => void {
   if (!canSpeak()) {
-    onEnd();
+    cb.onFail?.();
     return () => {};
   }
   const synth = window.speechSynthesis;
-  synth.cancel();
+  if (synth.speaking || synth.pending) synth.cancel();
+  synth.resume();
   const voices = frenchVoices();
   const fem = voices.find((v) => FEMALE.test(v.name)) ?? voices[0];
   const masc = voices.find((v) => !FEMALE.test(v.name)) ?? voices[0];
-  let cancelled = false;
-  turns.forEach((t, i) => {
-    const u = new SpeechSynthesisUtterance(t.text);
-    const v = t.voice === "f" ? fem : masc;
+  let state: "attente" | "lecture" | "fini" = "attente";
+  const timers: {
+    start?: ReturnType<typeof setTimeout>;
+    end?: ReturnType<typeof setTimeout>;
+  } = {};
+  const finish = (ok: boolean) => {
+    if (state === "fini") return;
+    const started = state === "lecture";
+    state = "fini";
+    clearTimeout(timers.start);
+    clearTimeout(timers.end);
+    live = [];
+    if (ok || started) cb.onEnd();
+    else cb.onFail?.();
+  };
+  const chunks = turns.flatMap((t) =>
+    sentences(t.text).map((text) => ({ voice: t.voice, text })),
+  );
+  const words = chunks.reduce((n, c) => n + c.text.split(/\s+/).length, 0);
+  // Environ 2,6 mots par seconde à vitesse normale, plus une marge.
+  const expected = (words / (2.6 * RATE[level])) * 1000 + chunks.length * 400;
+  live = chunks.map((c, i) => {
+    const u = new SpeechSynthesisUtterance(c.text);
+    const v = c.voice === "f" ? fem : masc;
     if (v) u.voice = v;
     u.lang = v?.lang ?? "fr-FR";
     u.rate = RATE[level];
     // Même voix pour les deux locuteurs : on les distingue par la hauteur.
-    if (fem === masc) u.pitch = t.voice === "f" ? 1.15 : 0.85;
-    if (i === turns.length - 1) u.onend = () => !cancelled && onEnd();
-    u.onerror = () => i === turns.length - 1 && !cancelled && onEnd();
-    synth.speak(u);
+    if (fem === masc) u.pitch = c.voice === "f" ? 1.15 : 0.85;
+    u.onstart = () => {
+      if (state === "attente") {
+        state = "lecture";
+        clearTimeout(timers.start);
+        cb.onStart?.();
+      }
+    };
+    if (i === chunks.length - 1) u.onend = () => finish(true);
+    u.onerror = (e) => {
+      if (e.error === "interrupted" || e.error === "canceled") return;
+      if (i === chunks.length - 1) finish(state === "lecture");
+    };
+    return u;
   });
+  for (const u of live) synth.speak(u);
+  timers.start = setTimeout(() => {
+    if (state === "attente") {
+      synth.cancel();
+      finish(false);
+    }
+  }, 6000);
+  timers.end = setTimeout(() => finish(true), expected * 1.6 + 15_000);
   return () => {
-    cancelled = true;
+    state = "fini";
+    clearTimeout(timers.start);
+    clearTimeout(timers.end);
+    live = [];
     synth.cancel();
   };
 }
