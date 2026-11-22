@@ -81,7 +81,7 @@ function GoalPanel({ tests }: { tests: TcfTest[] }) {
         </h3>
         <p className="mt-1 text-[13px] text-night-muted">
           Niveau estimé d&apos;après vos trois derniers résultats dans chaque
-          épreuve. C2 = 600/699 en compréhension, 16/20 en expression.
+          épreuve. C2 = 600/699 en compréhension, 16/20 en expression ; NCLC 10 (maximum de points Entrée express) = 549/699 et 16/20.
         </p>
       </div>
       <ul className="divide-y divide-line">
@@ -608,7 +608,7 @@ export function TcfView({
           ))}
         </ol>
         <p className="mt-2 text-[12px] text-muted">
-          Samedi : TCF blanc complet (2 h 50, faisable en plusieurs fois).
+          Samedi : TCF Canada blanc complet (2 h 50, faisable en plusieurs fois).
           Dimanche : l&apos;épreuve de compréhension la plus éloignée de C2. Les
           exercices du jour restent à faire en plus.
         </p>

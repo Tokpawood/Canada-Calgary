@@ -276,7 +276,7 @@ export function FormationBoard({
               },
               {
                 id: "tcf",
-                label: "Test TCF",
+                label: "TCF Canada",
                 icon: <IconShield size={15} />,
                 badge:
                   todayTests.length &&

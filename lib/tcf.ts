@@ -223,7 +223,7 @@ export const ROTATION: Record<number, { label: string; epreuves: Epreuve[] }> =
       label: "Mixte : lecture, écoute, écrit",
       epreuves: ["ce", "co", "ee"],
     },
-    6: { label: "TCF blanc complet", epreuves: ["co", "ce", "ee", "eo"] },
+    6: { label: "TCF Canada blanc complet", epreuves: ["co", "ce", "ee", "eo"] },
     0: { label: "Point faible", epreuves: [] },
   };
 
@@ -242,7 +242,7 @@ export function planFor(
 ): { title: string; sections: Array<Omit<Section, "parts">> } {
   if (kind === "positionnement")
     return {
-      title: "Test de positionnement",
+      title: "Positionnement TCF Canada",
       sections: [
         { epreuve: "co", minutes: 15, levels: spread(PLACEMENT_SPREAD) },
         { epreuve: "ce", minutes: 25, levels: spread(PLACEMENT_SPREAD) },
@@ -251,7 +251,7 @@ export function planFor(
     };
   if (kind === "blanc")
     return {
-      title: "TCF blanc complet",
+      title: "TCF Canada blanc complet",
       sections: [
         {
           epreuve: "co",
