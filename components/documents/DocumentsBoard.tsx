@@ -21,14 +21,18 @@ import {
 } from "@/components/ui";
 import {
   DOCUMENT_STAGES,
+  LATER_STAGES,
   groupByStage,
   guessStage,
+  profileReadiness,
   stageOf,
   type DocumentStage,
 } from "@/lib/documentStages";
 import {
   IconAlert,
   IconCheck,
+  IconChevronDown,
+  IconChevronRight,
   IconFile,
   IconPaperclip,
   IconPlus,
@@ -87,6 +91,18 @@ export function DocumentsBoard({
   const [adding, setAdding] = useState(false);
   const [newName, setNewName] = useState("");
   const [addStage, setAddStage] = useState<DocumentStage | "">("");
+  // Étapes repliées : les lointaines au départ, pour se concentrer sur le profil.
+  const [folded, setFolded] = useState<Set<string>>(
+    () => new Set<string>(LATER_STAGES),
+  );
+  const toggleFold = (id: string) =>
+    setFolded((f) => {
+      const n = new Set(f);
+      if (n.has(id)) n.delete(id);
+      else n.add(id);
+      return n;
+    });
+  const readiness = useMemo(() => profileReadiness(documents), [documents]);
   const [savingNew, setSavingNew] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const supabase = createClient();
@@ -479,6 +495,86 @@ export function DocumentsBoard({
 
         {tab === "pieces" && (
           <>
+            {readiness.total > 0 && (
+              <section
+                className="card mb-4 overflow-hidden"
+                aria-labelledby="pret-profil"
+              >
+                <div className="flex flex-wrap items-center gap-x-5 gap-y-3 px-4 pt-4 pb-3 sm:px-5">
+                  <div className="min-w-0 flex-1">
+                    <h2 id="pret-profil" className="text-[16px] font-bold">
+                      {readiness.done === readiness.total
+                        ? "Prêt pour le profil Entrée express"
+                        : "Prochaines pièces pour le profil Entrée express"}
+                    </h2>
+                    <p className="text-[12.5px] text-muted">
+                      Pièces obligatoires des étapes 1 à 5 : elles servent à
+                      remplir le profil et doivent être prêtes avant
+                      l&apos;invitation.
+                    </p>
+                  </div>
+                  <div className="w-full sm:w-56">
+                    <div className="flex items-baseline justify-between text-[12px]">
+                      <span className="text-muted">Obtenues</span>
+                      <span className="mono font-semibold">
+                        {readiness.done}/{readiness.total}
+                      </span>
+                    </div>
+                    <Meter
+                      value={(readiness.done / readiness.total) * 100}
+                      tone={readiness.done === readiness.total ? "ok" : "act"}
+                      className="mt-1"
+                      label={`Profil Entrée express : ${readiness.done} pièces obligatoires sur ${readiness.total}`}
+                    />
+                  </div>
+                </div>
+                {readiness.next.length > 0 && (
+                  <ul className="border-t border-line">
+                    {readiness.next.slice(0, 4).map((d) => {
+                      const st = stageOf(d);
+                      const i = DOCUMENT_STAGES.findIndex((x) => x.id === st);
+                      return (
+                        <li
+                          key={d.id}
+                          className="border-t border-line first:border-t-0"
+                        >
+                          <button
+                            type="button"
+                            onClick={() => setSelectedId(d.id)}
+                            className="flex w-full items-center gap-3 px-4 py-2.5 text-left hover:bg-surface-2/70 sm:px-5"
+                          >
+                            <span className="mono grid h-6 w-6 shrink-0 place-items-center rounded-lg bg-surface-2 text-[11.5px] font-bold text-muted">
+                              {i + 1}
+                            </span>
+                            <span className="min-w-0 flex-1">
+                              <span className="block truncate text-[13.5px] font-semibold">
+                                {d.name}
+                              </span>
+                              <span className="block truncate text-[12px] text-muted">
+                                {d.status === "Demandé"
+                                  ? `Demandé${d.from ? ` à ${d.from}` : ""} : relancer si besoin`
+                                  : `À demander${d.from ? ` · ${d.from}` : ""}`}
+                              </span>
+                            </span>
+                            <IconChevronRight
+                              size={15}
+                              className="shrink-0 text-muted"
+                            />
+                          </button>
+                        </li>
+                      );
+                    })}
+                    {readiness.next.length > 4 && (
+                      <li className="border-t border-line px-4 py-2 text-[12px] text-muted sm:px-5">
+                        et {readiness.next.length - 4} autre
+                        {readiness.next.length - 4 > 1 ? "s" : ""} dans les
+                        étapes ci-dessous.
+                      </li>
+                    )}
+                  </ul>
+                )}
+              </section>
+            )}
             <nav
               aria-label="Étapes de la procédure"
               className="mb-4 grid grid-cols-2 gap-2 sm:grid-cols-4"
@@ -496,6 +592,11 @@ export function DocumentsBoard({
                     href={`#etape-${st.id}`}
                     onClick={(e) => {
                       e.preventDefault();
+                      setFolded((f) => {
+                        const n = new Set(f);
+                        n.delete(st.id);
+                        return n;
+                      });
                       document
                         .getElementById(`etape-${st.id}`)
                         ?.scrollIntoView({
@@ -687,6 +788,10 @@ export function DocumentsBoard({
                   const missing = all.filter(
                     (d) => d.req === "Obligatoire" && d.status !== "Obtenu",
                   ).length;
+                  // Recherche ou filtre actif : tout est déplié pour voir les résultats.
+                  const searching =
+                    filter !== "all" || reqFilter !== "all" || !!query;
+                  const isFolded = !searching && folded.has(key);
                   return (
                     <section
                       key={key}
@@ -694,7 +799,10 @@ export function DocumentsBoard({
                       className="card scroll-mt-4 overflow-hidden"
                       aria-labelledby={`etape-${key}-t`}
                     >
-                      <header className="flex flex-wrap items-start gap-3 px-4 pt-4 pb-3 sm:px-5">
+                      <header
+                        className={`flex cursor-pointer flex-wrap items-start gap-3 px-4 pt-4 sm:px-5 ${isFolded ? "pb-4" : "pb-3"}`}
+                        onClick={() => toggleFold(key)}
+                      >
                         <span
                           className={`mono grid h-9 w-9 shrink-0 place-items-center rounded-xl text-[14px] font-bold ${complete ? "bg-ok-bg text-ok" : "bg-night text-night-ink"}`}
                           aria-hidden
@@ -714,6 +822,24 @@ export function DocumentsBoard({
                                 {stage.when}
                               </span>
                             )}
+                            <button
+                              type="button"
+                              aria-expanded={!isFolded}
+                              aria-controls={`etape-${key}-l`}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                toggleFold(key);
+                              }}
+                              className="ml-auto inline-flex items-center gap-1 rounded-lg px-1.5 py-0.5 text-[12px] font-semibold text-muted hover:bg-surface-2 sm:ml-0"
+                            >
+                              <IconChevronDown
+                                size={14}
+                                className={`transition-transform ${isFolded ? "-rotate-90" : ""}`}
+                              />
+                              {isFolded
+                                ? `Afficher ${docs.length} pièce${docs.length > 1 ? "s" : ""}`
+                                : "Replier"}
+                            </button>
                           </div>
                           <p className="mt-0.5 text-[12.5px] text-muted">
                             {stage?.desc ??
@@ -742,71 +868,76 @@ export function DocumentsBoard({
                           />
                         </div>
                       </header>
-                      <ul>
-                        {docs.map((d) => {
-                          const checksDone = d.checks.filter(
-                            (c) => c.done,
-                          ).length;
-                          const needsCheck =
-                            d.status === "Obtenu" &&
-                            checksDone < d.checks.length;
-                          return (
-                            <li key={d.id} className="border-t border-line">
-                              <button
-                                type="button"
-                                onClick={() => setSelectedId(d.id)}
-                                className="flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-surface-2/70 sm:px-5"
-                              >
-                                <span
-                                  className={`h-2.5 w-2.5 shrink-0 rounded-full ${TONE_DOT[DOC_TONE[d.status]]} ${d.status === "À obtenir" ? "opacity-40" : ""}`}
-                                  aria-hidden
-                                />
-                                <span className="min-w-0 flex-1">
-                                  <span className="flex flex-wrap items-center gap-x-2">
-                                    <span className="text-[14px] font-semibold">
-                                      {d.name}
-                                    </span>
-                                    {d.req === "Obligatoire" ? (
-                                      d.status !== "Obtenu" && (
-                                        <span className="text-[11px] font-semibold text-bad">
-                                          Obligatoire
+                      {!isFolded && (
+                        <ul id={`etape-${key}-l`}>
+                          {docs.map((d) => {
+                            const checksDone = d.checks.filter(
+                              (c) => c.done,
+                            ).length;
+                            const needsCheck =
+                              d.status === "Obtenu" &&
+                              checksDone < d.checks.length;
+                            return (
+                              <li key={d.id} className="border-t border-line">
+                                <button
+                                  type="button"
+                                  onClick={() => setSelectedId(d.id)}
+                                  className="flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-surface-2/70 sm:px-5"
+                                >
+                                  <span
+                                    className={`h-2.5 w-2.5 shrink-0 rounded-full ${TONE_DOT[DOC_TONE[d.status]]} ${d.status === "À obtenir" ? "opacity-40" : ""}`}
+                                    aria-hidden
+                                  />
+                                  <span className="min-w-0 flex-1">
+                                    <span className="flex flex-wrap items-center gap-x-2">
+                                      <span className="text-[14px] font-semibold">
+                                        {d.name}
+                                      </span>
+                                      {d.req === "Obligatoire" ? (
+                                        d.status !== "Obtenu" && (
+                                          <span className="text-[11px] font-semibold text-bad">
+                                            Obligatoire
+                                          </span>
+                                        )
+                                      ) : (
+                                        <span className="text-[11px] font-semibold text-faint">
+                                          {d.req}
                                         </span>
-                                      )
-                                    ) : (
-                                      <span className="text-[11px] font-semibold text-faint">
-                                        {d.req}
-                                      </span>
-                                    )}
+                                      )}
+                                    </span>
+                                    <span className="mt-0.5 flex flex-wrap items-center gap-x-2.5 text-[12px] text-muted">
+                                      {d.from && (
+                                        <span className="truncate">
+                                          {d.from}
+                                        </span>
+                                      )}
+                                      {d.checks.length > 0 && (
+                                        <span
+                                          className={`mono ${needsCheck ? "font-semibold text-opt" : ""}`}
+                                        >
+                                          {checksDone}/{d.checks.length}{" "}
+                                          contrôles
+                                        </span>
+                                      )}
+                                      {d.files.length > 0 && (
+                                        <span className="inline-flex items-center gap-1">
+                                          <IconPaperclip size={12} />
+                                          {d.files.length} scan
+                                          {d.files.length > 1 ? "s" : ""}
+                                        </span>
+                                      )}
+                                    </span>
                                   </span>
-                                  <span className="mt-0.5 flex flex-wrap items-center gap-x-2.5 text-[12px] text-muted">
-                                    {d.from && (
-                                      <span className="truncate">{d.from}</span>
-                                    )}
-                                    {d.checks.length > 0 && (
-                                      <span
-                                        className={`mono ${needsCheck ? "font-semibold text-opt" : ""}`}
-                                      >
-                                        {checksDone}/{d.checks.length} contrôles
-                                      </span>
-                                    )}
-                                    {d.files.length > 0 && (
-                                      <span className="inline-flex items-center gap-1">
-                                        <IconPaperclip size={12} />
-                                        {d.files.length} scan
-                                        {d.files.length > 1 ? "s" : ""}
-                                      </span>
-                                    )}
-                                  </span>
-                                </span>
-                                <Chip tone={DOC_TONE[d.status]}>
-                                  {d.status}
-                                </Chip>
-                              </button>
-                            </li>
-                          );
-                        })}
-                      </ul>
-                      {stage && (
+                                  <Chip tone={DOC_TONE[d.status]}>
+                                    {d.status}
+                                  </Chip>
+                                </button>
+                              </li>
+                            );
+                          })}
+                        </ul>
+                      )}
+                      {stage && !isFolded && (
                         <button
                           type="button"
                           onClick={() => {

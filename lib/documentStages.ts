@@ -126,3 +126,50 @@ export function groupByStage<
   if (loose.length) out.push({ stage: null, docs: loose });
   return out.filter((g) => g.docs.length > 0);
 }
+
+/** Étapes dont les pièces servent à créer le profil Entrée express. */
+export const PROFILE_STAGES: DocumentStage[] = [
+  "identite",
+  "langues",
+  "etudes",
+  "experience",
+  "fonds",
+];
+/** Étapes lointaines, repliées par défaut tant qu'on prépare le profil. */
+export const LATER_STAGES: DocumentStage[] = [
+  "demande",
+  "arrivee",
+  "installation",
+];
+
+/**
+ * Où en est le dossier pour le profil : pièces obligatoires des étapes 1 à 5 obtenues,
+ * et prochaines à traiter (à demander d'abord, puis demandées à relancer), dans l'ordre de la procédure.
+ */
+export function profileReadiness<
+  T extends Pick<
+    DocumentRecord,
+    "stage" | "name" | "req" | "status" | "position"
+  >,
+>(docs: T[]) {
+  const mandatory = docs.filter((d) => {
+    const st = stageOf(d);
+    return (
+      d.req === "Obligatoire" && st !== null && PROFILE_STAGES.includes(st)
+    );
+  });
+  const rank = (d: T) => PROFILE_STAGES.indexOf(stageOf(d)!);
+  const missing = mandatory
+    .filter((d) => d.status !== "Obtenu")
+    .sort(
+      (a, b) =>
+        Number(a.status === "Demandé") - Number(b.status === "Demandé") ||
+        rank(a) - rank(b) ||
+        a.position - b.position,
+    );
+  return {
+    done: mandatory.length - missing.length,
+    total: mandatory.length,
+    next: missing,
+  };
+}
