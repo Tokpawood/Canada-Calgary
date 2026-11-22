@@ -22,6 +22,7 @@ import {
   weekKeys,
   weekOf,
   type ErrorEntry,
+  type MemoEntry,
   type TrainingScore,
 } from "@/lib/formation";
 import { PageHeader } from "@/components/ui";
@@ -34,8 +35,9 @@ import { CalendarView } from "./CalendarView";
 import { ScoresView } from "./ScoresView";
 import { MethodView } from "./MethodView";
 import { ErrorsView } from "./ErrorsView";
+import { MemoView } from "./MemoView";
 
-const TABS = ["jour", "semaines", "calendrier", "carnet", "scores", "methode"] as const;
+const TABS = ["jour", "semaines", "calendrier", "carnet", "memo", "scores", "methode"] as const;
 type Tab = (typeof TABS)[number];
 
 export function FormationBoard({
@@ -44,6 +46,7 @@ export function FormationBoard({
   initialDone,
   initialScores,
   initialErrors,
+  initialMemos,
   canEdit,
   initialDate,
   initialOpen,
@@ -55,11 +58,13 @@ export function FormationBoard({
   initialDone: string[];
   initialScores: TrainingScore[];
   initialErrors: ErrorEntry[];
+  initialMemos: MemoEntry[];
   canEdit: boolean;
 }) {
   const [done, setDone] = useState(() => new Set(initialDone));
   const [scores, setScores] = useState(initialScores);
   const [errors, setErrors] = useState(initialErrors);
+  const [memos, setMemos] = useState(initialMemos);
   const [date, setDate] = useState(() => clampToProgram(initialDate ?? today));
   const [tab, setTab] = useHashTab<Tab>(TABS, "jour");
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -172,6 +177,7 @@ export function FormationBoard({
               { id: "semaines", label: "Semaines", icon: <IconRoute size={15} /> },
               { id: "calendrier", label: "Calendrier", icon: <IconCalendar size={15} /> },
               { id: "carnet", label: "Carnet d'erreurs", icon: <IconPencil size={15} />, badge: targets ? { text: String(targets), tone: "signal" } : errors.length ? { text: String(errors.length) } : null },
+              { id: "memo", label: "Aide-mémoire", icon: <IconBook size={15} />, badge: memos.length ? { text: String(memos.length) } : null },
               { id: "scores", label: "Scores", icon: <IconGauge size={15} />, badge: scores.length ? { text: String(scores.length) } : null },
               { id: "methode", label: "Méthode et ressources", icon: <IconBook size={15} /> },
             ]}
@@ -240,6 +246,7 @@ export function FormationBoard({
         {tab === "semaines" && <WeeksView today={today} done={done} toggle={toggle} onOpenDay={openDay} canEdit={canEdit} />}
         {tab === "calendrier" && <CalendarView today={today} done={done} onOpenDay={openDay} />}
         {tab === "carnet" && <ErrorsView dossierId={dossierId} errors={errors} setErrors={setErrors} defaultExam={program.id} canEdit={canEdit} />}
+        {tab === "memo" && <MemoView dossierId={dossierId} memos={memos} setMemos={setMemos} defaultExam={program.id} canEdit={canEdit} />}
         {tab === "scores" && <ScoresView dossierId={dossierId} scores={scores} setScores={setScores} today={today} canEdit={canEdit} />}
         {tab === "methode" && <MethodView />}
       </div>

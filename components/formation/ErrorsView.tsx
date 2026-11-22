@@ -5,8 +5,9 @@ import { createClient } from "@/lib/supabase/client";
 import { newId } from "@/lib/ids";
 import { ERROR_REPEAT_THRESHOLD, ERROR_SKILLS, type ErrorEntry, type Lang } from "@/lib/formation";
 import { ConfirmButton, EmptyState, Segmented } from "@/components/ui";
-import { IconAlert, IconCheck, IconPencil, IconPlus, IconSearch, IconTrash } from "@/components/icons";
+import { IconAlert, IconCheck, IconCopy, IconPencil, IconPlus, IconSearch, IconTrash } from "@/components/icons";
 import { LangTag, fmtDay } from "./shared";
+import { ImportCorrections } from "./ImportCorrections";
 
 type Filter = "aretravailler" | "cibles" | "maitrisees" | "toutes";
 
@@ -42,6 +43,8 @@ export function ErrorsView({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [listError, setListError] = useState<string | null>(null);
+  const [importing, setImporting] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
   const supabase = createClient();
   const formRef = useRef<HTMLFormElement>(null);
 
@@ -185,9 +188,29 @@ export function ErrorsView({
             <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Rechercher" aria-label="Rechercher dans le carnet" className="input w-full pl-9 sm:w-[200px]" type="search" />
           </label>
           {canEdit && (
-            <button type="button" className="btn btn-primary" onClick={openNew}>
-              <IconPlus size={16} /> Erreur
-            </button>
+            <>
+              <button
+                type="button"
+                className="btn btn-ghost"
+                onClick={() => {
+                  setFormOpen(false);
+                  setNotice(null);
+                  setImporting(true);
+                }}
+              >
+                <IconCopy size={16} /> Coller des corrections
+              </button>
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={() => {
+                  setImporting(false);
+                  openNew();
+                }}
+              >
+                <IconPlus size={16} /> Erreur
+              </button>
+            </>
           )}
         </div>
       </div>
@@ -204,6 +227,30 @@ export function ErrorsView({
             prochaine.
           </span>
         </button>
+      )}
+
+      {importing && canEdit && (
+        <ImportCorrections
+          dossierId={dossierId}
+          errors={errors}
+          setErrors={setErrors}
+          defaultExam={exam === "all" ? defaultExam : exam}
+          onClose={() => setImporting(false)}
+          onDone={(m) => {
+            setImporting(false);
+            setNotice(m);
+            setFilter("aretravailler");
+          }}
+        />
+      )}
+
+      {notice && (
+        <p role="status" className="flex items-start justify-between gap-3 rounded-lg bg-ok-bg px-3 py-2 text-[13px] text-ok">
+          <span>{notice}</span>
+          <button type="button" className="font-semibold" onClick={() => setNotice(null)} aria-label="Fermer le message">
+            ×
+          </button>
+        </p>
       )}
 
       {listError && (

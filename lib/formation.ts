@@ -516,6 +516,15 @@ export interface ErrorEntry {
   createdAt: string;
 }
 
+/** Leçon de l'aide-mémoire (texte Markdown collé depuis un correcteur). */
+export interface MemoEntry {
+  id: string;
+  exam: Lang;
+  title: string;
+  body: string;
+  createdAt: string;
+}
+
 export const ERROR_SKILLS: Record<Lang, string[]> = {
   tcf: ["Expression écrite", "Expression orale", "Compréhension orale", "Compréhension écrite", "Grammaire", "Vocabulaire"],
   ielts: ["Writing", "Speaking", "Listening", "Reading", "Grammar", "Vocabulary"],
