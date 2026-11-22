@@ -36,8 +36,10 @@ import { ScoresView } from "./ScoresView";
 import { MethodView } from "./MethodView";
 import { ErrorsView } from "./ErrorsView";
 import { MemoView } from "./MemoView";
+import { QuizView } from "./QuizView";
+import type { Quiz } from "@/lib/quiz";
 
-const TABS = ["jour", "semaines", "calendrier", "carnet", "memo", "scores", "methode"] as const;
+const TABS = ["jour", "exercices", "semaines", "calendrier", "carnet", "memo", "scores", "methode"] as const;
 type Tab = (typeof TABS)[number];
 
 export function FormationBoard({
@@ -47,6 +49,7 @@ export function FormationBoard({
   initialScores,
   initialErrors,
   initialMemos,
+  initialQuizzes,
   canEdit,
   initialDate,
   initialOpen,
@@ -59,12 +62,15 @@ export function FormationBoard({
   initialScores: TrainingScore[];
   initialErrors: ErrorEntry[];
   initialMemos: MemoEntry[];
+  initialQuizzes: Quiz[];
   canEdit: boolean;
 }) {
   const [done, setDone] = useState(() => new Set(initialDone));
   const [scores, setScores] = useState(initialScores);
   const [errors, setErrors] = useState(initialErrors);
   const [memos, setMemos] = useState(initialMemos);
+  const [quizzes, setQuizzes] = useState(initialQuizzes);
+  const todayQuiz = quizzes.find((q) => q.day === today);
   const [date, setDate] = useState(() => clampToProgram(initialDate ?? today));
   const [tab, setTab] = useHashTab<Tab>(TABS, "jour");
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -174,6 +180,12 @@ export function FormationBoard({
             onSelect={setTab}
             tabs={[
               { id: "jour", label: "Jour", icon: <IconCheck size={15} />, badge: stats.today.total ? { text: `${stats.today.done}/${stats.today.total}`, tone: stats.today.done === stats.today.total ? "ok" : "plain" } : null },
+              {
+                id: "exercices",
+                label: "Exercices du jour",
+                icon: <IconGauge size={15} />,
+                badge: todayQuiz?.status === "corrige" ? { text: `${todayQuiz.score}/${todayQuiz.total}`, tone: "ok" } : todayQuiz ? { text: "à finir", tone: "signal" } : { text: "nouveau", tone: "signal" },
+              },
               { id: "semaines", label: "Semaines", icon: <IconRoute size={15} /> },
               { id: "calendrier", label: "Calendrier", icon: <IconCalendar size={15} /> },
               { id: "carnet", label: "Carnet d'erreurs", icon: <IconPencil size={15} />, badge: targets ? { text: String(targets), tone: "signal" } : errors.length ? { text: String(errors.length) } : null },
@@ -243,6 +255,7 @@ export function FormationBoard({
 
       <div role="tabpanel">
         {tab === "jour" && <DayView date={date} today={today} onDate={(d) => { setOpenKey(null); setDate(d); }} done={done} toggle={toggle} openKey={openKey} onOpen={setOpenKey} canEdit={canEdit} />}
+        {tab === "exercices" && <QuizView quizzes={quizzes} setQuizzes={setQuizzes} setErrors={setErrors} today={today} canEdit={canEdit} />}
         {tab === "semaines" && <WeeksView today={today} done={done} toggle={toggle} onOpenDay={openDay} canEdit={canEdit} />}
         {tab === "calendrier" && <CalendarView today={today} done={done} onOpenDay={openDay} />}
         {tab === "carnet" && <ErrorsView dossierId={dossierId} errors={errors} setErrors={setErrors} defaultExam={program.id} canEdit={canEdit} />}
