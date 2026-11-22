@@ -10,6 +10,17 @@ export const maxDuration = 300;
 
 const today = () => new Date().toLocaleDateString("en-CA", { timeZone: "Africa/Abidjan" });
 
+/** Série du jour si elle existe déjà (l'écran interroge cette adresse pendant la préparation). */
+export async function GET() {
+  try {
+    const { supabase, dossierId } = await requireOwner();
+    const { data } = await supabase.from("training_quiz").select("*").eq("dossier_id", dossierId).eq("day", today()).eq("exam", "tcf").maybeSingle();
+    return NextResponse.json({ quiz: data ? mapQuizRow(data as QuizRow) : null }, { headers: { "Cache-Control": "no-store" } });
+  } catch (e) {
+    return errorResponse(e);
+  }
+}
+
 /** Prépare la série du jour (une seule par jour : si elle existe déjà, elle est renvoyée telle quelle). */
 export async function POST() {
   try {

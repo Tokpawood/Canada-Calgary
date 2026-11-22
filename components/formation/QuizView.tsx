@@ -218,14 +218,38 @@ export function QuizView({
   async function prepare() {
     setBusy("prepare");
     setError(null);
-    try {
+    const show = (quiz: Quiz) => setQuizzes((list) => [quiz, ...list.filter((q) => q.id !== quiz.id)]);
+    // La préparation peut durer plusieurs minutes et la réponse se perdre en route (veille de l'iPad,
+    // réseau) : en parallèle, on vérifie toutes les 15 s si la série est déjà enregistrée.
+    let settled = false;
+    const poll = async () => {
+      const deadline = Date.now() + 6 * 60_000;
+      while (!settled && Date.now() < deadline) {
+        await new Promise((r) => setTimeout(r, 15_000));
+        if (settled) return null;
+        try {
+          const res = await fetch("/api/formation/quiz", { cache: "no-store" });
+          const json = (await res.json().catch(() => ({}))) as { quiz?: Quiz | null };
+          if (res.ok && json.quiz) return json.quiz;
+        } catch {
+          /* réseau momentanément indisponible : on réessaie au tour suivant */
+        }
+      }
+      return null;
+    };
+    const post = (async () => {
       const res = await fetch("/api/formation/quiz", { method: "POST" });
       const json = (await res.json().catch(() => ({}))) as { quiz?: Quiz; error?: string };
       if (!res.ok || !json.quiz) throw new Error(json.error ?? "La série n'a pas pu être préparée. Réessayez.");
-      setQuizzes((list) => [json.quiz!, ...list.filter((q) => q.id !== json.quiz!.id)]);
+      return json.quiz;
+    })();
+    try {
+      const quiz = await Promise.race([post, poll().then((q) => q ?? post)]);
+      show(quiz);
     } catch (e) {
       setError(e instanceof Error ? e.message : "La série n'a pas pu être préparée.");
     } finally {
+      settled = true;
       setBusy(null);
     }
   }
@@ -234,7 +258,24 @@ export function QuizView({
     if (!current) return;
     setBusy("grade");
     setError(null);
-    try {
+    let settled = false;
+    // Même filet que pour la préparation : si la réponse se perd, on retrouve la série corrigée en base.
+    const poll = async (): Promise<{ quiz: Quiz; bumped?: string[] } | null> => {
+      const deadline = Date.now() + 6 * 60_000;
+      while (!settled && Date.now() < deadline) {
+        await new Promise((r) => setTimeout(r, 15_000));
+        if (settled) return null;
+        try {
+          const res = await fetch("/api/formation/quiz", { cache: "no-store" });
+          const json = (await res.json().catch(() => ({}))) as { quiz?: Quiz | null };
+          if (res.ok && json.quiz?.id === current.id && json.quiz.status === "corrige") return { quiz: json.quiz };
+        } catch {
+          /* on réessaie au tour suivant */
+        }
+      }
+      return null;
+    };
+    const post = (async () => {
       const res = await fetch(`/api/formation/quiz/${encodeURIComponent(current.id)}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -242,7 +283,11 @@ export function QuizView({
       });
       const json = (await res.json().catch(() => ({}))) as { quiz?: Quiz; bumped?: string[]; error?: string };
       if (!res.ok || !json.quiz) throw new Error(json.error ?? "La correction a échoué. Réessayez.");
-      setQuizzes((list) => list.map((q) => (q.id === json.quiz!.id ? json.quiz! : q)));
+      return { quiz: json.quiz, bumped: json.bumped };
+    })();
+    try {
+      const json = await Promise.race([post, poll().then((q) => q ?? post)]);
+      setQuizzes((list) => list.map((q) => (q.id === json.quiz.id ? json.quiz : q)));
       if (json.bumped?.length) {
         const ids = new Set(json.bumped);
         setErrors((list) => list.map((e) => (ids.has(e.id) ? { ...e, count: Math.min(999, e.count + 1), mastered: false } : e)));
@@ -256,6 +301,7 @@ export function QuizView({
     } catch (e) {
       setError(e instanceof Error ? e.message : "La correction a échoué.");
     } finally {
+      settled = true;
       setBusy(null);
     }
   }
@@ -291,7 +337,7 @@ export function QuizView({
           ) : (
             <p className="text-[13px] text-muted">Seul le titulaire du dossier peut lancer la série.</p>
           )}
-          {busy === "prepare" && <p className="text-[12px] text-muted">Cela prend en général une à deux minutes. Gardez la page ouverte.</p>}
+          {busy === "prepare" && <p className="text-[12px] text-muted">Cela peut prendre jusqu’à 4 ou 5 minutes. Vous pouvez laisser la page ouverte en arrière-plan.</p>}
         </section>
       ) : current.status === "pret" ? (
         <>
