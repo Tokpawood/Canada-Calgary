@@ -8,6 +8,8 @@ import { createAdminClient } from "@/lib/supabase/admin";
  */
 
 export const DRIVE_SCOPE = "https://www.googleapis.com/auth/drive.file";
+/** Accès limité aux calendriers créés par l'application. */
+export const CALENDAR_SCOPE = "https://www.googleapis.com/auth/calendar.app.created";
 const ROOT_FOLDER_NAME = "Projet Canada Calgary";
 
 export class DriveError extends Error {
@@ -51,12 +53,12 @@ function decryptToken(payload: string): string {
 
 // ---------- OAuth ----------
 
-export function authUrl(origin: string, state: string): string {
+export function authUrl(origin: string, state: string, calendar = false): string {
   const params = new URLSearchParams({
     client_id: process.env.GOOGLE_CLIENT_ID!,
     redirect_uri: redirectUri(origin),
     response_type: "code",
-    scope: DRIVE_SCOPE,
+    scope: calendar ? `${DRIVE_SCOPE} ${CALENDAR_SCOPE}` : DRIVE_SCOPE,
     access_type: "offline",
     prompt: "consent",
     include_granted_scopes: "true",
@@ -65,7 +67,7 @@ export function authUrl(origin: string, state: string): string {
   return `https://accounts.google.com/o/oauth2/v2/auth?${params}`;
 }
 
-export async function exchangeCode(origin: string, code: string): Promise<{ refreshToken: string; accessToken: string }> {
+export async function exchangeCode(origin: string, code: string): Promise<{ refreshToken: string; accessToken: string; scopes: string[] }> {
   const res = await fetch("https://oauth2.googleapis.com/token", {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
@@ -77,10 +79,10 @@ export async function exchangeCode(origin: string, code: string): Promise<{ refr
       grant_type: "authorization_code",
     }),
   });
-  const json = (await res.json()) as { refresh_token?: string; access_token?: string; error_description?: string };
+  const json = (await res.json()) as { refresh_token?: string; access_token?: string; scope?: string; error_description?: string };
   if (!res.ok || !json.access_token) throw new DriveError(json.error_description ?? "Échange du code Google refusé.");
   if (!json.refresh_token) throw new DriveError("Google n'a pas fourni de jeton durable. Retirez l'accès dans votre compte Google puis reconnectez.");
-  return { refreshToken: json.refresh_token, accessToken: json.access_token };
+  return { refreshToken: json.refresh_token, accessToken: json.access_token, scopes: (json.scope ?? "").split(" ") };
 }
 
 // Jetons d'accès gardés en mémoire tant qu'ils sont valides (environ 1 h) : évite un aller-retour

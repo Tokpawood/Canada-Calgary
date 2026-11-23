@@ -42,11 +42,17 @@ export default function ConfidentialitePage() {
           </li>
         </ul>
 
-        <H>2. Données reçues de Google (Google Drive)</H>
+        <H>2. Données échangées avec Google (Drive et Calendar)</H>
         <p>
-          Le titulaire peut connecter son propre compte Google Drive pour y ranger ses fichiers. L&apos;application demande uniquement
+          Le titulaire peut connecter son propre compte Google Drive pour y ranger ses fichiers. Pour Drive, l&apos;application demande uniquement
           l&apos;autorisation <code>https://www.googleapis.com/auth/drive.file</code>, qui limite son accès aux dossiers et fichiers qu&apos;elle a
           elle-même créés. Elle ne peut ni lire, ni modifier, ni lister les autres fichiers du Drive.
+        </p>
+        <p>
+          S&apos;il active le calendrier, l&apos;application demande aussi{" "}
+          <code>https://www.googleapis.com/auth/calendar.app.created</code> : elle crée un calendrier dédié et y écrit ses tâches de formation, les
+          étapes du parcours et les dates d&apos;expiration de ses pièces. Elle n&apos;a pas accès à ses autres calendriers. « Arrêter » met fin à
+          l&apos;envoi ; le calendrier reste chez Google, où le titulaire peut le supprimer.
         </p>
         <ul className="list-disc pl-5">
           <li>

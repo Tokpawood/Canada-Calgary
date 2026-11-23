@@ -1,10 +1,12 @@
-import { NextResponse, type NextRequest } from "next/server";
+import { NextResponse, after, type NextRequest } from "next/server";
 import { timingSafeEqual } from "node:crypto";
+import { syncAllCalendars } from "@/lib/calendar";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { abidjanNow, dueNow, remindersFor } from "@/lib/notifyPlan";
 import { loadDocsLite, loadSettings, loadStepsLite, sendToDossier } from "@/lib/push";
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 300;
 
 function authorized(request: NextRequest): boolean {
   const secret = process.env.NOTIFY_SECRET;
@@ -22,6 +24,8 @@ function authorized(request: NextRequest): boolean {
  */
 async function run(request: NextRequest) {
   if (!authorized(request)) return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
+  // Après la réponse : le calendrier ne retarde jamais les rappels.
+  after(syncAllCalendars);
   const admin = createAdminClient();
   const now = abidjanNow();
   const q = request.nextUrl.searchParams;

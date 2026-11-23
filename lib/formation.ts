@@ -193,6 +193,8 @@ const DATED_SENDS: Record<string, string> = {
   "2027-02-09": "t13:e0", // EE tâche 3 le mardi
   "2027-03-23": "i6:e0", // Task 2 le mardi
 };
+/** Envois placés un jour précis (les autres valent pour toute la semaine). */
+export const DATED_SEND_KEYS: ReadonlySet<string> = new Set(Object.values(DATED_SENDS));
 
 // ---------------------------------------------------------------- dates
 
