@@ -1,5 +1,6 @@
 import { NextResponse, after, type NextRequest } from "next/server";
 import { errorResponse, requireOwner } from "@/lib/driveRoute";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { usageSink } from "@/lib/aiUsageStore";
 import type { ErrorEntry, Lang } from "@/lib/formation";
 import { QuizAIError } from "@/lib/quizAI";
@@ -25,7 +26,10 @@ export async function POST(_req: NextRequest, { params }: Ctx) {
   const { id, idx: rawIdx } = await params;
   const idx = Number(rawIdx);
   try {
-    const { supabase, dossierId } = await requireOwner();
+    const { dossierId } = await requireOwner();
+    // Travail long : la session de l'utilisateur ne doit ni expirer en route ni être renouvelée ici
+    // (le nouveau jeton serait perdu et Supabase fermerait la session).
+    const supabase = createAdminClient();
     const { data: row } = await supabase
       .from("tcf_test")
       .select("id, day, plan, research")

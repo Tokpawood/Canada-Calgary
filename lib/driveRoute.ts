@@ -8,7 +8,7 @@ import { DriveError } from "@/lib/drive";
 export async function requireOwner(): Promise<{ supabase: SupabaseClient; userId: string; dossierId: string }> {
   const supabase = await createClient();
   const { data } = await supabase.auth.getUser();
-  if (!data.user) throw new DriveError("Non authentifié.", 401);
+  if (!data.user) throw new DriveError("Votre session a expiré. Fermez et rouvrez l'application pour vous reconnecter : vos réponses sont gardées sur cet appareil.", 401);
   const { data: dossier } = await supabase.from("dossier").select("id").eq("owner_id", data.user.id).maybeSingle();
   if (!dossier) throw new DriveError("Réservé au titulaire du dossier.", 403);
   return { supabase, userId: data.user.id, dossierId: dossier.id as string };

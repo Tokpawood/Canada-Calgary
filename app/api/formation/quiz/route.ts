@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { errorResponse, requireOwner } from "@/lib/driveRoute";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { usageSink } from "@/lib/aiUsageStore";
 import { newId } from "@/lib/ids";
 import type { ErrorEntry, Lang, MemoEntry } from "@/lib/formation";
@@ -27,7 +28,10 @@ export async function GET() {
 /** Prépare la série du jour (une seule par jour : si elle existe déjà, elle est renvoyée telle quelle). */
 export async function POST() {
   try {
-    const { supabase, dossierId } = await requireOwner();
+    const { dossierId } = await requireOwner();
+    // Travail long : la session de l'utilisateur ne doit ni expirer en route ni être renouvelée ici
+    // (le nouveau jeton serait perdu et Supabase fermerait la session).
+    const supabase = createAdminClient();
     const day = today();
 
     const { data: existing } = await supabase.from("training_quiz").select("*").eq("dossier_id", dossierId).eq("day", day).eq("exam", "tcf").maybeSingle();

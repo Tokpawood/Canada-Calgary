@@ -1,6 +1,7 @@
 import { NextResponse, after, type NextRequest } from "next/server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { errorResponse, requireOwner } from "@/lib/driveRoute";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { RESEARCH_REUSE_DAYS, canReuseResearch } from "@/lib/aiUsage";
 import { usageSink } from "@/lib/aiUsageStore";
 import { newId } from "@/lib/ids";
@@ -41,7 +42,10 @@ export async function GET() {
  */
 export async function POST(request: NextRequest) {
   try {
-    const { supabase, dossierId } = await requireOwner();
+    const { dossierId } = await requireOwner();
+    // Travail long : la session de l'utilisateur ne doit ni expirer en route ni être renouvelée ici
+    // (le nouveau jeton serait perdu et Supabase fermerait la session).
+    const supabase = createAdminClient();
     const body = (await request.json().catch(() => ({}))) as {
       kind?: TestKind;
     };

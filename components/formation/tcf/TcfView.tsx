@@ -195,6 +195,9 @@ type Screen =
   | { mode: "run"; id: string; si: number }
   | { mode: "result"; id: string; si: number };
 
+/** Session expirée : inutile de continuer à suivre la préparation. */
+class SessionError extends Error {}
+
 export function TcfView({
   tests,
   setTests,
@@ -238,7 +241,11 @@ export function TcfView({
     const res = await fetch(`/api/formation/tcf/${encodeURIComponent(id)}`, {
       cache: "no-store",
     });
-    const json = (await res.json().catch(() => ({}))) as { test?: TcfTest };
+    const json = (await res.json().catch(() => ({}))) as {
+      test?: TcfTest;
+      error?: string;
+    };
+    if (res.status === 401) throw new SessionError(json.error);
     if (json.test) upsert(json.test);
     return json.test ?? null;
   }
@@ -327,7 +334,8 @@ export function TcfView({
       await wait();
       try {
         test = (await refresh(first.id)) ?? test;
-      } catch {
+      } catch (e) {
+        if (e instanceof SessionError) throw e;
         /* réseau : on garde la dernière version */
       }
     }
