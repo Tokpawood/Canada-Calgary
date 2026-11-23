@@ -6,6 +6,7 @@
  */
 import type { DocumentStage } from "./documentStages";
 import { stageOf } from "./documentStages";
+import { normalizeSearch } from "./documents";
 
 export const PROCEDURE_GOAL = {
   title: "Résidence permanente par Entrée express",
@@ -101,6 +102,8 @@ export interface ProcStep {
   due: string | null;
   planned: number | null;
   actual: number | null;
+  /** Organisme indiqué sur l'étape (« Eays, Gandour, UMO »), pour la relier aux contacts. */
+  org?: string;
 }
 export interface ProcDoc {
   id: string;
@@ -154,6 +157,27 @@ const months = (from: string, to: string) => {
   const [y2, m2] = to.split("-").map(Number);
   return (y2 - y1) * 12 + (m2 - m1);
 };
+
+const GENERIC = new Set(
+  "de du la le les des et a au aux en d l canada consulting institut francais cote ivoire school graduate management council nouvelle parfumerie interim centre banque".split(
+    " ",
+  ),
+);
+const words = (t: string) =>
+  normalizeSearch(t)
+    .split(/[^a-z0-9]+/)
+    .filter(Boolean);
+
+/** Un contact correspond à l'organisme d'une étape : nom complet inclus, ou mot distinctif commun. */
+export function orgMatches(contactOrg: string, stepOrg: string): boolean {
+  const c = words(contactOrg).join(" ");
+  const st = words(stepOrg);
+  if (!c || !st.length) return false;
+  if (` ${st.join(" ")} `.includes(` ${c} `)) return true;
+  return words(contactOrg).some(
+    (w) => w.length >= 3 && !GENERIC.has(w) && st.includes(w),
+  );
+}
 
 export function buildProcedure(input: {
   steps: ProcStep[];
@@ -305,12 +329,18 @@ export function buildProcedure(input: {
   const toCall = input.contacts.filter(
     (c) =>
       c.stage === "a-contacter" &&
-      input.contactSteps.some(
+      (input.contactSteps.some(
         (l) =>
           l.contact_id === c.id &&
           openStep.has(l.step_id) &&
           focus.includes(stepPhase.get(l.step_id) ?? 0),
-      ),
+      ) ||
+        steps.some(
+          (s) =>
+            OPEN(s.status) &&
+            focus.includes(phaseNumber(s.phase) ?? 0) &&
+            orgMatches(c.org, s.org ?? ""),
+        )),
   );
   if (toCall.length)
     alerts.push({

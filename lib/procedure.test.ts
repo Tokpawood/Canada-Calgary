@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { buildProcedure, phaseNumber, phaseOfStage } from "./procedure";
+import {
+  buildProcedure,
+  orgMatches,
+  phaseNumber,
+  phaseOfStage,
+} from "./procedure";
 
 const step = (
   id: string,
@@ -134,5 +139,50 @@ describe("procédure Entrée express", () => {
     expect(p.alerts.find((a) => a.tab === "budget")?.text).toMatch(
       /dépassement/,
     );
+  });
+});
+
+describe("contacts et organismes des étapes", () => {
+  it("relie un contact à l'organisme cité par une étape", () => {
+    expect(
+      orgMatches("Nouvelle Parfumerie Gandour", "Eays, Gandour, UMO"),
+    ).toBe(true);
+    expect(
+      orgMatches(
+        "Graduate School of Management",
+        "Graduate School of Management",
+      ),
+    ).toBe(true);
+    expect(
+      orgMatches(
+        "Institut français de Côte d'Ivoire",
+        "Institut français de Côte d'Ivoire",
+      ),
+    ).toBe(true);
+    expect(orgMatches("WES Canada", "Banque canadienne")).toBe(false);
+    expect(
+      orgMatches(
+        "Institut français de Côte d'Ivoire",
+        "Graduate School of Management",
+      ),
+    ).toBe(false);
+  });
+
+  it("compte les organismes à contacter d'après l'organisme de l'étape", () => {
+    const p = buildProcedure({
+      ...base,
+      steps: [
+        ...base.steps,
+        {
+          ...step("r", "2. Tests et preuves", "À faire", "2027-02-26"),
+          org: "Eays, Gandour, UMO",
+        },
+      ],
+      contacts: [
+        { id: "g", org: "Nouvelle Parfumerie Gandour", stage: "a-contacter" },
+      ],
+      contactSteps: [],
+    });
+    expect(p.alerts.find((a) => a.tab === "contacts")?.text).toMatch(/Gandour/);
   });
 });
