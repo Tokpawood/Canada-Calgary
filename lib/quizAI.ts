@@ -26,6 +26,19 @@ export class QuizAIError extends Error {
   }
 }
 
+/** Cause précise d'une erreur de l'API : crédit, accès, attente ou panne ne se règlent pas de la même façon. */
+export function apiErrorText(e: { status?: number; message: string }): string {
+  if (e.status === 402 || /credit balance|billing|usage limits?/i.test(e.message))
+    return "Le crédit de l'API Claude est épuisé ou son plafond est atteint : rechargez-le sur platform.claude.com (Billing), puis réessayez.";
+  if (e.status === 403 || e.status === 404)
+    return `La clé API n'a pas accès au modèle demandé (code ${e.status}).`;
+  if (e.status === undefined)
+    return "Claude n'a pas répondu à temps. Réessayez dans quelques minutes.";
+  if (e.status >= 500)
+    return `Claude est surchargé ou en panne (code ${e.status}). Réessayez dans quelques minutes.`;
+  return `Claude a rejeté la demande (code ${e.status}).`;
+}
+
 /** Erreurs de l'API traduites pour l'interface. */
 export function apiError(e: unknown): never {
   if (e instanceof QuizAIError) throw e;
@@ -41,9 +54,7 @@ export function apiError(e: unknown): never {
     );
   if (e instanceof Anthropic.APIError) {
     console.error("[ia] Anthropic", e.status, e.message);
-    throw new QuizAIError(
-      "Claude est indisponible pour le moment. Réessayez plus tard.",
-    );
+    throw new QuizAIError(apiErrorText(e));
   }
   throw e;
 }
