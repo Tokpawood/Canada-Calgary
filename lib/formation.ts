@@ -77,7 +77,6 @@ export interface Program {
 }
 
 const PACK = "Sujets du pack";
-const TCF_SAT_TRAINING = "Une épreuve de compréhension et une tâche 3, chronométrées";
 const IELTS_SAT_TRAINING = "Un Listening et un Reading complets";
 
 const tcfWeek = (n: number, from: string, to: string, theme: string, grammar: string, focus: string, goal: string, sends: Send[], saturday: Week["saturday"], note?: string): Week => ({
@@ -92,8 +91,8 @@ export const TCF: Program = {
   exam: TCF_DATE,
   target: "NCLC 10 : 549 en compréhension, 16/20 en expression (entraînement : 600 et 18/20)",
   phases: [
-    { prog: "tcf", n: 1, name: "Fondations", from: "2026-11-16", to: "2026-12-13", goal: "Diagnostic, structure des tâches, premières banques de phrases", change: "Ressources gratuites uniquement ; une copie corrigée chaque jour de semaine" },
-    { prog: "tcf", n: 2, name: "Intensif", from: "2026-12-14", to: "2027-01-24", goal: "16/20 en expression, 549 en compréhension", change: "Achat du pack Gold ; examen blanc un samedi sur deux" },
+    { prog: "tcf", n: 1, name: "Fondations", from: "2026-11-16", to: "2026-12-13", goal: "Diagnostic, structure des tâches, premières banques de phrases", change: "Ressources gratuites uniquement ; une copie corrigée chaque jour de semaine ; un examen blanc chaque samedi dès le 28/11" },
+    { prog: "tcf", n: 2, name: "Intensif", from: "2026-12-14", to: "2027-01-24", goal: "16/20 en expression, 549 en compréhension", change: "Achat du pack Gold ; un examen blanc chaque samedi" },
     { prog: "tcf", n: 3, name: "Simulation", from: "2027-01-25", to: "2027-02-15", goal: "18/20 en expression, 600 en compréhension", change: "Un examen blanc chaque samedi ; rien de nouveau après le 12/02" },
   ],
   weeks: [
@@ -102,37 +101,37 @@ export const TCF: Program = {
       { label: "Diagnostic des 4 épreuves (exemples officiels)", mock: true }),
     tcfWeek(2, "2026-11-23", "2026-11-29", "Technologie et numérique", "Subjonctif après « bien que », « pour que », « à moins que »", "EE tâche 3 : structure", "Identifier la compétence la plus faible",
       [{ label: "EE tâche 1", subject: "Inviter un ami" }, { label: "EE tâche 2", subject: "Une expérience marquante" }, { label: "EE tâche 3", subject: "Semaine de 4 jours" }, { label: "EO tâche 3", subject: "« Les réseaux sociaux rendent-ils les jeunes plus isolés ? »" }],
-      { label: TCF_SAT_TRAINING, mock: false }),
+      { label: "Examen blanc n° 1 complet", mock: true }),
     tcfWeek(3, "2026-11-30", "2026-12-06", "Environnement et climat", "Connecteurs d'opposition et de concession", "EO tâche 3 : structure", "Maîtriser la structure de la tâche 3",
       [{ label: "EE tâche 3 (1/2)", subject: "Faut-il taxer davantage les produits sucrés ?" }, { label: "EE tâche 3 (2/2)", subject: "Sujet au choix" }, { label: "EO tâche 2", subject: "10 questions pour se renseigner sur un appartement" }, { label: "EO tâche 3", subject: "« Le diplôme est-il encore la clé de l'emploi ? »" }, { label: "Scores CO et CE" }],
-      { label: TCF_SAT_TRAINING, mock: false }),
+      { label: "Examen blanc n° 2 complet", mock: true }),
     tcfWeek(4, "2026-12-07", "2026-12-13", "Santé et alimentation", "Pronoms relatifs composés (dont, lequel, auquel)", "EE tâches 1 et 2 : registres", "Registres et temps du passé sans faute",
       [{ label: "EE tâche 1", subject: "Réclamation à un service client" }, { label: "EE tâche 2", subject: "Récit d'un voyage" }, { label: "EO tâche 3", subject: "« L'IA va-t-elle remplacer les recruteurs ? »" }],
-      { label: TCF_SAT_TRAINING, mock: false }),
-    tcfWeek(5, "2026-12-14", "2026-12-20", "Éducation et formation", "Hypothèse : si + imparfait ou plus-que-parfait, conditionnel passé", "Examen blanc n° 1", "Premier score de référence en conditions réelles",
-      [{ label: "Achat du pack Gold (49,99 $ US)", subject: "formation-tcfcanada.com" }, { label: "Examen blanc n° 1 : scores et copies", subject: PACK }],
-      { label: "Examen blanc n° 1 complet", mock: true }),
+      { label: "Examen blanc n° 3 complet", mock: true }),
+    tcfWeek(5, "2026-12-14", "2026-12-20", "Éducation et formation", "Hypothèse : si + imparfait ou plus-que-parfait, conditionnel passé", "Examen blanc n° 4", "Score de référence en conditions réelles",
+      [{ label: "Achat du pack Gold (49,99 $ US)", subject: "formation-tcfcanada.com" }, { label: "Examen blanc n° 4 : scores et copies", subject: PACK }],
+      { label: "Examen blanc n° 4 complet", mock: true }),
     tcfWeek(6, "2026-12-21", "2026-12-27", "Famille et société", "Accords du participe passé", "Semaine allégée (cérémonie et fêtes)", "Garder le rythme",
       [{ label: "Une EE tâche 3", subject: "Gratuité des transports publics" }],
-      { label: TCF_SAT_TRAINING, mock: false }, "Semaine allégée : cérémonie et fêtes."),
-    tcfWeek(7, "2026-12-28", "2027-01-03", "Ville, transports, logement", "Nominalisation et voix passive", "Examen blanc n° 2", "Vocabulaire de la nuance et connecteurs",
-      [{ label: "Examen blanc n° 2 : scores et copies", subject: PACK }, { label: "EO tâche 3", subject: "« Faut-il interdire la voiture en centre-ville ? »" }],
-      { label: "Examen blanc n° 2 complet", mock: true }),
+      { label: "Examen blanc n° 5 complet", mock: true }, "Semaine allégée : cérémonie et fêtes."),
+    tcfWeek(7, "2026-12-28", "2027-01-03", "Ville, transports, logement", "Nominalisation et voix passive", "Examen blanc n° 6", "Vocabulaire de la nuance et connecteurs",
+      [{ label: "Examen blanc n° 6 : scores et copies", subject: PACK }, { label: "EO tâche 3", subject: "« Faut-il interdire la voiture en centre-ville ? »" }],
+      { label: "Examen blanc n° 6 complet", mock: true }),
     tcfWeek(8, "2027-01-04", "2027-01-10", "Consommation et économie", "Gérondif et participe présent", "EO tâche 2 : questions variées", "16/20 en EE",
       [{ label: "Inscription au TCF Canada (le 05/01)", subject: "Examen du 15/02/2027" }, { label: "EE tâche 1", subject: PACK }, { label: "EE tâche 3", subject: PACK }, { label: "EO tâche 2", subject: PACK }],
-      { label: TCF_SAT_TRAINING, mock: false }),
-    tcfWeek(9, "2027-01-11", "2027-01-17", "Immigration et diversité", "Discours rapporté et concordance des temps", "Examen blanc n° 3", "16/20 en EO",
-      [{ label: "Examen blanc n° 3 : scores et copies", subject: PACK }, { label: "EO : les 3 tâches en conditions réelles", subject: "Immigration et pénurie de main-d'œuvre" }],
-      { label: "Examen blanc n° 3 complet", mock: true }),
+      { label: "Examen blanc n° 7 complet", mock: true }),
+    tcfWeek(9, "2027-01-11", "2027-01-17", "Immigration et diversité", "Discours rapporté et concordance des temps", "Examen blanc n° 8", "16/20 en EO",
+      [{ label: "Examen blanc n° 8 : scores et copies", subject: PACK }, { label: "EO : les 3 tâches en conditions réelles", subject: "Immigration et pénurie de main-d'œuvre" }],
+      { label: "Examen blanc n° 8 complet", mock: true }),
     tcfWeek(10, "2027-01-18", "2027-01-24", "Médias et information", "Mise en relief, négations complexes", "Compréhension : dernières questions (C1-C2)", "549 ou plus en CO et CE",
       [{ label: "EE tâche 3 (1/2)", subject: PACK }, { label: "EE tâche 3 (2/2)", subject: PACK }, { label: "Scores CO et CE des séries difficiles" }],
-      { label: TCF_SAT_TRAINING, mock: false }),
-    tcfWeek(11, "2027-01-25", "2027-01-31", "Culture, loisirs, tourisme", "Révision des registres (formel, courant, familier)", "Examen blanc n° 4", "17/20 en expression",
-      [{ label: "Examen blanc n° 4 : scores et copies", subject: PACK }, { label: "EO tâche 3", subject: PACK }, { label: "Réserver l'IELTS du 27/03", subject: "British Council ou IDP ; sinon la date la plus proche entre le 20/03 et le 10/04" }],
-      { label: "Examen blanc n° 4 complet", mock: true }),
-    tcfWeek(12, "2027-02-01", "2027-02-07", "Sport et bien-être", "Révision générale et erreurs fréquentes", "Examen blanc n° 5, idéalement à l'Institut français", "Simulation finale à 18/20 et 600",
-      [{ label: "Examen blanc n° 5 complet", subject: "Idéalement à l'Institut français" }],
-      { label: "Examen blanc n° 5 complet (idéalement à l'Institut français)", mock: true }),
+      { label: "Examen blanc n° 9 complet", mock: true }),
+    tcfWeek(11, "2027-01-25", "2027-01-31", "Culture, loisirs, tourisme", "Révision des registres (formel, courant, familier)", "Examen blanc n° 10", "17/20 en expression",
+      [{ label: "Examen blanc n° 10 : scores et copies", subject: PACK }, { label: "EO tâche 3", subject: PACK }, { label: "Réserver l'IELTS du 27/03", subject: "British Council ou IDP ; sinon la date la plus proche entre le 20/03 et le 10/04" }],
+      { label: "Examen blanc n° 10 complet", mock: true }),
+    tcfWeek(12, "2027-02-01", "2027-02-07", "Sport et bien-être", "Révision générale et erreurs fréquentes", "Examen blanc n° 11, idéalement à l'Institut français", "Simulation finale à 18/20 et 600",
+      [{ label: "Examen blanc n° 11 complet", subject: "Idéalement à l'Institut français" }],
+      { label: "Examen blanc n° 11 complet (idéalement à l'Institut français)", mock: true }),
     tcfWeek(13, "2027-02-08", "2027-02-14", "Révision de tous les thèmes", "Carnet d'erreurs uniquement", "Repos actif, rien de nouveau après le 12/02", "Arriver reposé le 15/02",
       [{ label: "Une EE tâche 3 le mardi", subject: PACK }, { label: "Relecture du carnet d'erreurs" }],
       null, "Rien de nouveau après le 12/02 ; le week-end des 13 et 14/02 est un repos."),
@@ -541,8 +540,8 @@ export interface TrainingScore {
 
 export const SCORE_PRESETS: Record<Lang, Array<{ label: string; date?: string }>> = {
   tcf: [
-    { label: "Diagnostic" }, { label: "Examen blanc 1", date: "2026-12-19" }, { label: "Examen blanc 2", date: "2027-01-02" }, { label: "Examen blanc 3", date: "2027-01-16" },
-    { label: "Examen blanc 4", date: "2027-01-30" }, { label: "Examen blanc 5", date: "2027-02-06" }, { label: "TCF Canada officiel", date: TCF_DATE },
+    { label: "Diagnostic" }, { label: "Examen blanc 1", date: "2026-11-28" }, { label: "Examen blanc 2", date: "2026-12-05" }, { label: "Examen blanc 3", date: "2026-12-12" }, { label: "Examen blanc 4", date: "2026-12-19" }, { label: "Examen blanc 5", date: "2026-12-26" }, { label: "Examen blanc 6", date: "2027-01-02" }, { label: "Examen blanc 7", date: "2027-01-09" }, { label: "Examen blanc 8", date: "2027-01-16" }, { label: "Examen blanc 9", date: "2027-01-23" }, { label: "Examen blanc 10", date: "2027-01-30" }, { label: "Examen blanc 11", date: "2027-02-06" },
+    { label: "TCF Canada officiel", date: TCF_DATE },
   ],
   ielts: [{ label: "Diagnostic" }, { label: "Examen blanc 1", date: "2027-03-06" }, { label: "Examen blanc 2", date: "2027-03-20" }, { label: "IELTS officiel", date: IELTS_DATE }],
 };

@@ -65,14 +65,14 @@ describe("plan des tests", () => {
     expect(planFor("quotidien", "2026-11-22", { co: 400, ce: 500 })!.title).toContain("orale"); // dimanche : point faible
   });
 
-  it("suit le programme de formation : examens blancs, samedis d'entraînement, repos final", () => {
-    expect(kindFor("2026-11-28", true)).toBe("quotidien"); // semaine 2 : entraînement
-    expect(kindFor("2026-12-19", true)).toBe("blanc"); // examen blanc n° 1
+  it("suit le programme de formation : examen blanc chaque samedi, repos final", () => {
+    expect(kindFor("2026-11-28", true)).toBe("blanc"); // examen blanc n° 1
+    expect(kindFor("2026-12-19", true)).toBe("blanc"); // examen blanc n° 4
     expect(kindFor("2026-12-19", false)).toBe("positionnement");
     const sat = planFor("quotidien", "2026-11-28", { co: 500, ce: 420 })!;
     expect(sat.sections.map((s) => s.epreuve)).toEqual(["ce", "ee"]);
     expect(sat.sections[0].levels).toHaveLength(39);
-    expect(planFor("blanc", "2026-12-19", {})!.title).toBe("TCF Canada blanc n° 1 complet");
+    expect(planFor("blanc", "2026-12-19", {})!.title).toBe("TCF Canada blanc n° 4 complet");
     expect(planFor("quotidien", "2027-02-13", {})).toBeNull();
     expect(planFor("quotidien", "2026-12-21", {})!.sections[0].levels).toHaveLength(10); // semaine allégée
   });

@@ -1,6 +1,6 @@
 "use client";
 
-import { UsageCard } from "./UsageCard";
+import { UsageView } from "./UsageView";
 import type { UsageRow } from "@/lib/aiUsage";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
@@ -44,6 +44,7 @@ import {
   IconPencil,
   IconRoute,
   IconShield,
+  IconWallet,
 } from "@/components/icons";
 import { DayView } from "./DayView";
 import { WeeksView } from "./WeeksView";
@@ -66,6 +67,7 @@ const TABS = [
   "carnet",
   "memo",
   "scores",
+  "conso",
   "methode",
 ] as const;
 type Tab = (typeof TABS)[number];
@@ -334,6 +336,15 @@ export function FormationBoard({
                 icon: <IconGauge size={15} />,
                 badge: scores.length ? { text: String(scores.length) } : null,
               },
+              ...(canEdit
+                ? [
+                    {
+                      id: "conso" as const,
+                      label: "Consommation",
+                      icon: <IconWallet size={15} />,
+                    },
+                  ]
+                : []),
               {
                 id: "methode",
                 label: "Méthode et ressources",
@@ -485,7 +496,7 @@ export function FormationBoard({
             canEdit={canEdit}
           />
         )}
-        {tab === "tcf" && canEdit && <UsageCard rows={usage} today={today} />}
+        {tab === "conso" && canEdit && <UsageView rows={usage} today={today} />}
         {tab === "semaines" && (
           <WeeksView
             today={today}

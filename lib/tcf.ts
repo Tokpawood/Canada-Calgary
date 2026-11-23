@@ -231,7 +231,7 @@ export const ROTATION: Record<number, { label: string; epreuves: Epreuve[] }> = 
   3: { label: "Expression écrite", epreuves: TCF_ROTATION[3] },
   4: { label: "Expression orale + écoute", epreuves: TCF_ROTATION[4] },
   5: { label: "Mixte : lecture, écoute, écrit", epreuves: TCF_ROTATION[5] },
-  6: { label: "Examen blanc ou entraînement", epreuves: [] },
+  6: { label: "Examen blanc", epreuves: [] },
   0: { label: "Point faible", epreuves: [] },
 };
 

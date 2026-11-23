@@ -132,7 +132,7 @@ export function MethodView() {
           head={["Outil", "Son rôle vers l'objectif"]}
           rows={[
             ["Jour et Semaines", "Le cours : un thème, une grammaire et une épreuve à renforcer chaque semaine ; chaque créneau dit quoi faire et où."],
-            ["Test TCF Canada", "Mesure en conditions réelles l'épreuve du jour (lundi CO, mardi CE, mercredi EE, jeudi EO, vendredi mixte, samedi examen blanc ou entraînement, dimanche point faible), sur le thème et la grammaire de la semaine."],
+            ["Test TCF Canada", "Mesure en conditions réelles l'épreuve du jour (lundi CO, mardi CE, mercredi EE, jeudi EO, vendredi mixte, samedi examen blanc, dimanche point faible), sur le thème et la grammaire de la semaine."],
             ["Carnet d'erreurs", "Garde les fautes relevées par les corrections des tests et des copies ; elles reviennent dans les tests et les exercices jusqu'à être maîtrisées."],
             ["Aide-mémoire", "Les leçons de synthèse à remobiliser dans les productions écrites et orales."],
             ["Exercices du jour", "10 exercices le soir : carnet, aide-mémoire, grammaire de la semaine et faiblesses des derniers tests."],

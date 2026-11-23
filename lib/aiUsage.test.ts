@@ -4,6 +4,8 @@ import {
   callCost,
   canReuseResearch,
   isAccountError,
+  monthProjection,
+  usageBy,
   usageTotals,
 } from "./aiUsage";
 
@@ -29,15 +31,23 @@ describe("consommation de l'API Claude", () => {
 
   it("totaux du jour et du mois", () => {
     const rows = [
-      { day: "2026-10-31", cost_usd: 9 },
-      { day: "2026-11-22", cost_usd: 1 },
-      { day: "2026-11-23", cost_usd: 0.5 },
+      { day: "2026-10-31", task: "questions", cost_usd: 9 },
+      { day: "2026-11-22", task: "questions", cost_usd: 1 },
+      { day: "2026-11-23", task: "recherche", cost_usd: 0.5 },
     ];
     expect(usageTotals(rows, "2026-11-23")).toEqual({
       today: 0.5,
       month: 1.5,
       perDay: 0.75,
+      days: 2,
     });
+    expect(usageBy(rows, (r) => r.task)).toEqual([
+      { key: "questions", cost: 10, calls: 2 },
+      { key: "recherche", cost: 0.5, calls: 1 },
+    ]);
+    const t = { month: 3, perDay: 1, days: 2 };
+    expect(monthProjection(t, "2026-11-23")).toBeNull();
+    expect(monthProjection({ ...t, days: 3 }, "2026-11-23")).toBe(10);
   });
 
   it("distingue crédit, clé, accès, attente, panne et rejet", () => {

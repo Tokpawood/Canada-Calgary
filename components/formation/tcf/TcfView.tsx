@@ -682,9 +682,8 @@ export function TcfView({
           ))}
         </ol>
         <p className="mt-2 text-[12px] text-muted">
-          Samedi : examen blanc complet les semaines prévues par le programme (2
-          h 50, faisable en plusieurs fois), sinon la compréhension la plus
-          faible et une tâche 3. Dimanche : la compréhension la plus éloignée de
+          Samedi : examen blanc complet chaque semaine jusqu&apos;au 6 février
+          (2 h 50, faisable en plusieurs fois). Dimanche : la compréhension la plus éloignée de
           l&apos;objectif. Chaque épreuve se fait dans le créneau du programme
           (Jour), puis les exercices du jour reprennent vos erreurs.
         </p>

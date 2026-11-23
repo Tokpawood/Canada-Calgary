@@ -35,10 +35,10 @@ describe("programmes TCF puis IELTS", () => {
   });
 
   it("examens blancs : samedis prévus par les deux programmes", () => {
-    for (const d of ["2026-12-19", "2027-01-02", "2027-01-16", "2027-01-30", "2027-02-06", "2027-03-06", "2027-03-20"]) {
+    for (const d of ["2026-11-28", "2026-12-05", "2026-12-12", "2026-12-19", "2026-12-26", "2027-01-02", "2027-01-09", "2027-01-23", "2027-01-16", "2027-01-30", "2027-02-06", "2027-03-06", "2027-03-20"]) {
       expect(dayPlan(d)!.items[0].label).toContain("Examen blanc");
     }
-    expect(dayPlan("2026-11-28")!.items[0].label).toContain("compréhension");
+    expect(dayPlan("2027-02-06")!.items[0].label).toContain("n° 11");
   });
 
   it("jours d'examen et repos", () => {

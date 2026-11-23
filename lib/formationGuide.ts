@@ -238,7 +238,7 @@ export const GUIDES: Record<string, Guide> = {
       "Lire la correction : explications des questions ratées, version corrigée des productions.",
       "Ajouter les erreurs d'expression au carnet : elles reviendront dans les exercices du jour.",
     ],
-    tips: ["Lundi CO · mardi CE · mercredi EE · jeudi EO et CO · vendredi CE, CO et EE · samedi examen blanc ou entraînement · dimanche point faible."],
+    tips: ["Lundi CO · mardi CE · mercredi EE · jeudi EO et CO · vendredi CE, CO et EE · samedi examen blanc · dimanche point faible."],
   },
   shadowing: {
     title: "Shadowing",
@@ -355,7 +355,7 @@ const JALONS: Record<string, Guide> = {
   "t5:e0": {
     title: "Achat du pack Gold",
     why: "Le seul achat du programme : il donne les séries de CO et CE et les examens blancs de la phase 2.",
-    steps: ["Acheter le pack Gold sur formation-tcfcanada.com (49,99 $ US).", "Tester l'accès sur le téléphone pour les trajets.", "Planifier l'examen blanc n° 1 du samedi."],
+    steps: ["Acheter le pack Gold sur formation-tcfcanada.com (49,99 $ US).", "Tester l'accès sur le téléphone pour les trajets.", "Planifier l'examen blanc du samedi."],
     resources: [R.packGold],
   },
   "t8:e0": {
