@@ -69,9 +69,8 @@ export function canReuseResearch(origin: string, today: string): boolean {
   return d >= 0 && d < RESEARCH_REUSE_DAYS;
 }
 
-/** Budget mensuel et limite conseillée (dollars), taux indicatif du dollar en FCFA. */
+/** Budget mensuel (dollars), taux indicatif du dollar en FCFA. */
 export const AI_BUDGET = 25;
-export const AI_LIMIT = 30;
 export const USD_TO_XOF = 600;
 
 export interface UsageRow {
@@ -84,34 +83,8 @@ export function usageTotals(rows: UsageRow[], today: string) {
   const sum = (l: UsageRow[]) => l.reduce((t, r) => t + r.cost_usd, 0);
   const inMonth = rows.filter((r) => r.day.slice(0, 7) === today.slice(0, 7));
   const month = sum(inMonth);
-  const days = new Set(inMonth.map((r) => r.day)).size;
   return {
     today: sum(rows.filter((r) => r.day === today)),
     month,
-    perDay: days ? month / days : 0,
-    days,
   };
-}
-
-/** Dépense en fin de mois au rythme actuel ; null tant qu'il y a moins de 3 jours de mesure. */
-export function monthProjection(
-  t: { month: number; perDay: number; days: number },
-  today: string,
-): number | null {
-  if (t.days < 3) return null;
-  const [y, m, d] = today.split("-").map(Number);
-  const left = new Date(Date.UTC(y, m, 0)).getUTCDate() - d;
-  return t.month + t.perDay * left;
-}
-
-export function usageBy(rows: UsageRow[], key: (r: UsageRow) => string) {
-  const m = new Map<string, { key: string; cost: number; calls: number }>();
-  for (const r of rows) {
-    const k = key(r);
-    const x = m.get(k) ?? { key: k, cost: 0, calls: 0 };
-    x.cost += r.cost_usd;
-    x.calls++;
-    m.set(k, x);
-  }
-  return [...m.values()];
 }
