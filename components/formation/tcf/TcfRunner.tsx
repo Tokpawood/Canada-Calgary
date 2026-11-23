@@ -303,7 +303,10 @@ function CoRunner({
           type="button"
           className="btn btn-primary"
           onClick={next}
-          disabled={locked || (canSpeak() && (!was || playing))}
+          // Une réponse choisie suffit pour avancer : un signal de fin perdu ne doit jamais bloquer.
+          disabled={
+            locked || (canSpeak() && (!was || (playing && !answers[it.id])))
+          }
         >
           {i >= items.length - 1 ? (
             <>

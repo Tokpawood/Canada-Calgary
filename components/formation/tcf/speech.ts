@@ -104,6 +104,7 @@ export function speakTurns(
   const timers: {
     start?: ReturnType<typeof setTimeout>;
     end?: ReturnType<typeof setTimeout>;
+    watch?: ReturnType<typeof setInterval>;
   } = {};
   const finish = (ok: boolean) => {
     if (state === "fini") return;
@@ -111,6 +112,7 @@ export function speakTurns(
     state = "fini";
     clearTimeout(timers.start);
     clearTimeout(timers.end);
+    clearInterval(timers.watch);
     live = [];
     if (ok || started) cb.onEnd();
     else cb.onFail?.();
@@ -151,10 +153,18 @@ export function speakTurns(
     }
   }, 6000);
   timers.end = setTimeout(() => finish(true), expected * 1.6 + 15_000);
+  // L'iPad oublie parfois de signaler la fin : plus rien ne parle depuis 2 secondes, l'écoute est finie.
+  let silent = 0;
+  timers.watch = setInterval(() => {
+    silent =
+      state === "lecture" && !synth.speaking && !synth.pending ? silent + 1 : 0;
+    if (silent >= 4) finish(true);
+  }, 500);
   return () => {
     state = "fini";
     clearTimeout(timers.start);
     clearTimeout(timers.end);
+    clearInterval(timers.watch);
     live = [];
     synth.cancel();
   };
