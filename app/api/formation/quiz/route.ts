@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { errorResponse, requireOwner } from "@/lib/driveRoute";
+import { usageSink } from "@/lib/aiUsageStore";
 import { newId } from "@/lib/ids";
 import type { ErrorEntry, Lang, MemoEntry } from "@/lib/formation";
 import { QuizAIError, QUIZ_MODEL, generateQuiz } from "@/lib/quizAI";
@@ -64,7 +65,7 @@ export async function POST() {
       return NextResponse.json({ error: "Ajoutez d'abord quelques erreurs au carnet, une leçon à l'aide-mémoire ou passez un test TCF Canada : la série s'appuie dessus." }, { status: 400 });
     }
 
-    const out = await generateQuiz(buildQuizContext({ today: day, errors, memos, history, tcf }));
+    const out = await generateQuiz(buildQuizContext({ today: day, errors, memos, history, tcf }), usageSink(supabase, dossierId, "exercices"));
     const items = finalizeItems(out.items);
     if (items.length === 0) throw new QuizAIError("Claude n'a renvoyé aucun exercice. Réessayez.");
     // Seules les erreurs réellement présentes au carnet sont rattachées.

@@ -170,6 +170,8 @@ export interface Plan {
   sections: Section[];
   /** Recherche de documents en cours depuis cette date (absente une fois terminée). */
   researching_since?: string;
+  /** Jour où les notes de recherche ont été cherchées (réutilisées quelques jours). */
+  research_day?: string;
 }
 /** Au-delà, une recherche jamais terminée (serveur interrompu) est relancée. */
 export const RESEARCH_STALE_MS = 5 * 60_000;
@@ -471,7 +473,7 @@ Cherche sur internet des documents AUTHENTIQUES et RÉCENTS en français, puis r
 Varie les genres et les sources : actualité canadienne et francophone (Radio-Canada, Le Devoir, La Presse, RFI, TV5Monde, Le Monde…), vie pratique et services au Canada (gouvernement du Canada, Alberta, municipalités, santé, logement, travail), société, environnement, sciences, culture, économie, éducation, ainsi que des chroniques ou éditoriaux argumentés. Cherche aussi les thèmes qui reviennent dans les sujets d'expression écrite et orale du TCF Canada.
 
 Rends des notes en texte simple (pas de tableau), au plus 1 200 mots :
-- 8 à 10 documents. Pour chacun : titre, source, date, adresse web, résumé factuel en 4 à 6 phrases (faits, chiffres, acteurs, positions en présence), 6 à 10 mots ou expressions de registre soutenu, et un angle de débat.
+- 8 à 10 documents, en 3 recherches au plus : chaque recherche doit viser large. Pour chacun : titre, source, date, adresse web, résumé factuel en 4 à 6 phrases (faits, chiffres, acteurs, positions en présence), 6 à 10 mots ou expressions de registre soutenu, et un angle de débat.
 - 4 sujets d'actualité qui se prêtent à l'expression écrite ou orale, avec deux points de vue opposés.
 Ne recopie pas les articles : résume avec tes mots.`;
 

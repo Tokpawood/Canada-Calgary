@@ -1,10 +1,11 @@
 /**
  * Appels à Claude pour les tests TCF (serveur uniquement).
  * 1. Recherche sur internet de documents authentiques récents (Sonnet + recherche web).
- * 2. Rédaction des questions, morceau par morceau (Opus, sortie structurée).
+ * 2. Rédaction des questions, morceau par morceau (Sonnet, sortie structurée).
  * 3. Correction des expressions écrite et orale selon la grille TCF (Opus).
  */
 import type Anthropic from "@anthropic-ai/sdk";
+import { GRADING_MODEL, WRITING_MODEL, type UsageSink } from "./aiUsage";
 import { QuizAIError, apiError, ask, client } from "./quizAI";
 import {
   CePartSchema,
@@ -24,14 +25,15 @@ import {
   type Section,
 } from "./tcf";
 
-export const TCF_MODEL = "claude-opus-5-5";
-const RESEARCH_MODEL = "claude-sonnet-5-5";
+/** Rédaction et recherche ; la correction des expressions reste sur GRADING_MODEL. */
+export const TCF_MODEL = WRITING_MODEL;
 
 /** Cherche des documents authentiques récents. En cas d'échec, le test se prépare sans (notes vides). */
 export async function research(
   today: string,
   /** Thème de la semaine du cours, pour qu'une partie des documents s'y rattache. */
   theme?: string,
+  usage?: UsageSink,
 ): Promise<{ notes: string; sources: Array<{ url: string; title: string }> }> {
   const messages: Anthropic.MessageParam[] = [
     {
@@ -44,14 +46,15 @@ export async function research(
     let res: Anthropic.Message | null = null;
     for (let turn = 0; turn < 4; turn++) {
       res = await client().messages.create({
-        model: RESEARCH_MODEL,
+        model: TCF_MODEL,
         max_tokens: 8000,
         system: RESEARCH_SYSTEM,
         tools: [
-          { type: "web_search_20260209", name: "web_search", max_uses: 6 },
+          { type: "web_search_20260209", name: "web_search", max_uses: 3 },
         ],
         messages,
       });
+      await usage?.(res.model, res.usage);
       for (const b of res.content)
         if (b.type === "web_search_tool_result" && Array.isArray(b.content))
           for (const r of b.content)
@@ -94,8 +97,9 @@ export async function generatePart(
   section: Section,
   part: { from: number; to: number },
   prompt: string,
+  usage?: UsageSink,
 ): Promise<PartContent> {
-  const opts = { model: TCF_MODEL, maxTokens: 32000 };
+  const opts = { model: TCF_MODEL, maxTokens: 32000, usage };
   if (section.epreuve === "co" || section.epreuve === "ce") {
     const levels = (section.levels ?? []).slice(part.from, part.to) as Level[];
     const out =
@@ -131,13 +135,14 @@ export async function gradeExpression(
   epreuve: "ee" | "eo",
   tasks: Array<EeTask | EoTask>,
   answers: Record<string, string>,
+  usage?: UsageSink,
 ) {
   const out = await ask(
     ExprGradeSchema,
     EXPR_GRADE_SYSTEM,
     buildExprGradePrompt(epreuve, tasks, answers),
     "high",
-    { model: TCF_MODEL, maxTokens: 24000 },
+    { model: GRADING_MODEL, maxTokens: 24000, usage },
   );
   const clamp = (n: number) => Math.max(0, Math.min(20, Math.round(n)));
   return {

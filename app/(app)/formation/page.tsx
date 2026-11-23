@@ -32,6 +32,7 @@ export default async function FormationPage({
     { data: errorRows },
     { data: memoRows },
     { data: quizRows },
+    { data: usageRows },
   ] = await Promise.all([
     supabase
       .from("training_check")
@@ -59,6 +60,14 @@ export default async function FormationPage({
       .eq("exam", "tcf")
       .order("day", { ascending: false })
       .limit(60),
+    supabase
+      .from("ai_usage")
+      .select("day, cost_usd")
+      .eq("dossier_id", dossier.id)
+      .gte(
+        "day",
+        `${new Date().toLocaleDateString("en-CA", { timeZone: "Africa/Abidjan" }).slice(0, 7)}-01`,
+      ),
   ]);
   const quizzes = (quizRows ?? []).map((r) => mapQuizRow(r as QuizRow));
   // Les tests TCF sont facultatifs : une table absente (migration non appliquée) ne bloque pas la page.
@@ -111,6 +120,10 @@ export default async function FormationPage({
       initialMemos={memos}
       initialQuizzes={quizzes}
       initialTests={tcfTests}
+      usage={(usageRows ?? []).map((r) => ({
+        day: r.day as string,
+        cost_usd: Number(r.cost_usd),
+      }))}
       canEdit={dossier.ownerId === userData.user?.id}
       initialDate={d && /^\d{4}-\d{2}-\d{2}$/.test(d) ? d : undefined}
       initialOpen={t && t.length < 40 ? t : undefined}

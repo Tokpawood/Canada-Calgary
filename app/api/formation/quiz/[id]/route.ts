@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { errorResponse, requireOwner } from "@/lib/driveRoute";
+import { usageSink } from "@/lib/aiUsageStore";
 import { QuizAIError, gradeOpen } from "@/lib/quizAI";
 import { CLOSED_KINDS, gradeClosed, mapQuizRow, scoreOf, type ItemResult, type QuizRow } from "@/lib/quiz";
 
@@ -26,7 +27,7 @@ export async function POST(request: NextRequest, { params }: Ctx) {
     }
 
     const open = row.items.filter((it) => !CLOSED_KINDS.includes(it.kind));
-    const graded = open.length ? await gradeOpen(open, answers) : { results: [] as ItemResult[], summary: "" };
+    const graded = open.length ? await gradeOpen(open, answers, usageSink(supabase, dossierId, "correction exercices")) : { results: [] as ItemResult[], summary: "" };
     const results: ItemResult[] = row.items.map((it) =>
       CLOSED_KINDS.includes(it.kind) ? gradeClosed(it, answers[it.id]) : (graded.results.find((r) => r.id === it.id) ?? { id: it.id, score: 0, feedback: "", corrected: it.accepted[0] ?? "" }),
     );

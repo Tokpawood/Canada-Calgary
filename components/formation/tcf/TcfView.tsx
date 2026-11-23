@@ -22,6 +22,7 @@ import {
   type Epreuve,
   type TcfTest,
 } from "@/lib/tcf";
+import { isAccountError } from "@/lib/aiUsage";
 import {
   IconAlert,
   IconArrowRight,
@@ -263,6 +264,14 @@ export function TcfView({
         const state = (i: number) => test!.parts[i]?.status;
         let running = all.filter((i) => state(i) === "en_cours").length;
         const failed = all.filter((i) => state(i) === "erreur");
+        // Crédit épuisé ou clé refusée : relancer ne servirait à rien, on s'arrête aussitôt.
+        const account = failed.find(
+          (i) => asked.has(i) && isAccountError(test!.parts[i]?.error),
+        );
+        if (account !== undefined) {
+          setError(test.parts[account]?.error ?? "");
+          return;
+        }
         // Une partie en échec est relancée une fois ; ensuite on montre l'erreur.
         const stuck = failed.filter((i) => retried.has(i));
         if (
@@ -336,7 +345,14 @@ export function TcfView({
     setNow(t0);
     try {
       let test = current;
-      if (!test) {
+      // Test tombé en panne dès le départ : on repasse par la création, qui relance aussi la recherche.
+      const states = Object.values(test?.parts ?? {}).map((p) => p?.status);
+      const dead =
+        !!test &&
+        !test.sources.length &&
+        states.length > 0 &&
+        states.every((x) => x === "erreur");
+      if (!test || dead) {
         let json: { test?: TcfTest; error?: string } = {};
         let ok = false;
         try {

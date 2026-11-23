@@ -14,8 +14,15 @@ import {
   type QuizItem,
 } from "./quiz";
 import * as z from "zod/v4";
+import {
+  GRADING_MODEL,
+  WRITING_MODEL,
+  apiErrorText,
+  isAccountError,
+  type UsageSink,
+} from "./aiUsage";
 
-export const QUIZ_MODEL = "claude-opus-5-5";
+export const QUIZ_MODEL = WRITING_MODEL;
 
 export class QuizAIError extends Error {
   constructor(
@@ -26,25 +33,12 @@ export class QuizAIError extends Error {
   }
 }
 
-/** Cause précise d'une erreur de l'API : crédit, accès, attente ou panne ne se règlent pas de la même façon. */
-export function apiErrorText(e: { status?: number; message: string }): string {
-  if (e.status === 402 || /credit balance|billing|usage limits?/i.test(e.message))
-    return "Le crédit de l'API Claude est épuisé ou son plafond est atteint : rechargez-le sur platform.claude.com (Billing), puis réessayez.";
-  if (e.status === 403 || e.status === 404)
-    return `La clé API n'a pas accès au modèle demandé (code ${e.status}).`;
-  if (e.status === undefined)
-    return "Claude n'a pas répondu à temps. Réessayez dans quelques minutes.";
-  if (e.status >= 500)
-    return `Claude est surchargé ou en panne (code ${e.status}). Réessayez dans quelques minutes.`;
-  return `Claude a rejeté la demande (code ${e.status}).`;
-}
-
 /** Erreurs de l'API traduites pour l'interface. */
 export function apiError(e: unknown): never {
   if (e instanceof QuizAIError) throw e;
   if (e instanceof Anthropic.AuthenticationError)
     throw new QuizAIError(
-      "La clé API Anthropic est refusée : vérifiez-la dans les réglages Vercel.",
+      apiErrorText({ status: 401, message: e.message }),
       503,
     );
   if (e instanceof Anthropic.RateLimitError)
@@ -54,7 +48,8 @@ export function apiError(e: unknown): never {
     );
   if (e instanceof Anthropic.APIError) {
     console.error("[ia] Anthropic", e.status, e.message);
-    throw new QuizAIError(apiErrorText(e));
+    const text = apiErrorText(e);
+    throw new QuizAIError(text, isAccountError(text) ? 503 : 502);
   }
   throw e;
 }
@@ -73,19 +68,25 @@ export async function ask<T extends z.ZodType>(
   system: string,
   content: string,
   effort: "low" | "medium" | "high",
-  opts: { model?: string; maxTokens?: number } = {},
+  opts: { model?: string; maxTokens?: number; usage?: UsageSink } = {},
 ): Promise<z.infer<T>> {
   try {
+    const model = opts.model ?? QUIZ_MODEL;
     const res = await client().beta.messages.parse({
-      model: opts.model ?? QUIZ_MODEL,
+      model,
       max_tokens: opts.maxTokens ?? 16000,
       // En cas de refus par les filtres de sécurité, l'API relance la même demande sur un modèle de repli.
-      betas: ["server-side-fallback-2026-07-01"],
-      fallbacks: "default",
+      ...(model === GRADING_MODEL
+        ? {
+            betas: ["server-side-fallback-2026-07-01" as const],
+            fallbacks: "default" as const,
+          }
+        : {}),
       system,
       messages: [{ role: "user", content }],
       output_config: { effort, format: betaZodOutputFormat(schema) },
     });
+    await opts.usage?.(res.model, res.usage);
     if (res.stop_reason === "refusal")
       throw new QuizAIError(
         "Claude a refusé de préparer cette série. Réessayez plus tard.",
@@ -100,19 +101,21 @@ export async function ask<T extends z.ZodType>(
   }
 }
 
-export function generateQuiz(context: string) {
-  return ask(QuizSchema, QUIZ_SYSTEM, context, "medium");
+export function generateQuiz(context: string, usage?: UsageSink) {
+  return ask(QuizSchema, QUIZ_SYSTEM, context, "medium", { usage });
 }
 
 export async function gradeOpen(
   items: QuizItem[],
   answers: Record<string, string>,
+  usage?: UsageSink,
 ): Promise<{ results: ItemResult[]; summary: string }> {
   const out = await ask(
     GradeSchema,
     GRADE_SYSTEM,
     buildGradeContext(items, answers),
     "medium",
+    { model: GRADING_MODEL, usage },
   );
   const byId = new Map(out.results.map((r) => [r.id, r]));
   return {

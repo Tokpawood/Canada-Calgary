@@ -1,6 +1,8 @@
 import { NextResponse, after, type NextRequest } from "next/server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { errorResponse, requireOwner } from "@/lib/driveRoute";
+import { RESEARCH_REUSE_DAYS, canReuseResearch } from "@/lib/aiUsage";
+import { usageSink } from "@/lib/aiUsageStore";
 import { newId } from "@/lib/ids";
 import { QuizAIError } from "@/lib/quizAI";
 import {
@@ -53,13 +55,24 @@ export async function POST(request: NextRequest) {
     if (existing) {
       // Recherche interrompue (serveur arrêté en route) : on la relance.
       const since = existing.plan.researching_since;
-      if (since && Date.now() - new Date(since).getTime() > RESEARCH_STALE_MS) {
+      const stale =
+        !!since && Date.now() - new Date(since).getTime() > RESEARCH_STALE_MS;
+      // Préparation en panne dès le départ (crédit épuisé…) : la recherche n'a rien donné non plus.
+      const states = Object.values(existing.parts).map((p) => p?.status);
+      const empty =
+        !since &&
+        !existing.sources.length &&
+        states.length > 0 &&
+        states.every((x) => x === "erreur");
+      if (stale || empty) {
         const plan: Plan = {
           ...existing.plan,
           researching_since: new Date().toISOString(),
         };
         await supabase.from("tcf_test").update({ plan }).eq("id", existing.id);
-        after(() => runResearch(supabase, existing.id, day, plan));
+        after(() =>
+          runResearch(supabase, dossierId, existing.id, day, plan),
+        );
         existing.plan = plan;
       }
       return NextResponse.json({ test: existing });
@@ -105,7 +118,7 @@ export async function POST(request: NextRequest) {
     }
     // La recherche sur internet (1 à 2 min) se fait après la réponse : Safari sur iPad abandonne
     // une requête restée plus d'une minute sans réponse.
-    after(() => runResearch(supabase, row.id, day, plan));
+    after(() => runResearch(supabase, dossierId, row.id, day, plan));
     const [test] = await loadTests(supabase, dossierId, { id: row.id });
     return NextResponse.json({ test });
   } catch (e) {
@@ -117,14 +130,44 @@ export async function POST(request: NextRequest) {
 
 async function runResearch(
   supabase: SupabaseClient,
+  dossierId: string,
   id: string,
   day: string,
   plan: Plan,
 ) {
   let found: { notes: string; sources: Array<{ url: string; title: string }> } =
     { notes: "", sources: [] };
+  let origin = day;
   try {
-    found = await research(day, tcfWeek(day)?.theme);
+    // Notes de moins de 3 jours : on les réutilise au lieu de relancer une recherche payante.
+    const from = new Date(
+      Date.parse(`${day}T00:00:00Z`) - (RESEARCH_REUSE_DAYS - 1) * 86_400_000,
+    )
+      .toISOString()
+      .slice(0, 10);
+    const { data: past } = await supabase
+      .from("tcf_test")
+      .select("day, plan, research, sources")
+      .eq("dossier_id", dossierId)
+      .gte("day", from)
+      .neq("id", id)
+      .neq("research", "")
+      .order("day", { ascending: false });
+    const dayOf = (t: { day: unknown; plan: unknown }) =>
+      (t.plan as Plan).research_day ?? (t.day as string);
+    const reuse = (past ?? []).find((t) => canReuseResearch(dayOf(t), day));
+    if (reuse) {
+      origin = dayOf(reuse);
+      found = {
+        notes: reuse.research as string,
+        sources: reuse.sources as typeof found.sources,
+      };
+    } else
+      found = await research(
+        day,
+        tcfWeek(day)?.theme,
+        usageSink(supabase, dossierId, "recherche"),
+      );
   } catch (e) {
     // Sans notes de recherche, les parties s'appuient sur des sujets d'actualité plausibles.
     console.error("[tcf] recherche", e instanceof Error ? e.message : e);
@@ -133,7 +176,7 @@ async function runResearch(
   void _;
   const { error } = await supabase
     .from("tcf_test")
-    .update({ plan: rest, research: found.notes, sources: found.sources })
+    .update({ plan: { ...rest, research_day: origin }, research: found.notes, sources: found.sources })
     .eq("id", id);
   if (error)
     console.error("[tcf] enregistrement de la recherche", error.message);

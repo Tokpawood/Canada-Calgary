@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { errorResponse, requireOwner } from "@/lib/driveRoute";
+import { usageSink } from "@/lib/aiUsageStore";
 import { QuizAIError } from "@/lib/quizAI";
 import {
   EPREUVE_SHORT,
@@ -104,6 +105,7 @@ export async function POST(request: NextRequest, { params }: Ctx) {
         section.epreuve as "ee" | "eo",
         sectionTasks(full_, si),
         answers,
+        usageSink(supabase, dossierId, "correction expression"),
       );
       result = {
         epreuve: section.epreuve,

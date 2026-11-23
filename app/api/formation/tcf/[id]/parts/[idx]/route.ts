@@ -1,5 +1,6 @@
 import { NextResponse, after, type NextRequest } from "next/server";
 import { errorResponse, requireOwner } from "@/lib/driveRoute";
+import { usageSink } from "@/lib/aiUsageStore";
 import type { ErrorEntry, Lang } from "@/lib/formation";
 import { QuizAIError } from "@/lib/quizAI";
 import {
@@ -119,7 +120,12 @@ export async function POST(_req: NextRequest, { params }: Ctx) {
           today: row.day as string,
           memos: (memoRows ?? []).map((m) => m.title as string).filter(Boolean),
         });
-        const content = await generatePart(spec.section, spec.part, prompt);
+        const content = await generatePart(
+          spec.section,
+          spec.part,
+          prompt,
+          usageSink(supabase, dossierId, "questions"),
+        );
         await supabase
           .from("tcf_test_part")
           .update({

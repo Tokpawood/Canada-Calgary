@@ -1,5 +1,7 @@
 "use client";
 
+import { UsageCard } from "./UsageCard";
+import type { UsageRow } from "@/lib/aiUsage";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import {
@@ -77,6 +79,7 @@ export function FormationBoard({
   initialMemos,
   initialQuizzes,
   initialTests,
+  usage,
   canEdit,
   initialDate,
   initialOpen,
@@ -91,6 +94,7 @@ export function FormationBoard({
   initialMemos: MemoEntry[];
   initialQuizzes: Quiz[];
   initialTests: TcfTest[];
+  usage: UsageRow[];
   canEdit: boolean;
 }) {
   const [done, setDone] = useState(() => new Set(initialDone));
@@ -481,6 +485,7 @@ export function FormationBoard({
             canEdit={canEdit}
           />
         )}
+        {tab === "tcf" && canEdit && <UsageCard rows={usage} today={today} />}
         {tab === "semaines" && (
           <WeeksView
             today={today}
