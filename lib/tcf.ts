@@ -186,6 +186,25 @@ function spread(counts: number[]): Level[] {
   return counts.flatMap((n, i) => Array<Level>(n).fill(LEVELS[i]));
 }
 
+/**
+ * Poids en secondes d'une question selon son niveau : écoute ou lecture du document, puis question et choix.
+ * Un test adaptatif de niveau C1-C2 a des documents bien plus longs que la moyenne de l'examen officiel.
+ */
+const QUESTION_SECONDS: Record<"co" | "ce", Record<Level, number>> = {
+  co: { A1: 30, A2: 37, B1: 48, B2: 58, C1: 69, C2: 75 },
+  ce: { A1: 39, A2: 49, B1: 64, B2: 84, C1: 107, C2: 125 },
+};
+
+/** Durée d'une épreuve de compréhension : la répartition officielle donne exactement la durée officielle. */
+export function paceMinutes(e: "co" | "ce", levels: Level[]): number {
+  const total = (l: Level[]) =>
+    l.reduce((n, x) => n + QUESTION_SECONDS[e][x], 0);
+  return Math.ceil(
+    (OFFICIAL[e].minutes * total(levels)) / total(spread(OFFICIAL_SPREAD)) -
+      1e-9,
+  );
+}
+
 /** Niveaux visés pour un test adaptatif : autour du niveau actuel, avec une part au-dessus pour tirer vers C2. */
 export function adaptiveLevels(
   count: number,
@@ -259,12 +278,13 @@ export function kindFor(day: string, placed: boolean): TestKind {
  * examens blancs du samedi, semaines allégées. null quand le programme ne prévoit plus de test.
  */
 export function planFor(kind: TestKind, day: string, est: Estimates): { title: string; sections: Array<Omit<Section, "parts">> } | null {
+  const compr = (epreuve: "co" | "ce", levels: Level[]) => ({ epreuve, minutes: paceMinutes(epreuve, levels), levels });
   if (kind === "positionnement")
     return {
       title: "Positionnement TCF Canada",
       sections: [
-        { epreuve: "co", minutes: 15, levels: spread(PLACEMENT_SPREAD) },
-        { epreuve: "ce", minutes: 25, levels: spread(PLACEMENT_SPREAD) },
+        compr("co", spread(PLACEMENT_SPREAD)),
+        compr("ce", spread(PLACEMENT_SPREAD)),
         { epreuve: "ee", minutes: 20, tasks: [2] },
       ],
     };
@@ -283,8 +303,8 @@ export function planFor(kind: TestKind, day: string, est: Estimates): { title: s
   // Semaines allégées du programme (fêtes, dernière semaine) : tests raccourcis.
   const n = week.n === 6 || week.n === 13 ? 10 : 20;
   const eeTasks = weekNumber(day) % 2 ? [1, 3] : [2, 3];
-  const co = (k: number) => ({ epreuve: "co" as const, minutes: Math.round((k * OFFICIAL.co.minutes) / OFFICIAL.co.count), levels: adaptiveLevels(k, est.co) });
-  const ce = (k: number) => ({ epreuve: "ce" as const, minutes: Math.round((k * OFFICIAL.ce.minutes) / OFFICIAL.ce.count), levels: adaptiveLevels(k, est.ce) });
+  const co = (k: number) => compr("co", adaptiveLevels(k, est.co));
+  const ce = (k: number) => compr("ce", adaptiveLevels(k, est.ce));
   const ee = (tasks: number[]) => ({ epreuve: "ee" as const, minutes: tasks.reduce((sum, t) => sum + EE_TASK_MINUTES[t], 0), tasks });
   // Compréhension la plus éloignée de l'objectif (à égalité, l'oral).
   const weak: Epreuve = (est.co ?? 0) <= (est.ce ?? 0) ? "co" : "ce";
@@ -303,7 +323,7 @@ export function planFor(kind: TestKind, day: string, est: Estimates): { title: s
       // Samedi d'entraînement du programme : une épreuve de compréhension complète et une tâche 3.
       return {
         title: `Entraînement du samedi : ${EPREUVE_LABEL[weak].toLowerCase()} et tâche 3`,
-        sections: [weak === "co" ? { epreuve: "co", minutes: OFFICIAL.co.minutes, levels: adaptiveLevels(OFFICIAL.co.count, est.co) } : { epreuve: "ce", minutes: OFFICIAL.ce.minutes, levels: adaptiveLevels(OFFICIAL.ce.count, est.ce) }, ee([3])],
+        sections: [weak === "co" ? co(OFFICIAL.co.count) : ce(OFFICIAL.ce.count), ee([3])],
       };
     default:
       return { title: `Point faible : ${EPREUVE_LABEL[weak].toLowerCase()}`, sections: [weak === "co" ? co(n) : ce(n)] };
@@ -489,12 +509,13 @@ Compréhension écrite et orale : questions à choix multiple
 - 4 propositions, une seule juste, de longueur et de forme comparables ; distracteurs plausibles qui reprennent des mots du document, jamais absurdes. Répartis les bonnes réponses entre A, B, C et D.
 - La question porte sur le document et ne se résout pas sans lui.
 - Calibrage des niveaux :
-  A1 : document très court de la vie quotidienne (panneau, message, annonce simple), information explicite. Écrit 30–60 mots, oral 15–35 mots.
-  A2 : message, annonce, courriel, échange simple ; information concrète. Écrit 60–100 mots, oral 30–60 mots.
-  B1 : dialogue ou texte informatif courant ; idée principale, détails, opinion simple. Écrit 100–160 mots, oral 60–110 mots.
-  B2 : article, interview, reportage ; argumentation explicite, nuances, détails importants. Écrit 160–230 mots, oral 100–160 mots.
-  C1 : texte ou discours long et structuré, registre soutenu ; implicite, intention de l'auteur, ton, opinion nuancée. Écrit 220–320 mots, oral 150–220 mots.
-  C2 : texte abstrait, littéraire ou très argumenté ; ironie, sous-entendus, glissements de sens, vocabulaire rare ; les propositions ne se distinguent que par une nuance fine. Écrit 280–380 mots, oral 180–260 mots.
+  A1 : document très court de la vie quotidienne (panneau, message, annonce simple), information explicite. Écrit 30–60 mots, oral 15–30 mots.
+  A2 : message, annonce, courriel, échange simple ; information concrète. Écrit 60–100 mots, oral 25–50 mots.
+  B1 : dialogue ou texte informatif courant ; idée principale, détails, opinion simple. Écrit 100–160 mots, oral 50–85 mots.
+  B2 : article, interview, reportage ; argumentation explicite, nuances, détails importants. Écrit 160–230 mots, oral 80–120 mots.
+  C1 : texte ou discours long et structuré, registre soutenu ; implicite, intention de l'auteur, ton, opinion nuancée. Écrit 220–320 mots, oral 110–150 mots.
+  C2 : texte abstrait, littéraire ou très argumenté ; ironie, sous-entendus, glissements de sens, vocabulaire rare ; les propositions ne se distinguent que par une nuance fine. Écrit 280–380 mots, oral 130–170 mots.
+- Les longueurs indiquées sont des maximums stricts : le chronomètre est calculé dessus. La difficulté vient de la langue et de l'implicite, pas de la longueur.
 - Compréhension orale : écris le document comme il sera prononcé (langue orale naturelle : hésitations légères, reprises, registre adapté ; accents et réalités du Canada bienvenus). Chaque réplique indique un nom de locuteur et une voix f ou m ; alterne les voix dans les dialogues. Le document ne sera entendu qu'une fois : la question est lue avant l'écoute.
 - L'explication, en français, cite l'indice du document et dit pourquoi chaque autre proposition est fausse.
 

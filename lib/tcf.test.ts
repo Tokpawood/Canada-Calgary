@@ -13,6 +13,7 @@ import {
   levelFromScore,
   mapTcfRow,
   nclcOf,
+  paceMinutes,
   planFor,
   withParts,
   type CeItem,
@@ -133,5 +134,18 @@ describe("liens avec la formation", () => {
     expect(d).toContain("Compréhension orale : 480/699");
     expect(d).toContain("objectif examen 549/699");
     expect(d).toContain("CO B2");
+  });
+});
+
+describe("durée des épreuves de compréhension", () => {
+  const spread = [4, 6, 9, 9, 6, 5].flatMap((n, i) => Array<Level>(n).fill((["A1", "A2", "B1", "B2", "C1", "C2"] as Level[])[i]));
+  it("garde la durée officielle pour la répartition officielle", () => {
+    expect(paceMinutes("co", spread)).toBe(35);
+    expect(paceMinutes("ce", spread)).toBe(60);
+  });
+  it("donne plus de temps à un test C1-C2", () => {
+    const hard = [...Array<Level>(4).fill("B2"), ...Array<Level>(9).fill("C1"), ...Array<Level>(7).fill("C2")];
+    expect(paceMinutes("co", hard)).toBeGreaterThanOrEqual(23);
+    expect(paceMinutes("ce", hard)).toBeGreaterThanOrEqual(40);
   });
 });
