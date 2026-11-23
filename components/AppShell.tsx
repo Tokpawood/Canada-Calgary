@@ -1,5 +1,7 @@
 "use client";
 
+import { ProcedureBanner } from "@/components/ProcedureBanner";
+import type { Procedure, ProcedureTab } from "@/lib/procedure";
 import Link from "next/link";
 import { Logo } from "@/components/Logo";
 import { CountUp } from "@/components/CountUp";
@@ -34,7 +36,19 @@ export interface ShellSummary {
   /** Actions de Formation prévues aujourd'hui : restant à cocher / total. */
   formationToday: { remaining: number; total: number };
   docs: { obtained: number; total: number; expired: number };
+  /** Objectif commun (RP par Entrée express) : phases et points à régler par onglet. */
+  procedure: Procedure;
 }
+
+const PROCEDURE_TABS: ProcedureTab[] = [
+  "parcours",
+  "documents",
+  "budget",
+  "epargne",
+  "profil",
+  "contacts",
+  "coffre",
+];
 
 type NavItem = {
   href: string;
@@ -85,7 +99,10 @@ export function AppShell({
   // Pastille Formation : valeur du serveur, puis mise à jour en direct quand une tâche est cochée.
   const [formationLeft, setFormationLeft] = useState<number | null>(null);
   useEffect(() => {
-    const onChange = (e: Event) => setFormationLeft((e as CustomEvent<{ remaining: number }>).detail.remaining);
+    const onChange = (e: Event) =>
+      setFormationLeft(
+        (e as CustomEvent<{ remaining: number }>).detail.remaining,
+      );
     window.addEventListener(FORMATION_TODAY_EVENT, onChange);
     return () => window.removeEventListener(FORMATION_TODAY_EVENT, onChange);
   }, []);
@@ -107,7 +124,13 @@ export function AppShell({
     if (href === "/formation" && summary.formationToday.total > 0) {
       const left = formationLeft ?? summary.formationToday.remaining;
       return left > 0
-        ? { text: String(left), alert: false, signal: true, title: left > 1 ? "Actions du jour à faire" : "Action du jour à faire" }
+        ? {
+            text: String(left),
+            alert: false,
+            signal: true,
+            title:
+              left > 1 ? "Actions du jour à faire" : "Action du jour à faire",
+          }
         : { text: "✓", alert: false, title: "Actions du jour faites" };
     }
     if (href === "/parcours" && summary.lateSteps > 0)
@@ -271,7 +294,10 @@ export function AppShell({
                 >
                   {n.label}
                   {(badge?.alert || badge?.signal) && (
-                    <span className={`mono rounded-full px-1.5 text-[10px] leading-[16px] ${badge.alert ? "bg-bad text-white" : "bg-signal text-black"}`} title={badge.title}>
+                    <span
+                      className={`mono rounded-full px-1.5 text-[10px] leading-[16px] ${badge.alert ? "bg-bad text-white" : "bg-signal text-black"}`}
+                      title={badge.title}
+                    >
                       {badge.text}
                       <span className="sr-only"> : {badge.title}</span>
                     </span>
@@ -285,6 +311,15 @@ export function AppShell({
         <main className="shell-main mx-auto w-full max-w-[1180px] px-4 pt-6 pb-20 sm:px-6 lg:px-10 lg:pt-9">
           <OfflineBanner />
           <UpdateBanner />
+          {summary &&
+            (() => {
+              const tab = PROCEDURE_TABS.find(
+                (t) => pathname === `/${t}` || pathname.startsWith(`/${t}/`),
+              );
+              return tab ? (
+                <ProcedureBanner procedure={summary.procedure} tab={tab} />
+              ) : null;
+            })()}
           {children}
         </main>
       </div>
