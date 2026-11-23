@@ -11,6 +11,8 @@ import {
 
 const usd = (n: number) =>
   `${n.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} $`;
+const cfa = (n: number) =>
+  `${Math.round(n * USD_TO_XOF).toLocaleString("fr-FR")} F CFA`;
 const R = 88;
 const C = 2 * Math.PI * R;
 
@@ -49,7 +51,7 @@ export function UsageView({
         viewBox="0 0 200 200"
         className="mt-4 h-60 w-60"
         role="img"
-        aria-label={`${usd(t.month)} dépensés sur ${usd(AI_BUDGET)}, soit ${Math.round(pct)} %`}
+        aria-label={`${usd(t.month)} dépensés (${cfa(t.month)}) sur ${usd(AI_BUDGET)}, soit ${Math.round(pct)} %`}
       >
         <circle
           cx="100"
@@ -75,7 +77,7 @@ export function UsageView({
         )}
         <text
           x="100"
-          y="106"
+          y="98"
           textAnchor="middle"
           fontSize="32"
           fontWeight="700"
@@ -86,9 +88,18 @@ export function UsageView({
         </text>
         <text
           x="100"
-          y="128"
+          y="120"
           textAnchor="middle"
           fontSize="12"
+          fill="var(--muted)"
+        >
+          ≈ {cfa(t.month)}
+        </text>
+        <text
+          x="100"
+          y="140"
+          textAnchor="middle"
+          fontSize="11"
           fill="var(--muted)"
         >
           sur {AI_BUDGET} $
@@ -97,14 +108,18 @@ export function UsageView({
       <p
         className={`mt-4 text-[14px] font-semibold ${alert ? "text-bad" : ""}`}
       >
-        {left >= 0 ? `Reste ${usd(left)}` : `Budget dépassé de ${usd(-left)}`}
+        {left >= 0
+          ? `Reste ${usd(left)} · ${cfa(left)}`
+          : `Budget dépassé de ${usd(-left)} · ${cfa(-left)}`}
       </p>
       <p className="mt-1 text-[12.5px] text-muted">
-        Aujourd&apos;hui {usd(t.today)} · mois ≈{" "}
-        {Math.round(t.month * USD_TO_XOF).toLocaleString("fr-FR")} F
+        Aujourd&apos;hui {usd(t.today)} · {cfa(t.today)}
+      </p>
+      <p className="mt-1 text-[12.5px] text-muted">
+        Budget du mois {usd(AI_BUDGET)} · {cfa(AI_BUDGET)}
       </p>
       <p className="mt-4 text-[11.5px] text-muted">
-        Estimation depuis le 23 novembre 2026
+        Estimation depuis le 23 novembre 2026 · 1 $ ≈ {USD_TO_XOF} F CFA
       </p>
     </section>
   );
