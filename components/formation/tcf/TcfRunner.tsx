@@ -80,7 +80,7 @@ const RULES: Record<string, string[]> = {
   ],
   eo: [
     "Tâche 1 : entretien dirigé sans préparation (2 min).",
-    "Tâche 2 : préparation 2 min, puis interaction 5 min 30 : posez vos questions pour obtenir les informations.",
+    "Tâche 2 : préparation 2 min, puis interaction 3 min 30 : posez vos questions pour obtenir les informations.",
     "Tâche 3 : point de vue sans préparation (4 min 30).",
     "Votre voix est transcrite puis corrigée : la prononciation n'est pas évaluée.",
   ],

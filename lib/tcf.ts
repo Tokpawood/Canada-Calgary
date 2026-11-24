@@ -42,7 +42,7 @@ export const EE_WORDS: Record<number, [number, number]> = {
 /** Préparation et prise de parole (secondes) des trois tâches d'expression orale. */
 export const EO_TIMING: Record<number, { prep: number; speak: number }> = {
   1: { prep: 0, speak: 120 },
-  2: { prep: 120, speak: 330 },
+  2: { prep: 120, speak: 210 },
   3: { prep: 0, speak: 270 },
 };
 
@@ -525,7 +525,7 @@ Expression écrite (60 minutes en tout)
 - Tâche 3 : texte argumentatif (120 à 180 mots) comparant deux points de vue sur un sujet de société : fournis deux courts documents (80 à 120 mots chacun) aux positions opposées.
 Expression orale (12 minutes)
 - Tâche 1 : entretien dirigé sans préparation (2 min) : se présenter, parler de son parcours, de ses projets ; donne 5 à 6 relances d'examinateur.
-- Tâche 2 : exercice en interaction avec préparation (2 min, puis 5 min 30) : le candidat obtient des informations dans une situation de la vie courante en posant des questions ; décris la situation et, dans « role », ce que sait l'examinateur ; 3 à 4 relances.
+- Tâche 2 : exercice en interaction avec préparation (2 min, puis 3 min 30) : le candidat obtient des informations dans une situation de la vie courante en posant des questions ; décris la situation et, dans « role », ce que sait l'examinateur ; 3 à 4 relances.
 - Tâche 3 : expression d'un point de vue sans préparation (4 min 30) : une question de société à défendre ; 3 à 4 relances pour pousser l'argumentation.
 - Rédige les consignes comme le jour de l'examen, au vouvoiement.`;
 
