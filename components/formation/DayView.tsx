@@ -16,6 +16,7 @@ import {
   IconInfo,
 } from "@/components/icons";
 import { CheckBox, LangTag, fmtDay, minutesLabel } from "./shared";
+import { exercicesFor, intitule } from "@/lib/sujets";
 import { TaskDrawer } from "./TaskDrawer";
 
 const GROUP_LABEL: Record<DayItem["group"], string> = {
@@ -146,6 +147,7 @@ export function DayView({
               <ul>
                 {items.map((it) => {
                   const on = done.has(it.key);
+                  const exos = exercicesFor(date, it);
                   return (
                     <li key={it.key}>
                       <div className="flex items-start gap-3 rounded-xl px-2 py-2.5 hover:bg-surface-2">
@@ -176,8 +178,25 @@ export function DayView({
                                 {it.detail}
                               </span>
                             )}
+                            {exos.map((e) => (
+                              <span
+                                key={e.titre}
+                                className="mt-1 line-clamp-2 block text-[13px] leading-snug"
+                              >
+                                <span className="font-semibold">
+                                  {it.tool === "tcf"
+                                    ? "Sujet en plus : "
+                                    : exos.length > 1
+                                      ? `${e.titre.split(" :")[0]} : `
+                                      : "Sujet : "}
+                                </span>
+                                {intitule(e)}
+                              </span>
+                            ))}
                             <span className="mt-1 inline-flex items-center gap-0.5 text-[12px] font-semibold text-muted">
-                              Méthode et ressources
+                              {exos.length
+                                ? "Voir l'exercice et la méthode"
+                                : "Méthode et ressources"}
                               <IconChevronRight size={13} />
                             </span>
                           </span>

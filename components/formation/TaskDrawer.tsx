@@ -5,6 +5,7 @@ import { DrawerCard, DrawerFacts } from "@/components/DrawerParts";
 import { IconCheck, IconChevronLeft, IconChevronRight, IconExternal, IconInfo } from "@/components/icons";
 import { guideFor } from "@/lib/formationGuide";
 import type { DayPlan } from "@/lib/formation";
+import { ExerciceCard } from "./ExerciceCard";
 import { LangTag, fmtDay, minutesLabel } from "./shared";
 
 const NAV_BTN = "grid h-8 w-8 place-items-center rounded-lg text-night-muted hover:bg-white/10 hover:text-night-ink disabled:opacity-30 disabled:hover:bg-transparent";
@@ -99,6 +100,8 @@ export function TaskDrawer({
           {item.detail && <p className="mt-1 text-[13px] text-muted">{item.detail}</p>}
           {guide && <p className="mt-2 text-[13px] text-muted">{guide.why}</p>}
         </DrawerCard>
+
+        <ExerciceCard date={plan.date} item={item} />
 
         {guide && (
           <DrawerCard title="Méthode">
