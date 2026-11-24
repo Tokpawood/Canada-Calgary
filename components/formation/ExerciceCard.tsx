@@ -1,10 +1,45 @@
 "use client";
 
 import { DrawerCard } from "@/components/DrawerParts";
-import { autresSujets, exercicesFor, intitule, type Exercice } from "@/lib/sujets";
+import { CONSIGNES, METHODES, exercicesFor, type Exercice } from "@/lib/sujets";
 import type { DayItem } from "@/lib/formation";
 
-function Body({ e }: { e: Exercice }) {
+export function Consigne({ kind }: { kind: Exercice["kind"] }) {
+  return (
+    <div className="rounded-xl border border-line px-3 py-2.5">
+      <p className="text-[11.5px] font-semibold text-muted">Consigne</p>
+      <ul className="mt-1 flex flex-col gap-1 text-[13.5px] leading-snug">
+        {CONSIGNES[kind].map((c) => (
+          <li key={c}>• {c}</li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+export function Methode({ kind }: { kind: Exercice["kind"] }) {
+  return (
+    <>
+      <ol className="flex flex-col gap-2">
+        {METHODES[kind].etapes.map((s, i) => (
+          <li key={s} className="flex gap-2.5 text-[13.5px] leading-snug">
+            <span className="mono grid h-5 w-5 shrink-0 place-items-center rounded-full bg-surface-2 text-[11px] font-semibold">{i + 1}</span>
+            <span>{s}</span>
+          </li>
+        ))}
+      </ol>
+      {METHODES[kind].modele && (
+        <div className="mt-3 rounded-xl bg-surface-2 px-3 py-2.5">
+          <p className="text-[11.5px] font-semibold text-muted">Phrases de départ</p>
+          <p className="mt-0.5 text-[13.5px] leading-relaxed whitespace-pre-line">{METHODES[kind].modele}</p>
+        </div>
+      )}
+    </>
+  );
+}
+
+/** Le sujet lui-même (énoncé, documents, questions ou phrases). */
+export function Sujet({ e }: { e: Exercice }) {
   if (e.kind === "gram")
     return (
       <ol className="flex flex-col gap-3">
@@ -40,50 +75,27 @@ function Body({ e }: { e: Exercice }) {
             <p className="mt-0.5 text-[14px] leading-relaxed">{d}</p>
           </div>
         ))}
-        <p className="text-[13px]">Présentez les deux points de vue avec vos propres mots, puis donnez votre opinion sur la question.</p>
       </div>
     );
   return <p className="text-[14.5px] leading-relaxed">{e.consigne}</p>;
 }
 
-function meta(e: Exercice): string {
-  if ("mots" in e) return `${e.mots} · ${e.temps}`;
-  return "temps" in e ? e.temps : "";
-}
-
-/** Exercice à faire pour la tâche, puis d'autres sujets du même type. */
+/** Dans le tiroir d'une tâche : un sujet par tâche de l'épreuve, sa consigne et sa méthodologie. */
 export function ExerciceCard({ date, item }: { date: string; item: DayItem }) {
-  const list = exercicesFor(date, item);
-  if (!list.length) return null;
-  const others = autresSujets(date, item);
-  // Le test de l'application fournit déjà le sujet officiel du jour : celui-ci vient en plus.
-  const extra = item.tool === "tcf";
   return (
     <>
-      {list.map((e) => (
-        <DrawerCard key={e.titre + intitule(e)} title={extra ? "Sujet en plus du test" : "Exercice à faire"} sub={[e.titre, meta(e)].filter(Boolean).join(" · ")}>
-          {extra && <p className="mb-2 text-[12.5px] text-muted">Le test TCF Canada du jour a son propre sujet, corrigé par Claude. Celui-ci est facultatif.</p>}
-          <Body e={e} />
-        </DrawerCard>
-      ))}
-      {others.length > 0 && (
-        <DrawerCard title="Autres exemples de sujets" sub={`${others.length} sujets`}>
-          <div className="flex flex-col">
-            {others.map((e) => (
-              <details key={intitule(e)} className="border-t border-line py-1 first:border-t-0">
-                <summary className="cursor-pointer py-1.5 text-[13.5px] leading-snug font-medium">
-                  {e.kind === "ee1" ? "Tâche 1 · " : e.kind === "ee2" ? "Tâche 2 · " : ""}
-                  {intitule(e).length > 90 ? `${intitule(e).slice(0, 88)}…` : intitule(e)}
-                </summary>
-                <div className="pt-1 pb-2">
-                  <Body e={e} />
-                  <p className="mt-1.5 text-[12px] text-muted">{meta(e)}</p>
-                </div>
-              </details>
-            ))}
+      {exercicesFor(date, item).map((e) => (
+        <DrawerCard key={e.kind} title={e.titre} sub={e.temps}>
+          <div className="flex flex-col gap-3">
+            <Sujet e={e} />
+            <Consigne kind={e.kind} />
+            <div>
+              <p className="mb-2 text-[13.5px] font-bold">Méthodologie</p>
+              <Methode kind={e.kind} />
+            </div>
           </div>
         </DrawerCard>
-      )}
+      ))}
     </>
   );
 }

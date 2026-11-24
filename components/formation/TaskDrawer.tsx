@@ -5,10 +5,12 @@ import { DrawerCard, DrawerFacts } from "@/components/DrawerParts";
 import { IconCheck, IconChevronLeft, IconChevronRight, IconExternal, IconInfo } from "@/components/icons";
 import { guideFor } from "@/lib/formationGuide";
 import type { DayPlan } from "@/lib/formation";
+import { exercicesFor } from "@/lib/sujets";
 import { ExerciceCard } from "./ExerciceCard";
 import { LangTag, fmtDay, minutesLabel } from "./shared";
 
-const NAV_BTN = "grid h-8 w-8 place-items-center rounded-lg text-night-muted hover:bg-white/10 hover:text-night-ink disabled:opacity-30 disabled:hover:bg-transparent";
+const NAV_BTN =
+  "grid h-8 w-8 place-items-center rounded-lg text-night-muted hover:bg-white/10 hover:text-night-ink disabled:opacity-30 disabled:hover:bg-transparent";
 
 export function TaskDrawer({
   plan,
@@ -35,6 +37,8 @@ export function TaskDrawer({
   const prev = plan.items[idx - 1];
   const next = plan.items[idx + 1];
   const week = plan.week;
+  // La méthodologie du sujet remplace la méthode générale de la tâche.
+  const withSubject = exercicesFor(plan.date, item).length > 0;
 
   function validate() {
     toggle(item.key, !on);
@@ -51,10 +55,24 @@ export function TaskDrawer({
       onClose={onClose}
       topActions={
         <>
-          <button type="button" className={NAV_BTN} disabled={!prev} onClick={() => prev && onSelect(prev.key)} aria-label="Tâche précédente" title="Tâche précédente">
+          <button
+            type="button"
+            className={NAV_BTN}
+            disabled={!prev}
+            onClick={() => prev && onSelect(prev.key)}
+            aria-label="Tâche précédente"
+            title="Tâche précédente"
+          >
             <IconChevronLeft size={17} />
           </button>
-          <button type="button" className={NAV_BTN} disabled={!next} onClick={() => next && onSelect(next.key)} aria-label="Tâche suivante" title="Tâche suivante">
+          <button
+            type="button"
+            className={NAV_BTN}
+            disabled={!next}
+            onClick={() => next && onSelect(next.key)}
+            aria-label="Tâche suivante"
+            title="Tâche suivante"
+          >
             <IconChevronRight size={17} />
           </button>
         </>
@@ -67,7 +85,9 @@ export function TaskDrawer({
           <h2 className="mt-1.5 font-display text-[22px] leading-tight font-bold">{item.label}</h2>
           <div className="mt-2.5 flex flex-wrap items-center gap-2">
             {item.lang && <LangTag lang={item.lang} />}
-            <span className={`rounded-full px-2.5 py-1 text-[12px] font-semibold ${on ? "bg-[#8fd6a8] text-[#0b2414]" : "bg-white/10"}`}>{on ? "Fait" : "À faire"}</span>
+            <span className={`rounded-full px-2.5 py-1 text-[12px] font-semibold ${on ? "bg-[#8fd6a8] text-[#0b2414]" : "bg-white/10"}`}>
+              {on ? "Fait" : "À faire"}
+            </span>
             {guide && <span className="text-[12.5px] text-night-muted">{guide.title}</span>}
           </div>
           <DrawerFacts
@@ -103,16 +123,18 @@ export function TaskDrawer({
 
         <ExerciceCard date={plan.date} item={item} />
 
-        {guide && (
-          <DrawerCard title="Méthode">
-            <ol className="flex flex-col gap-2">
-              {guide.steps.map((s, i) => (
-                <li key={i} className="flex gap-2.5 text-[13.5px] leading-snug">
-                  <span className="mono grid h-5 w-5 shrink-0 place-items-center rounded-full bg-surface-2 text-[11px] font-semibold">{i + 1}</span>
-                  <span>{s}</span>
-                </li>
-              ))}
-            </ol>
+        {guide && (!withSubject || guide.table) && (
+          <DrawerCard title={withSubject ? "Repères" : "Méthode"}>
+            {!withSubject && (
+              <ol className="flex flex-col gap-2">
+                {guide.steps.map((s, i) => (
+                  <li key={i} className="flex gap-2.5 text-[13.5px] leading-snug">
+                    <span className="mono grid h-5 w-5 shrink-0 place-items-center rounded-full bg-surface-2 text-[11px] font-semibold">{i + 1}</span>
+                    <span>{s}</span>
+                  </li>
+                ))}
+              </ol>
+            )}
             {guide.table && (
               <div className="mt-3 overflow-x-auto rounded-lg border border-line">
                 <table className="w-full text-left text-[12.5px]">

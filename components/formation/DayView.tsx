@@ -184,10 +184,10 @@ export function DayView({
                                 className="mt-1 line-clamp-2 block text-[13px] leading-snug"
                               >
                                 <span className="font-semibold">
-                                  {it.tool === "tcf"
-                                    ? "Sujet en plus : "
-                                    : exos.length > 1
-                                      ? `${e.titre.split(" :")[0]} : `
+                                  {exos.length > 1
+                                    ? `Tâche ${e.kind.slice(-1)} : `
+                                    : e.kind === "gram"
+                                      ? "Exercice : "
                                       : "Sujet : "}
                                 </span>
                                 {intitule(e)}
@@ -195,7 +195,7 @@ export function DayView({
                             ))}
                             <span className="mt-1 inline-flex items-center gap-0.5 text-[12px] font-semibold text-muted">
                               {exos.length
-                                ? "Voir l'exercice et la méthode"
+                                ? "Sujet, consigne et méthodologie"
                                 : "Méthode et ressources"}
                               <IconChevronRight size={13} />
                             </span>

@@ -1,246 +1,169 @@
 /**
- * Sujets d'entraînement affichés dans les tâches du jour : expression écrite et orale au format du TCF Canada,
- * exercices de grammaire de la semaine. Sujets originaux, rédigés pour l'application (aucun appel à Claude).
+ * Sujets d'entraînement au format du TCF Canada : celui de chaque tâche du jour et la banque de l'onglet Sujets,
+ * avec consigne et méthodologie. Sujets originaux (lib/sujetsData.ts), aucun appel à Claude.
  */
-import { dayPlan, weekOf, weekday, type DayItem } from "./formation";
-
-export interface SujetT3 {
-  titre: string;
-  a: string;
-  b: string;
-}
-
-export interface WeekSujets {
-  t1: string;
-  t2: string;
-  t3: [SujetT3, SujetT3, SujetT3];
-  eo2: string;
-  eo3: [string, string, string];
-  /** Exercice, réponse attendue. */
-  gram: Array<[string, string]>;
-}
-
-/** Entretien dirigé : questions de l'examinateur, les mêmes toute l'année. */
-export const EO1_QUESTIONS = [
-  "Pouvez-vous vous présenter et parler de votre parcours professionnel ?",
-  "Qu'est-ce qui vous plaît le plus, et le moins, dans votre métier ?",
-  "Pourquoi souhaitez-vous vous installer au Canada ?",
-  "Décrivez la ville où vous vivez : qu'est-ce que vous y changeriez ?",
-  "Comment occupez-vous votre temps libre ?",
-  "Quels sont vos projets pour les cinq prochaines années ?",
-];
-
-export const SUJETS: Record<number, WeekSujets> = {
-  2: {
-    t1: "Vous organisez une journée sans écran avec quelques amis ce dimanche. Écrivez à un ami pour l'inviter : expliquez l'idée, décrivez le programme, précisez le lieu et l'heure, et dites-lui quoi apporter.",
-    t2: "Vous tenez un blogue. Racontez une expérience marquante liée à la technologie (une panne, une découverte, une rencontre en ligne). Décrivez ce qui s'est passé, vos réactions, et ce que vous en avez retenu pour vos lecteurs.",
-    t3: [
-      { titre: "La semaine de quatre jours : progrès ou illusion ?", a: "Depuis que notre entreprise est passée à quatre jours, les absences ont nettement reculé et les candidatures affluent. Les équipes arrivent reposées et les réunions inutiles ont disparu. Produire autant en moins de temps n'a rien d'un miracle : il a suffi de mieux s'organiser.", b: "On oublie trop vite les métiers où la présence est indispensable : soignants, vendeurs, conducteurs. Chez nous, faire tenir cinq jours dans quatre a surtout rallongé les journées. Les plus fragiles s'épuisent, et les petites structures n'ont pas les moyens de recruter pour compenser." },
-      { titre: "Faut-il interdire le téléphone portable à l'école ?", a: "Dans mon collège, les téléphones restent dans un casier du matin au soir. Les élèves se parlent de nouveau pendant les pauses et l'attention en classe s'est améliorée. Le harcèlement en ligne n'a pas disparu, mais il ne se nourrit plus de photos prises dans les couloirs.", b: "Interdire, c'est renoncer à éduquer. Les jeunes vivront entourés d'écrans : mieux vaut leur apprendre à s'en servir avec discernement. Beaucoup de parents veulent aussi pouvoir joindre leur enfant. Un usage encadré en cours me paraît plus utile qu'un casier fermé à clé." },
-      { titre: "L'intelligence artificielle peut-elle enseigner ?", a: "L'outil que j'utilise corrige mes exercices à toute heure, sans jamais s'impatienter. Il repère mes erreurs récurrentes et adapte la difficulté. Pour un adulte qui travaille, c'est une chance inespérée de se former à son rythme et à faible coût.", b: "Apprendre, c'est aussi douter, échanger, être encouragé. Une machine ne voit pas qu'un élève décroche parce qu'il est triste. Elle se trompe parfois avec aplomb, et celui qui débute n'a aucun moyen de s'en rendre compte. Rien ne remplace un professeur." },
-    ],
-    eo2: "Vous voulez acheter un ordinateur d'occasion. Je suis le vendeur. Posez-moi des questions : état, âge, prix, garantie, raison de la vente, livraison…",
-    eo3: ["Les réseaux sociaux rendent-ils les jeunes plus isolés ?", "Peut-on encore vivre sans téléphone intelligent ?", "Les entreprises devraient-elles surveiller l'activité en ligne de leurs salariés ?"],
-    gram: [["Bien que cet outil (être) gratuit, peu de gens l'utilisent.", "soit"], ["Je vous explique la démarche pour que vous (pouvoir) la refaire seul.", "puissiez"], ["Nous partirons à moins qu'il ne (pleuvoir).", "pleuve"], ["Reformulez avec « bien que » : Il a de l'expérience, mais il n'a pas été retenu.", "Bien qu'il ait de l'expérience, il n'a pas été retenu."], ["Corrigez : Bien vrai que le télétravail est utile, il isole.", "Bien que le télétravail soit utile, il isole."]],
-  },
-  3: {
-    t1: "Votre quartier organise une matinée de nettoyage. Écrivez à vos voisins : annoncez la date et le lieu, expliquez pourquoi leur aide est importante, dites ce qu'il faut apporter et ce qui est prévu ensuite.",
-    t2: "Vous avez essayé de vivre un mois en produisant le moins de déchets possible. Racontez cette expérience dans le journal de votre association : vos débuts, vos difficultés, vos réussites, et vos conseils.",
-    t3: [
-      { titre: "Faut-il taxer davantage les produits sucrés ?", a: "Les boissons sucrées coûtent cher à la société : diabète, obésité, soins dentaires. Une taxe pousse les fabricants à revoir leurs recettes et finance la prévention. Là où elle existe, les ventes ont diminué. C'est une mesure simple, qui protège d'abord les enfants.", b: "Une taxe de plus, ce sont les ménages modestes qui la paient. Ceux qui en ont les moyens continuent d'acheter comme avant. Informer, améliorer les cantines et rendre les fruits abordables serait plus juste que de punir les gens à la caisse." },
-      { titre: "Faut-il renoncer à l'avion pour les vacances ?", a: "Un seul vol long-courrier pèse plus lourd que des mois de gestes quotidiens. J'ai choisi le train et les régions voisines : j'y ai découvert des paysages que je traversais sans les voir. Voyager moins loin, c'est souvent voyager mieux.", b: "Pour des millions de familles dispersées entre plusieurs pays, l'avion n'est pas un luxe, mais le seul moyen de se revoir. Le tourisme fait aussi vivre des régions entières. Exigeons des compagnies qu'elles innovent plutôt que de culpabiliser les voyageurs." },
-      { titre: "Les gestes individuels suffisent-ils à protéger la planète ?", a: "Trier, réparer, manger local : chaque geste semble minuscule, mais multiplié par des millions, il change les habitudes et oblige les marques à suivre. Attendre que les autres commencent est la meilleure façon de ne rien faire.", b: "On demande aux citoyens de fermer le robinet pendant que quelques industries polluent sans limites. Cette morale arrange surtout ceux qui ne veulent pas de règles. Sans lois contraignantes ni contrôles, nos efforts resteront une goutte d'eau." },
-    ],
-    eo2: "Vous cherchez un appartement à louer. Je suis le propriétaire. Posez-moi au moins dix questions : loyer, charges, quartier, transports, voisinage, chauffage, date d'entrée…",
-    eo3: ["Le diplôme est-il encore la clé de l'emploi ?", "Faut-il interdire totalement les sacs et les bouteilles en plastique ?", "La protection de l'environnement est-elle compatible avec la croissance économique ?"],
-    gram: [["Reliez avec « tandis que » : La ville se développe. Les espaces verts reculent.", "La ville se développe tandis que les espaces verts reculent."], ["Complétez : ___ ses efforts, il n'a pas réussi. (malgré / bien que)", "Malgré ses efforts"], ["Reformulez avec « avoir beau » : Il trie ses déchets, mais il en produit toujours trop.", "Il a beau trier ses déchets, il en produit toujours trop."], ["Reformulez avec « certes… mais » : Cette mesure est efficace. Elle est injuste.", "Certes, cette mesure est efficace, mais elle est injuste."], ["Complétez : ___ que l'on dise, le problème demeure. (Quoi / Quoique)", "Quoi que l'on dise"]],
-  },
-  4: {
-    t1: "Vous avez commandé un appareil de cuisine en ligne : il est arrivé cassé. Écrivez au service client : rappelez votre commande, décrivez le problème, dites ce que vous demandez et dans quel délai.",
-    t2: "Racontez un voyage au cours duquel la cuisine locale vous a surpris. Décrivez le lieu, un repas en particulier, les personnes rencontrées, puis dites ce que ce voyage a changé dans vos habitudes.",
-    t3: [
-      { titre: "Faut-il devenir végétarien ?", a: "J'ai arrêté la viande il y a trois ans. Je me sens mieux, je dépense moins et je cuisine davantage. L'élevage intensif consomme énormément d'eau et de terres : chacun peut agir dès son prochain repas, sans attendre de grandes décisions politiques.", b: "La viande fait partie de nos cultures, de nos fêtes, de nos métiers. Consommée avec mesure, elle apporte des nutriments précieux. Plutôt que d'opposer les uns aux autres, soutenons les éleveurs qui travaillent bien et mangeons-en moins, mais de meilleure qualité." },
-      { titre: "La médecine à distance : une bonne solution ?", a: "Dans mon village, il fallait deux heures de route pour voir un spécialiste. Aujourd'hui, je le consulte par vidéo, sans perdre une journée de travail. Pour un renouvellement ou un simple conseil, c'est rapide et rassurant.", b: "Un écran ne palpe pas un ventre et n'entend pas une respiration. Les personnes âgées s'y perdent, et une connexion instable suffit à tout compromettre. Je crains surtout qu'on en profite pour fermer les derniers cabinets de campagne." },
-      { titre: "Les entreprises doivent-elles s'occuper de la santé de leurs salariés ?", a: "Salle de sport, fruits, soutien psychologique : notre employeur investit et tout le monde y gagne. Les arrêts maladie diminuent, l'ambiance s'améliore. Nous passons la majeure partie de nos journées au travail ; il est normal que la santé y ait sa place.", b: "Ma santé relève de ma vie privée. Un cours de yoga ne compense pas une charge de travail excessive. Avant d'offrir des paniers de fruits, que l'on respecte les horaires et que l'on recrute : voilà la vraie prévention." },
-    ],
-    eo2: "Vous souhaitez vous inscrire dans une salle de sport. Je suis à l'accueil. Posez-moi des questions : tarifs, horaires, activités, encadrement, essai, résiliation…",
-    eo3: ["L'intelligence artificielle va-t-elle remplacer les recruteurs ?", "Faut-il rendre les cantines scolaires gratuites ?", "Doit-on sanctionner ceux qui adoptent des comportements dangereux pour leur santé ?"],
-    gram: [["Complétez : Le médecin ___ je t'ai parlé exerce à Cocody. (dont / que)", "dont"], ["Complétez : La raison pour ___ il a refusé reste inconnue.", "laquelle"], ["Reliez : J'ai assisté à une conférence. Elle portait sur la nutrition. (à laquelle)", "La conférence à laquelle j'ai assisté portait sur la nutrition."], ["Complétez : Les habitudes ___ il tient sont mauvaises. (tenir à)", "auxquelles"], ["Complétez : Voici l'association grâce ___ j'ai retrouvé la forme.", "à laquelle"]],
-  },
-  5: {
-    t1: "Vous souhaitez suivre un cours du soir. Écrivez au responsable de la formation : présentez-vous, expliquez votre objectif, posez deux questions sur l'organisation et demandez un rendez-vous.",
-    t2: "Un enseignant ou un formateur a compté dans votre parcours. Dans un article pour le site de votre ancienne école, racontez une situation précise, ce qu'elle vous a apporté et pourquoi vous vous en souvenez encore.",
-    t3: [
-      { titre: "Faut-il supprimer les devoirs à la maison ?", a: "Les devoirs creusent les inégalités : certains enfants ont un bureau et des parents disponibles, d'autres non. Après huit heures de cours, ils ont besoin de jouer et de dormir. Ce qui n'est pas compris en classe ne le sera pas davantage à vingt heures.", b: "Refaire seul un exercice, c'est le moment où l'on apprend vraiment. Les devoirs donnent le goût de l'effort et permettent aux parents de suivre les progrès. Réduisons-les, proposons une aide dans l'établissement, mais ne les supprimons pas." },
-      { titre: "Étudier en ligne vaut-il une université classique ?", a: "Grâce aux cours en ligne, j'ai obtenu un diplôme reconnu sans quitter mon emploi ni ma famille. J'avance à mon rythme et je revois les leçons autant que nécessaire. Le savoir n'est plus réservé à ceux qui peuvent déménager.", b: "Une université, ce sont aussi des débats, des amitiés, un réseau. Seul devant son écran, beaucoup abandonnent avant la fin. Les travaux pratiques y sont impossibles et certains employeurs restent méfiants. On y gagne du temps, mais on y perd l'essentiel." },
-      { titre: "Faut-il redoubler quand on n'a pas le niveau ?", a: "Passer dans la classe supérieure sans les bases, c'est s'enfoncer chaque année davantage. J'ai redoublé et cette seconde chance m'a rendu confiance. Un an de plus n'est rien dans une vie, si l'on repart sur des fondations solides.", b: "Redoubler humilie et sépare l'enfant de ses amis pour lui servir exactement les mêmes cours. Un soutien ciblé, en petits groupes, coûte moins cher et donne de meilleurs résultats. On n'aide pas quelqu'un en le faisant reculer." },
-    ],
-    eo2: "Vous voulez inscrire votre enfant dans une école. Je suis la directrice ou le directeur. Posez-moi des questions : programme, effectifs, cantine, activités, frais, transport…",
-    eo3: ["L'école prépare-t-elle suffisamment à la vie professionnelle ?", "L'enseignement supérieur devrait-il être gratuit pour tous ?", "Apprend-on mieux de ses échecs que de ses réussites ?"],
-    gram: [["Si j'(avoir) plus de temps, je suivrais ce cours.", "avais"], ["Si elle avait su, elle (venir).", "serait venue"], ["Reformulez avec « si » : Il n'a pas révisé, donc il a échoué.", "S'il avait révisé, il n'aurait pas échoué."], ["Complétez : Au cas où vous (avoir) un empêchement, prévenez-nous.", "auriez"], ["Si tu avais écouté, tu (comprendre) aujourd'hui.", "comprendrais"]],
-  },
-  6: {
-    t1: "Vous ne pourrez pas assister à une fête de famille. Écrivez à votre cousine : excusez-vous, expliquez la raison, proposez une autre date et demandez-lui des nouvelles.",
-    t2: "Racontez une cérémonie ou une fête qui a réuni plusieurs générations de votre famille. Décrivez les préparatifs, le moment le plus émouvant et ce que cette journée représente pour vous.",
-    t3: [
-      { titre: "Faut-il rendre les transports publics gratuits ?", a: "Depuis la gratuité, les bus de ma ville sont pleins et le centre respire. Les étudiants et les retraités sortent davantage, les commerces en profitent. Un service utile à tous doit être payé par tous, comme l'école ou l'éclairage des rues.", b: "Rien n'est gratuit : ce que l'usager ne paie plus, le contribuable le paie, même s'il n'a aucun arrêt près de chez lui. Je préférerais des bus plus fréquents et plus propres. Les gens renoncent à leur voiture pour la qualité, pas pour le prix." },
-      { titre: "Vivre avec ses parents à l'âge adulte", a: "À trente ans, je vis chez mes parents par choix. Nous partageons les dépenses, je les aide, ils gardent mes enfants. Ailleurs, on appelle cela un échec ; chez nous, c'est de la solidarité. L'autonomie ne se mesure pas au nombre de clés que l'on possède.", b: "Tant qu'on vit chez ses parents, on reste un peu un enfant. Payer son loyer, gérer ses erreurs, recevoir qui l'on veut : c'est ainsi que l'on grandit. J'aime ma famille, et c'est justement pour préserver cette relation que je suis parti." },
-      { titre: "Maison de retraite ou maintien à domicile ?", a: "Ma mère a été transformée par son arrivée en résidence. Elle y a des amis, des soins et des activités. À la maison, je m'épuisais et elle s'ennuyait. Confier un parent à des professionnels n'est pas l'abandonner.", b: "Mon grand-père tient à son fauteuil, à son jardin, à ses voisins. Avec une aide quelques heures par jour, il garde ses repères et sa dignité. Les établissements manquent de personnel et l'on y vit au rythme des autres." },
-    ],
-    eo2: "Vous cherchez une personne pour garder vos enfants. Je suis intéressé par ce travail. Posez-moi des questions : expérience, disponibilités, tarif, langues, références…",
-    eo3: ["La famille reste-t-elle la valeur la plus importante aujourd'hui ?", "Les pères devraient-ils avoir un congé aussi long que celui des mères ?", "Les personnes âgées ont-elles encore une place dans nos sociétés ?"],
-    gram: [["Les photos que nous avons (prendre) sont réussies.", "prises"], ["Elles se sont (parler) toute la soirée.", "parlé (on parle à quelqu'un : pas d'accord)"], ["La robe qu'elle s'est (acheter) est belle.", "achetée"], ["Les enfants sont (partir) tôt.", "partis"], ["Combien de messages as-tu (recevoir) ?", "reçus"]],
-  },
-  7: {
-    t1: "Vous venez d'emménager. Écrivez à un ami : décrivez votre logement et votre quartier, donnez un avantage et un inconvénient, et invitez-le à venir vous voir.",
-    t2: "Vous avez vécu une journée de transport particulièrement compliquée. Racontez-la sur un forum de votre ville : les faits, les réactions des passagers, vos sentiments, et une proposition d'amélioration.",
-    t3: [
-      { titre: "Vivre en ville ou à la campagne ?", a: "Tout est à portée de pas : hôpital, emploi, cinéma. En ville, mes enfants rencontrent des gens de tous horizons. Le bruit existe, mais je le préfère à l'ennui et aux heures de voiture que m'imposerait un village.", b: "J'ai quitté la ville pour un jardin et des nuits silencieuses. Avec le travail à distance, l'argument de l'emploi ne tient plus. Nous dépensons moitié moins pour nous loger et nous connaissons nos voisins par leur prénom." },
-      { titre: "Faut-il limiter les locations touristiques ?", a: "Dans mon immeuble, la moitié des appartements est louée à la nuit. Les loyers flambent, l'école perd des classes, et nous ne croisons plus que des valises. Un logement doit d'abord servir à loger.", b: "Louer mon appartement quelques semaines par an me permet de payer mes charges. Les visiteurs font vivre les restaurants du quartier. On accuse les petits propriétaires pour masquer le vrai problème : on ne construit pas assez." },
-      { titre: "Le vélo peut-il remplacer la voiture ?", a: "Vingt minutes à vélo contre quarante en voiture : le calcul est vite fait. Je suis en meilleure forme et j'économise chaque mois. Que l'on construise des pistes sûres et les habitants suivront naturellement.", b: "Avec deux enfants, des courses et quinze kilomètres à parcourir sous la pluie, le vélo relève du rêve. Les pistes prennent la place des bus et des livreurs. La ville ne doit pas être pensée pour les seuls jeunes actifs du centre." },
-    ],
-    eo2: "Vous voulez acheter une voiture d'occasion. Je suis le vendeur. Posez-moi des questions : kilométrage, entretien, accidents, consommation, prix, papiers, essai…",
-    eo3: ["Faut-il interdire la voiture en centre-ville ?", "Être propriétaire est-il un signe de réussite ?", "Les grandes villes sont-elles devenues invivables ?"],
-    gram: [["Nominalisez : Parce que les loyers augmentent, les jeunes partent.", "En raison de l'augmentation des loyers, les jeunes partent."], ["Nominalisez : La ville a construit un pont.", "la construction d'un pont par la ville"], ["Passif : La mairie rénovera ce quartier.", "Ce quartier sera rénové par la mairie."], ["Passif : On a fermé trois lignes de bus.", "Trois lignes de bus ont été fermées."], ["Nominalisez : Il est nécessaire de réduire le bruit.", "La réduction du bruit est nécessaire."]],
-  },
-  8: {
-    t1: "Vous voulez vendre un meuble. Écrivez une annonce sous forme de message à vos collègues : décrivez l'objet, donnez son prix, expliquez pourquoi vous le vendez et comment le récupérer.",
-    t2: "Vous avez regretté un achat. Racontez cette expérience sur un site de consommateurs : les circonstances, votre déception, vos démarches, et vos conseils pour éviter la même erreur.",
-    t3: [
-      { titre: "Acheter d'occasion : effet de mode ou vraie solution ?", a: "Presque toute ma garde-robe est d'occasion. Je paie trois fois moins, je trouve des pièces uniques et je n'encourage pas la surproduction. Donner une seconde vie aux objets est l'une des rares habitudes bonnes pour le portefeuille et pour la planète.", b: "Parce que c'est bon marché, on achète deux fois plus. Les colis traversent le pays et les placards débordent. L'occasion nous donne bonne conscience sans changer le fond : nous consommons trop. Mieux vaut acheter peu, neuf et durable." },
-      { titre: "Faut-il ouvrir les magasins le dimanche ?", a: "Le dimanche est le seul jour où je peux faire mes courses tranquillement. Les salariés volontaires sont mieux payés, les étudiants trouvent un emploi et les centres-villes s'animent. Chacun reste libre de ne pas y aller.", b: "Le volontariat est un mot commode : qui ose refuser devant son patron ? Le dimanche est le dernier jour commun, celui des repas, du sport, des amis. Une société où tout s'achète à toute heure finit par n'avoir plus de temps pour rien." },
-      { titre: "Faut-il interdire la publicité destinée aux enfants ?", a: "Un enfant ne distingue pas une information d'un message commercial. On lui vend des sucreries entre deux dessins animés, et ce sont les parents qui doivent dire non. Protéger un public aussi vulnérable est une évidence.", b: "La publicité finance des programmes gratuits. La supprimer, c'est condamner une partie de la création pour la jeunesse. Et les enfants en verront toujours ailleurs : apprenons-leur plutôt à reconnaître les techniques qui cherchent à les séduire." },
-    ],
-    eo2: "Vous souhaitez ouvrir un compte bancaire. Je suis conseiller. Posez-moi des questions : frais, carte, application, épargne, virements à l'étranger, documents…",
-    eo3: ["L'argent fait-il le bonheur ?", "Les achats en ligne vont-ils faire disparaître les petits commerces ?", "Faut-il supprimer l'argent liquide ?"],
-    gram: [["Gérondif : Quand on compare les prix, on économise.", "En comparant les prix, on économise."], ["Participe présent : Les clients qui possèdent une carte paient moins.", "Les clients possédant une carte paient moins."], ["Gérondif : Il s'est ruiné parce qu'il achetait à crédit.", "Il s'est ruiné en achetant à crédit."], ["Participe présent : Comme il n'avait plus d'argent, il est rentré.", "N'ayant plus d'argent, il est rentré."], ["Complétez : C'est en (forger) qu'on devient forgeron.", "forgeant"]],
-  },
-  9: {
-    t1: "Un ami va s'installer dans votre ville. Écrivez-lui : souhaitez-lui la bienvenue, donnez trois conseils pratiques, prévenez-le d'une difficulté et proposez votre aide.",
-    t2: "Racontez une situation où vous avez dû vous adapter à une culture différente de la vôtre. Décrivez le contexte, un malentendu, la manière dont vous l'avez surmonté et ce que vous avez appris.",
-    t3: [
-      { titre: "Faut-il exiger la langue du pays avant d'immigrer ?", a: "Sans la langue, impossible de travailler à son niveau, de suivre l'école de ses enfants ou de connaître ses droits. L'exiger avant le départ, c'est éviter l'isolement et donner à chacun une chance réelle de réussir.", b: "C'est sur place, au contact des gens, que l'on apprend le mieux. Les cours et les examens coûtent cher et écartent des travailleurs dont le pays a besoin. Offrons plutôt une formation gratuite dès l'arrivée." },
-      { titre: "Faut-il reconnaître automatiquement les diplômes étrangers ?", a: "Ingénieure dans mon pays, j'ai livré des repas pendant deux ans. Ce gâchis est absurde quand les entreprises cherchent des spécialistes. Reconnaître les diplômes rapidement profite aux nouveaux arrivants comme à l'économie.", b: "Les normes, les lois et les pratiques varient d'un pays à l'autre. Dans la santé ou la construction, une erreur peut coûter une vie. Vérifier les compétences n'est pas discriminer ; le vrai problème, c'est la lenteur des procédures." },
-      { titre: "Garder sa langue d'origine ou adopter celle du pays ?", a: "À la maison, nous parlons notre langue. Mes enfants peuvent rire avec leurs grands-parents et savent d'où ils viennent. Leur français n'en souffre pas : connaître deux langues ouvre l'esprit et, plus tard, des portes.", b: "Nous avons choisi le français, même en famille. Nos enfants n'ont eu aucun retard à l'école et se sont fait des amis aussitôt. Nos racines, nous les transmettons autrement : par la cuisine, la musique, les récits." },
-    ],
-    eo2: "Vous venez d'arriver au Canada. Je travaille dans un centre d'aide aux nouveaux arrivants. Posez-moi des questions : logement, emploi, école, santé, cours de langue, démarches…",
-    eo3: ["L'immigration est-elle une réponse à la pénurie de main-d'œuvre ?", "S'intégrer signifie-t-il renoncer à une partie de soi ?", "Faut-il avoir vécu à l'étranger pour être vraiment ouvert d'esprit ?"],
-    gram: [["Discours rapporté : Il a dit : « Je partirai demain. »", "Il a dit qu'il partirait le lendemain."], ["Discours rapporté : Elle m'a demandé : « Où habites-tu ? »", "Elle m'a demandé où j'habitais."], ["Discours rapporté : Il a affirmé : « J'ai fini hier. »", "Il a affirmé qu'il avait fini la veille."], ["Discours rapporté : Elle nous a dit : « Attendez ici. »", "Elle nous a dit d'attendre là."], ["Discours rapporté : Il a demandé : « Qu'est-ce qui se passe ? »", "Il a demandé ce qui se passait."]],
-  },
-  10: {
-    t1: "Vous avez lu un article intéressant. Écrivez à une collègue pour le lui recommander : dites où vous l'avez trouvé, résumez-le, expliquez pourquoi il peut lui servir et proposez d'en discuter.",
-    t2: "Vous avez cru à une fausse information, ou quelqu'un de votre entourage y a cru. Racontez les faits sur votre blogue : comment vous l'avez découvert, les conséquences, et vos conseils pour vérifier une source.",
-    t3: [
-      { titre: "Faut-il s'informer sur les réseaux sociaux ?", a: "Les réseaux donnent la parole à ceux que les grands médias ignorent. J'y suis des chercheurs, des témoins, des journalistes indépendants. L'information y arrive en direct et chacun peut la discuter. À nous de choisir nos sources avec soin.", b: "Sur les réseaux, l'indignation voyage plus vite que les faits. Un programme décide de ce que je vois et me conforte dans mes opinions. Un journal se trompe parfois, mais il vérifie, corrige et signe. Cela n'a pas de prix." },
-      { titre: "Les journaux papier ont-ils un avenir ?", a: "Le papier impose une pause : pas de notification, pas de vidéo qui se lance. J'y lis des articles que je n'aurais jamais cherchés. Tant que des lecteurs auront besoin de recul, il gardera sa place, surtout le week-end.", b: "Imprimer la nuit des nouvelles déjà vieilles au matin n'a plus de sens. Le numérique coûte moins, se met à jour et s'enrichit de cartes ou de sons. Ce qu'il faut sauver, c'est le journalisme, pas le papier." },
-      { titre: "Faut-il lever l'anonymat sur Internet ?", a: "Derrière un pseudonyme, certains insultent et menacent sans jamais répondre de leurs actes. Dans la rue, personne n'oserait. Si chacun signait de son nom, les échanges redeviendraient civilisés et les victimes seraient entendues.", b: "L'anonymat protège la salariée qui dénonce un abus, le jeune qui cherche de l'aide, l'opposant menacé. La police sait déjà retrouver les auteurs de délits. Supprimer les pseudonymes ferait surtout taire les plus vulnérables." },
-    ],
-    eo2: "Vous voulez vous abonner à un journal. Je travaille au service des abonnements. Posez-moi des questions : formules, prix, contenu, essai, application, résiliation…",
-    eo3: ["Les médias donnent-ils une image trop négative du monde ?", "Peut-on faire confiance aux journalistes aujourd'hui ?", "Faut-il limiter le temps d'écran par la loi ?"],
-    gram: [["Mise en relief : La rapidité me frappe. (ce qui… c'est)", "Ce qui me frappe, c'est la rapidité."], ["Mise en relief : On oublie souvent la source. (ce que… c'est)", "Ce que l'on oublie souvent, c'est la source."], ["Négation : Il lit encore les journaux et les magazines. (ne… plus… ni… ni)", "Il ne lit plus ni les journaux ni les magazines."], ["Négation : Quelqu'un a déjà vérifié. (personne… encore)", "Personne n'a encore vérifié."], ["Restriction : Il regarde seulement les titres. (ne… que)", "Il ne regarde que les titres."]],
-  },
-  11: {
-    t1: "Vous avez deux billets pour un spectacle. Écrivez à un ami : présentez le spectacle, dites pourquoi vous avez pensé à lui, donnez les détails pratiques et demandez une réponse rapide.",
-    t2: "Vous avez visité un lieu culturel qui vous a marqué (musée, site historique, festival). Écrivez un article pour un magazine de voyage : décrivez le lieu, votre visite, vos impressions, et recommandez-le ou non.",
-    t3: [
-      { titre: "Les musées doivent-ils être gratuits ?", a: "L'art appartient à tous. Dans les villes où l'entrée est libre, on voit des familles qui n'auraient jamais osé franchir la porte. On peut venir une demi-heure, revenir, flâner. La culture ne doit pas dépendre du porte-monnaie.", b: "Conserver des œuvres coûte cher. Si l'entrée est gratuite, qui paiera les gardiens et les restaurations ? Le prix n'est d'ailleurs pas le vrai obstacle : c'est le sentiment de ne pas être à sa place. Investissons plutôt dans les écoles." },
-      { titre: "Le tourisme de masse : une chance ou une menace ?", a: "Mon île vit de ses visiteurs. Grâce à eux, les jeunes trouvent un emploi sans s'exiler, les routes sont entretenues et notre artisanat a survécu. Ceux qui critiquent le tourisme oublient souvent qu'ils en vivent indirectement.", b: "En été, nous ne pouvons plus nous loger ni circuler. Les plages s'abîment, l'eau manque, et les boutiques vendent des souvenirs fabriqués ailleurs. Accueillir moins de monde, plus longtemps, rapporterait autant et détruirait moins." },
-      { titre: "Lire un livre ou regarder son adaptation ?", a: "En lisant, j'invente les visages, les voix, les décors. Aucun film n'égale cette liberté. Un roman prend son temps, entre dans les pensées et laisse une trace durable. L'adaptation n'en garde souvent que l'intrigue.", b: "C'est une série qui m'a donné envie d'ouvrir le roman. L'image et la musique touchent des publics que les livres intimident. Une bonne adaptation n'est pas une copie : c'est une autre œuvre, qui prolonge la première." },
-    ],
-    eo2: "Vous préparez un séjour d'une semaine dans ma région. Je travaille à l'office de tourisme. Posez-moi des questions : hébergement, visites, transports, climat, budget, événements…",
-    eo3: ["La culture doit-elle être financée par l'État ?", "Voyager rend-il plus tolérant ?", "Le sport et les jeux vidéo ont-ils remplacé la lecture chez les jeunes ?"],
-    gram: [["Registre soutenu : J'ai pas compris votre truc.", "Je n'ai pas saisi votre proposition."], ["Registre soutenu : Est-ce que vous pouvez m'aider ?", "Pourriez-vous m'aider ? / Auriez-vous l'amabilité de m'aider ?"], ["Registre courant : Le gamin a piqué un bouquin.", "L'enfant a volé un livre."], ["Registre soutenu : On s'est vachement amusés.", "Nous nous sommes beaucoup amusés."], ["Formule finale d'un courriel formel ?", "Je vous prie d'agréer, Madame, Monsieur, mes salutations distinguées."]],
-  },
-  12: {
-    t1: "Votre club de sport cherche des bénévoles pour un tournoi. Écrivez aux membres : annoncez l'événement, précisez les besoins, donnez les horaires et encouragez-les à participer.",
-    t2: "Vous avez relevé un défi physique ou personnel. Racontez-le dans le bulletin de votre entreprise : votre motivation, la préparation, le moment le plus difficile, et ce que vous conseillez à vos collègues.",
-    t3: [
-      { titre: "Le sport de haut niveau est-il un bon exemple ?", a: "Les champions montrent que le travail paie. Ils donnent envie aux enfants de bouger et réunissent un pays entier autour d'une même émotion. Leur discipline et leur respect des règles valent bien des leçons de morale.", b: "Salaires indécents, dopage, blessures cachées : le sport professionnel met en avant la victoire à tout prix. Pour un champion, combien de jeunes abandonnés sans diplôme ? Le vrai modèle, c'est l'éducateur du quartier, que personne ne filme." },
-      { titre: "Faut-il imposer le sport en entreprise ?", a: "Deux heures par semaine, pendant le temps de travail : c'est peu, et pourtant l'équipe dort mieux et communique davantage. Ceux qui n'osaient pas s'y mettre ont découvert qu'ils aimaient cela. Sans un petit coup de pouce, rien n'aurait changé.", b: "Le corps de chacun ne regarde pas son employeur. Certains ont une maladie, d'autres une simple pudeur. Imposer une activité crée de la gêne et des comparaisons. Proposer, oui ; obliger, jamais." },
-      { titre: "La méditation : remède ou mode passagère ?", a: "Dix minutes chaque matin ont changé mon rapport au stress. Je réagis moins vite, je dors mieux, et cela ne coûte rien. Que la pratique soit à la mode m'importe peu, si elle aide des gens à souffrir moins.", b: "On nous invite à respirer plutôt qu'à changer ce qui nous épuise. Applications payantes, stages hors de prix : le bien-être est devenu un marché. La méditation peut apaiser, mais elle ne remplace ni un médecin ni de meilleures conditions de travail." },
-    ],
-    eo2: "Vous voulez participer à une course à pied dans ma ville. Je suis l'organisateur. Posez-moi des questions : parcours, distance, inscription, matériel, sécurité, hébergement…",
-    eo3: ["Le sport rassemble-t-il vraiment les gens ?", "Notre société est-elle obsédée par le bien-être ?", "Faut-il donner plus de place au sport à l'école qu'aux matières classiques ?"],
-    gram: [["Corrigez : Je vous écris a propos du tournoi qui a eu lieux hier.", "Je vous écris à propos du tournoi qui a eu lieu hier."], ["Corrigez : Les équipes ce sont bien préparé.", "Les équipes se sont bien préparées."], ["Corrigez : Malgré qu'il pleut, nous jouerons.", "Bien qu'il pleuve, nous jouerons."], ["Corrigez : C'est le sport que j'ai besoin.", "C'est le sport dont j'ai besoin."], ["Corrigez : Je suis convaincu que il y a des lieux publiques adapté.", "Je suis convaincu qu'il y a des lieux publics adaptés."]],
-  },
-  13: {
-    t1: "Vous avez reçu de l'aide pour préparer un examen. Écrivez à cette personne : remerciez-la, rappelez ce qu'elle a fait, donnez de vos nouvelles et proposez de la revoir.",
-    t2: "Racontez une étape importante de votre vie que vous avez longuement préparée. Décrivez la préparation, le jour venu, vos émotions et ce que cette étape vous a appris.",
-    t3: [
-      { titre: "Faut-il toujours avoir un plan de carrière ?", a: "Savoir où l'on va permet de choisir ses formations, de refuser les distractions et de mesurer ses progrès. Sans objectif, on subit. Mon plan a changé trois fois, mais c'est parce que j'en avais un que j'ai pu l'ajuster.", b: "Mes plus belles chances sont nées d'un hasard : une rencontre, un échec, un déménagement. À trop suivre un plan, on passe à côté de ce qui surgit. Dans un monde qui change si vite, mieux vaut être curieux que prévoyant." },
-      { titre: "Le bénévolat doit-il être obligatoire pour les jeunes ?", a: "Quelques mois au service des autres apprennent plus que bien des cours. On rencontre des personnes que l'on n'aurait jamais croisées, on découvre un métier, on gagne en confiance. Rendre ce temps obligatoire garantirait qu'il profite à tous.", b: "Un don imposé n'est plus un don. Beaucoup de jeunes travaillent déjà pour payer leurs études. Encourageons l'engagement, reconnaissons-le dans les diplômes, mais laissons chacun choisir sa cause et son moment." },
-      { titre: "Vivre lentement : un luxe ?", a: "J'ai réduit mes heures, mes achats et mes écrans. Je gagne moins, mais je cuisine, je lis et je vois grandir mes enfants. Ralentir n'est pas une question d'argent : c'est une question de priorités.", b: "Ralentir suppose d'avoir un toit, un revenu et des économies. Celui qui cumule deux emplois n'a pas le choix du rythme. Avant de vanter la lenteur, assurons à chacun de quoi vivre dignement." },
-    ],
-    eo2: "Vous voulez suivre une formation professionnelle. Je suis le conseiller. Posez-moi des questions : contenu, durée, coût, débouchés, conditions d'admission, rythme…",
-    eo3: ["Réussir sa vie, est-ce réussir professionnellement ?", "Faut-il prendre des risques pour progresser ?", "Vit-on mieux aujourd'hui qu'à l'époque de nos grands-parents ?"],
-    gram: [["Corrigez : a mes yeux, je pense que c'est utile.", "À mes yeux, c'est utile. / Je pense que c'est utile."], ["Corrigez : dans la mesure ou il réduit les frais", "dans la mesure où il réduit les frais"], ["Corrigez : De se fait, les administration ferment.", "De ce fait, les administrations ferment."], ["Corrigez : autant dangereux que utile", "aussi dangereux qu'utile"], ["Corrigez : ça dépend de comment ils sont utilisés", "tout dépend de la manière dont ils sont utilisés"]],
-  },
-};
+import { TCF, dayPlan, weekOf, weekday, type DayItem } from "./formation";
+import { EO1_QUESTIONS, SUJETS, type SujetT3 } from "./sujetsData";
+import { SUITE } from "./sujetsSuite";
 
 export type Exercice =
-  | { kind: "ee1" | "ee2"; titre: string; consigne: string; mots: string; temps: string }
-  | { kind: "ee3"; titre: string; sujet: SujetT3; mots: string; temps: string }
-  | { kind: "eo1"; titre: string; questions: string[] }
-  | { kind: "eo2" | "eo3"; titre: string; consigne: string; temps: string }
-  | { kind: "gram"; titre: string; items: Array<[string, string]> };
+  | { kind: "ee1" | "ee2" | "eo2" | "eo3"; titre: string; temps: string; consigne: string }
+  | { kind: "ee3"; titre: string; temps: string; sujet: SujetT3 }
+  | { kind: "eo1"; titre: string; temps: string; questions: string[] }
+  | { kind: "gram"; titre: string; temps: string; items: Array<[string, string]> };
 
-const ee1 = (c: string): Exercice => ({ kind: "ee1", titre: "Tâche 1 : message", consigne: c, mots: "60 à 120 mots", temps: "12 min" });
-const ee2 = (c: string): Exercice => ({ kind: "ee2", titre: "Tâche 2 : récit ou article", consigne: c, mots: "120 à 150 mots", temps: "18 min" });
-const ee3 = (s: SujetT3): Exercice => ({ kind: "ee3", titre: "Tâche 3 : synthèse et opinion", sujet: s, mots: "120 à 180 mots (synthèse 40 à 60, opinion 80 à 120)", temps: "27 min" });
-const eo2 = (c: string): Exercice => ({ kind: "eo2", titre: "Tâche 2 : obtenir des informations", consigne: c, temps: "2 min de préparation, 3 min 30 d'échange" });
-const eo3 = (c: string): Exercice => ({ kind: "eo3", titre: "Tâche 3 : donner son point de vue", consigne: c, temps: "4 min 30, sans préparation" });
+export const KINDS: Array<{ kind: Exercice["kind"]; label: string }> = [
+  { kind: "ee1", label: "Écrit · tâche 1" },
+  { kind: "ee2", label: "Écrit · tâche 2" },
+  { kind: "ee3", label: "Écrit · tâche 3" },
+  { kind: "eo1", label: "Oral · tâche 1" },
+  { kind: "eo2", label: "Oral · tâche 2" },
+  { kind: "eo3", label: "Oral · tâche 3" },
+  { kind: "gram", label: "Grammaire" },
+];
+
+/** Consignes au format du TCF Canada. */
+export const CONSIGNES: Record<Exercice["kind"], string[]> = {
+  ee1: ["Rédigez un message de 60 à 120 mots, adapté au destinataire.", "Décrivez, racontez ou expliquez : répondez à tous les points demandés.", "Temps conseillé : 12 minutes sur les 60 de l'épreuve."],
+  ee2: ["Rédigez un article, un courrier ou une note de 120 à 150 mots pour plusieurs destinataires.", "Faites le compte rendu d'une expérience ou racontez, avec des commentaires, des opinions ou des arguments.", "Temps conseillé : 18 minutes."],
+  ee3: [
+    "Lisez les deux documents : ils présentent deux points de vue opposés.",
+    "Partie 1 (40 à 60 mots) : comparez les deux points de vue avec vos propres mots, sans donner votre avis.",
+    "Partie 2 (80 à 120 mots) : donnez votre position sur le thème, avec des arguments et des exemples.",
+    "Texte de 120 à 180 mots au total. Temps conseillé : 27 minutes.",
+  ],
+  eo1: ["Entretien dirigé, sans préparation : environ 2 minutes.", "Échangez avec l'examinateur, que vous ne connaissez pas : parlez de vous, de votre entourage, de votre vie."],
+  eo2: ["2 minutes de préparation, puis 3 min 30 d'échange.", "C'est vous qui menez la conversation : posez des questions pour obtenir les informations, dans la situation indiquée.", "Choisissez « tu » ou « vous » selon le rôle de l'examinateur."],
+  eo3: ["Expression d'un point de vue, sans préparation : 4 min 30.", "Répondez à la question posée : prenez position, argumentez, donnez des exemples."],
+  gram: ["Répondez par écrit avant de dévoiler chaque réponse.", "Réécrivez la phrase entière, puis notez l'erreur dans le carnet si vous vous êtes trompé."],
+};
+
+export const METHODES: Record<Exercice["kind"], { etapes: string[]; modele?: string }> = {
+  ee1: {
+    etapes: [
+      "1 min : repérez le destinataire (tu ou vous), le but, et soulignez chaque information demandée.",
+      "2 min : notez un mot par information, dans l'ordre de l'énoncé.",
+      "7 min : une salutation, une phrase pour dire pourquoi vous écrivez, une phrase par information, une formule finale.",
+      "2 min : relisez « a / à », les accords et les pluriels, puis comptez les mots.",
+    ],
+    modele: "Bonjour [prénom],\nJe t'écris pour [raison]. [Une phrase par information demandée.] Pourrais-tu me répondre avant [date] ?\nBien à toi, [prénom]",
+  },
+  ee2: {
+    etapes: [
+      "2 min : choisissez une expérience précise ; notez quand, où, qui, le moment fort, le bilan.",
+      "12 min : contexte, récit au passé composé et à l'imparfait, moment fort détaillé, votre ressenti, un conseil au lecteur.",
+      "2 min : ajoutez deux connecteurs de temps et une opinion justifiée.",
+      "2 min : relisez les temps du passé et les accords des participes, puis comptez les mots.",
+    ],
+    modele: "[Date ou période], j'ai vécu [événement]. Ce qui m'a le plus marqué, c'est [moment fort]. Depuis, [ce que j'en retiens]. Je recommande [conseil] à tous ceux qui [public].",
+  },
+  ee3: {
+    etapes: [
+      "0 à 4 min : lisez les documents et soulignez deux idées dans chacun.",
+      "4 à 6 min : trouvez vos idées avec SAPEST (Santé, Argent, Personnes, Environnement, Sécurité et règles, Temps) ; gardez un pour, un contre et un exemple vécu.",
+      "6 à 10 min : partie 1, environ 50 mots, sans recopier ni donner votre avis.",
+      "10 à 21 min : partie 2, environ 110 mots : position, deux arguments avec exemples, une concession, une conclusion.",
+      "21 à 24 min : trois relectures : « a / à », accords des adjectifs, pluriels après les, des, ces.",
+      "24 à 27 min : comptez les mots et coupez au-delà de 180.",
+    ],
+    modele:
+      "Partie 1 : Ces deux documents abordent [thème] sous des angles opposés. D'un côté, le premier estime que [idées]. De l'autre, le second souligne [idées].\nPartie 2 : À l'heure où [contexte], la question de [thème] divise. Pour ma part, je suis convaincu que [position]. D'une part, [argument et exemple]. Certes, [concession], mais [dépassement]. En définitive, [conclusion].",
+  },
+  eo1: {
+    etapes: [
+      "Répondez par trois ou quatre phrases : un fait, un détail, une raison, un exemple.",
+      "Variez les temps : ce que vous faisiez, ce que vous faites, ce que vous ferez.",
+      "Ne récitez pas : regardez l'examinateur et enchaînez naturellement.",
+      "Enregistrez-vous 2 minutes, réécoutez, notez trois erreurs.",
+    ],
+    modele: "Je travaille dans [domaine] depuis [durée]. Ce qui me plaît avant tout, c'est [raison]. Par exemple, [situation]. À l'avenir, j'aimerais [projet].",
+  },
+  eo2: {
+    etapes: [
+      "Préparation (2 min) : notez six thèmes de questions (prix, date, lieu, conditions, avantages, imprévus), en mots-clés.",
+      "Ouverture : saluez, dites qui vous êtes et ce que vous cherchez.",
+      "Posez dix à douze questions en variant les formes : inversion, « est-ce que », « pourriez-vous me dire si… », question indirecte.",
+      "Réagissez à chaque réponse : étonnement, accord, demande de précision, négociation.",
+      "Concluez : résumez, prenez une décision ou un rendez-vous, remerciez.",
+    ],
+    modele: "Bonjour, je vous contacte au sujet de [situation]. J'aurais quelques questions à vous poser.\nPourriez-vous m'indiquer… ? J'aimerais savoir si… Et dans le cas où… ? Très bien, si je résume…",
+  },
+  eo3: {
+    etapes: [
+      "Prenez cinq secondes : choisissez une position et deux arguments.",
+      "Introduction (30 s) : reformulez la question, annoncez votre position.",
+      "Développement (3 min) : argument, explication, exemple concret ; puis un second.",
+      "Concession (30 s) : reconnaissez l'autre avis, puis dépassez-le.",
+      "Conclusion (30 s) : reprenez votre position et ouvrez.",
+      "Enregistrez-vous, transcrivez une minute, corrigez-la.",
+    ],
+    modele: "La question de [thème] suscite un vif débat. Pour ma part, j'estime que… Tout d'abord… En effet… Prenons l'exemple de… Certes… il n'en demeure pas moins que… En somme…",
+  },
+  gram: { etapes: ["Relisez la règle de la semaine.", "Faites les phrases d'un trait, sans aide.", "Vérifiez, puis écrivez trois phrases personnelles avec la même structure."] },
+};
+
+const ee1 = (c: string): Exercice => ({ kind: "ee1", titre: "Expression écrite · tâche 1", consigne: c, temps: "60 à 120 mots · 12 min" });
+const ee2 = (c: string): Exercice => ({ kind: "ee2", titre: "Expression écrite · tâche 2", consigne: c, temps: "120 à 150 mots · 18 min" });
+const ee3 = (s: SujetT3): Exercice => ({ kind: "ee3", titre: "Expression écrite · tâche 3", sujet: s, temps: "120 à 180 mots · 27 min" });
+const eo2 = (c: string): Exercice => ({ kind: "eo2", titre: "Expression orale · tâche 2", consigne: c, temps: "2 min de préparation, 3 min 30 d'échange" });
+const eo3 = (c: string): Exercice => ({ kind: "eo3", titre: "Expression orale · tâche 3", consigne: `${c} Pourquoi ?`, temps: "4 min 30, sans préparation" });
+const EO1: Exercice = { kind: "eo1", titre: "Expression orale · tâche 1", temps: "2 min, sans préparation", questions: EO1_QUESTIONS };
+const gram = (items: Array<[string, string]>): Exercice => ({ kind: "gram", titre: "Grammaire de la semaine", temps: `${items.length} phrases`, items });
+
+function ofWeek(n: number, kind: Exercice["kind"]): Exercice[] {
+  const s = SUJETS[n];
+  switch (kind) {
+    case "ee1":
+      return [ee1(s.t1)];
+    case "ee2":
+      return [ee2(s.t2)];
+    case "ee3":
+      return s.t3.map((x, i) => ee3({ titre: x.titre, a: `${x.a} ${SUITE[n][2 * i]}`, b: `${x.b} ${SUITE[n][2 * i + 1]}` }));
+    case "eo1":
+      return [EO1];
+    case "eo2":
+      return [eo2(s.eo2)];
+    case "eo3":
+      return s.eo3.map(eo3);
+    default:
+      return [gram(s.gram)];
+  }
+}
 
 /** Position du jour parmi lundi, mercredi et vendredi. */
 const triple = (d: number) => (d === 3 ? 1 : d === 5 ? 2 : 0);
 
-/** Exercices à faire pour une tâche du jour ; vide si la tâche n'en demande pas (ou hors programme TCF). */
-export function exercicesFor(date: string, item: Pick<DayItem, "topic" | "lang">): Exercice[] {
-  if (item.lang !== "tcf") return [];
+/**
+ * Exercice à faire pour une tâche du jour : un seul sujet par tâche de l'épreuve. Vide si la tâche n'en demande pas,
+ * ou si le test TCF Canada du jour fournit déjà le sujet.
+ */
+export function exercicesFor(date: string, item: Pick<DayItem, "topic" | "lang" | "tool">): Exercice[] {
   const week = weekOf(date);
-  const s = week?.prog === "tcf" ? SUJETS[week.n] : undefined;
-  if (!s) return [];
+  if (item.lang !== "tcf" || item.tool === "tcf" || week?.prog !== "tcf" || !SUJETS[week.n]) return [];
   const i = triple(weekday(date));
+  const one = (k: Exercice["kind"], at = 0) => [ofWeek(week.n, k)[at]];
   switch (item.topic) {
     case "tcf-ee12":
-      return [ee1(s.t1), ee2(s.t2)];
+      return [...one("ee1"), ...one("ee2")];
     case "tcf-ee3":
-      return [ee3(s.t3[i])];
+      return one("ee3", i);
     case "tcf-eo1":
-      return [{ kind: "eo1", titre: "Tâche 1 : entretien dirigé (2 min)", questions: EO1_QUESTIONS }];
+      return one("eo1");
     case "tcf-eo2":
-      return [eo2(s.eo2)];
+      return one("eo2");
     case "tcf-eo3":
-      return [eo3(s.eo3[i])];
+      return one("eo3", i);
     case "tcf-grammaire":
-      return [{ kind: "gram", titre: "Exercices de grammaire", items: s.gram }];
+      return one("gram");
     default:
       return [];
   }
 }
 
-/** Autres sujets du même type, pour s'entraîner davantage : ceux de la semaine d'abord, puis les autres thèmes. */
-export function autresSujets(date: string, item: Pick<DayItem, "topic" | "lang">): Exercice[] {
-  const now = exercicesFor(date, item);
-  const n = weekOf(date)?.n ?? 0;
-  if (!now.length) return [];
-  const weeks = Object.keys(SUJETS).map(Number).sort((a, b) => Number(b === n) - Number(a === n) || a - b);
-  const all = weeks.flatMap((w) => {
-    const s = SUJETS[w];
-    switch (item.topic) {
-      case "tcf-ee12":
-        return [ee1(s.t1), ee2(s.t2)];
-      case "tcf-ee3":
-        return s.t3.map(ee3);
-      case "tcf-eo2":
-        return [eo2(s.eo2)];
-      case "tcf-eo3":
-        return s.eo3.map(eo3);
-      default:
-        return [];
-    }
-  });
-  const seen = new Set(now.map(intitule));
-  return all.filter((x) => !seen.has(intitule(x)));
+/** Banque complète d'un type de sujet, par thème. */
+export function sujetsOf(kind: Exercice["kind"]): Array<{ n: number; theme: string; items: Exercice[] }> {
+  if (kind === "eo1") return [{ n: 0, theme: "Tous les thèmes", items: [EO1] }];
+  return TCF.weeks.filter((w) => SUJETS[w.n]).map((w) => ({ n: w.n, theme: kind === "gram" ? (w.grammar ?? w.theme) : w.theme, items: ofWeek(w.n, kind) }));
 }
 
 /** Intitulé court d'un exercice, pour la ligne affichée sous la tâche du jour. */
@@ -257,9 +180,7 @@ export function intitule(e: Exercice): string {
   }
 }
 
-/** Jours du programme dont une tâche d'expression ou de grammaire n'a pas d'exercice (contrôle). */
+/** Jours dont une tâche d'expression ou de grammaire n'a ni sujet ni test de l'application (contrôle). */
 export function joursSansExercice(days: string[]): string[] {
-  return days.filter((d) =>
-    dayPlan(d)?.items.some((it) => /^tcf-(ee|eo|grammaire)/.test(it.topic) && !exercicesFor(d, it).length),
-  );
+  return days.filter((d) => dayPlan(d)?.items.some((it) => /^tcf-(ee|eo|grammaire)/.test(it.topic) && it.tool !== "tcf" && !exercicesFor(d, it).length));
 }

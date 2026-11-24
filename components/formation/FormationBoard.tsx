@@ -1,5 +1,6 @@
 "use client";
 
+import { SujetsView } from "./SujetsView";
 import { UsageView } from "./UsageView";
 import type { UsageRow } from "@/lib/aiUsage";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -40,6 +41,7 @@ import {
   IconBook,
   IconCalendar,
   IconCheck,
+  IconFile,
   IconGauge,
   IconPencil,
   IconRoute,
@@ -61,6 +63,7 @@ import type { Quiz } from "@/lib/quiz";
 const TABS = [
   "jour",
   "exercices",
+  "sujets",
   "tcf",
   "semaines",
   "calendrier",
@@ -305,6 +308,11 @@ export function FormationBoard({
                     : { text: "du jour", tone: "signal" },
               },
               {
+                id: "sujets",
+                label: "Sujets",
+                icon: <IconFile size={15} />,
+              },
+              {
                 id: "semaines",
                 label: "Semaines",
                 icon: <IconRoute size={15} />,
@@ -496,6 +504,7 @@ export function FormationBoard({
             canEdit={canEdit}
           />
         )}
+        {tab === "sujets" && <SujetsView week={weekOf(today)?.n ?? 0} />}
         {tab === "conso" && canEdit && <UsageView rows={usage} today={today} />}
         {tab === "semaines" && (
           <WeeksView
